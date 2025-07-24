@@ -54,31 +54,31 @@ app.use('/OrderReserve', require('./OrderReserveEmail'));
 app.use('/OrderCart', require('./OrderCartEmail'));
 
 
-// Image upload with multer
+const path = require('path');
+const multer = require('multer');
+
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '../first-app/public/images'));
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    },
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../first-app/public/images')); // ✅ Render-safe path
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname)); // e.g. 16252345.jpg
+  },
 });
+
 const upload = multer({ storage });
 
-// // Upload route
-// app.post('/upload', upload.single('image'), (req, res) => {
-//     const relativeImagePath = `/images/${filename}`;
-//     res.json({ imageUrl: relativeImagePath });
-// });
-
-
-// Example backend upload route
-app.post('/upload', upload.single('image'), (req, res) => {
-    if (!req.file) return res.status(400).send("No file uploaded.");
-
-    const imageUrl = `/images/${req.file.filename}`; // relative path for static serving
-    res.json({ imageUrl: imageUrl }); // OR use full URL: `http://localhost:3001/images/${req.file.filename}`
+// Route
+app.post('/upload', upload.single('file'), (req, res) => {
+  try {
+    console.log("Uploaded file:", req.file);
+    res.status(200).json({ filename: req.file.filename }); // ✅ Must return JSON
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Upload failed' }); // ✅ Must return JSON
+  }
 });
+
 
 
 
