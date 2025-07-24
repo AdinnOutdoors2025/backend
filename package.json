@@ -20,7 +20,7 @@
     "express": "^5.1.0",
     "fast-two-sms": "^3.0.0",
     "mongoose": "^8.15.0",
-    "multer": "^2.0.0",
+    "multer": "^2.0.2",
     "nodemailer": "^7.0.5",
     "razorpay": "^2.9.6",
     "react-router-dom": "^7.6.2",
