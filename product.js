@@ -6,7 +6,7 @@ const productData = require('./productSchema');
 const categoryData = require('./categorySchema');
 const mediaTypeData = require('./mediaTypeSchema');
 const prodOrderData = require('./productOrderSchema');
-
+const fs = require('fs');
 // const otpVerification = require('./OtpVerificationEnquire');
 
 // Add this near your other route imports
@@ -55,25 +55,27 @@ app.use('/OrderCart', require('./OrderCartEmail'));
 
 
 
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../first-app/public/images')); // ✅ Render-safe path
+    const uploadPath = path.join('/tmp/uploads'); // ✅ Render-safe path
+    fs.mkdirSync(uploadPath, { recursive: true }); // Create directory if not exists
+    cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // e.g. 16252345.jpg
-  },
+    cb(null, Date.now() + path.extname(file.originalname)); // e.g., 1744369781742.png
+  }
 });
 
 const upload = multer({ storage });
 
-// Route
 app.post('/upload', upload.single('file'), (req, res) => {
   try {
     console.log("Uploaded file:", req.file);
-    res.status(200).json({ filename: req.file.filename }); // ✅ Must return JSON
+    res.status(200).json({ filename: req.file.filename }); // Must return JSON
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Upload failed' }); // ✅ Must return JSON
+    res.status(500).json({ error: 'Upload failed' });
   }
 });
 
