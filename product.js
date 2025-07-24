@@ -24,7 +24,7 @@ app.use(cors());
 app.use(bodyParser.json());
 // app.use("/images", express.static(path.join(__dirname, "../first-app/public/images")));
 app.use("/images", express.static(path.join(__dirname, "../first-app/public/images")));
-
+app.use(express.static('public'));
 // MongoDB connection
 // mongoose.connect("mongodb://127.0.0.1:27017/your-db-name"
 // //     , {
@@ -58,18 +58,19 @@ app.use('/OrderCart', require('./OrderCartEmail'));
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = path.join('/tmp/uploads'); // ✅ Render-safe path
-    fs.mkdirSync(uploadPath, { recursive: true }); // Create directory if not exists
+    const uploadPath = path.join(__dirname, 'public/uploads'); // ✅
+    fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // e.g., 1744369781742.png
-  }
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
 });
+
 
 const upload = multer({ storage });
 
-app.post('/upload', upload.single('image'), (req, res) => {
+app.post('/upload', upload.single('file'), (req, res) => {
   try {
     console.log("Uploaded file:", req.file);
    // res.status(200).json({ filename: req.file.filename }); // Must return JSON
