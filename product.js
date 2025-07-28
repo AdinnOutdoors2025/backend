@@ -71,6 +71,7 @@ app.use('/OrderCart', require('./OrderCartEmail'));
 
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { v2: cloudinary } = require('cloudinary');
+const multer = require('multer');
 
 cloudinary.config({
   cloud_name: 'adinn-outdoors',
@@ -86,20 +87,21 @@ const storage = new CloudinaryStorage({
   },
 });
 
-const upload = multer({ storage }); 
+const upload = multer({ storage });
 
 app.post('/upload', upload.single('file'), (req, res) => {
   try {
     res.status(200).json({
       message: 'Upload successful',
-      imageUrl: req.file.path, // this is a Cloudinary-hosted image
-      public_id: req.file.filename,
+      imageUrl: req.file.path,       // ✅ Cloudinary secure URL
+      public_id: req.file.public_id, // ✅ Correct ID for future delete, etc.
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Upload failed' });
   }
 });
+
 
 
 
