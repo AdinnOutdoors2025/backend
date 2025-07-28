@@ -11,10 +11,12 @@ const fs = require('fs');
 
 // Add this near your other route imports
 const cartData = require('./productCartSchema');
-const cors = require('cors')
+const cors = require('cors');
 const Razorpay = require('razorpay');//require razorpay then only we use
 const bodyParser = require('body-parser');//sent the json data
 const crypto = require('crypto');//inbuilt function to embed the data in this we use sha256 algorithm to safest way of payment
+
+
 // Initialize the Express app
 const app = express();
 const PORT = 3001;
@@ -56,19 +58,35 @@ app.use('/OrderCart', require('./OrderCartEmail'));
 
 
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, 'public/uploads'); // ✅
-    fs.mkdirSync(uploadPath, { recursive: true });
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
+//const storage = multer.diskStorage({
+ // destination: (req, file, cb) => {
+  //  const uploadPath = path.join(__dirname, 'public/uploads'); // ✅
+  //  fs.mkdirSync(uploadPath, { recursive: true });
+  //  cb(null, uploadPath);
+  //},
+  //filename: (req, file, cb) => {
+  //  cb(null, Date.now() + path.extname(file.originalname));
+  //},
+//});
+
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const { v2: cloudinary } = require('cloudinary');
+
+cloudinary.config({
+  cloud_name: 'adinn-outdoors',
+  api_key: '288959228422799',
+  api_secret: 'hNd1fd5iPmj20YRxnrRFFAVEtiw',
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'uploads',
+    allowed_formats: ['jpg', 'jpeg', 'png'],
   },
 });
 
-
-const upload = multer({ storage });
+const upload = multer({ storage }); 
 
 app.post('/upload', upload.single('file'), (req, res) => {
   try {
