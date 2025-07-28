@@ -71,7 +71,6 @@ app.use('/OrderCart', require('./OrderCartEmail'));
 
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { v2: cloudinary } = require('cloudinary');
-const multer = require('multer');
 
 cloudinary.config({
   cloud_name: 'adinn-outdoors',
