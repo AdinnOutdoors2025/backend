@@ -90,18 +90,17 @@ const upload = multer({ storage });
 
 app.post('/upload', upload.single('file'), (req, res) => {
   try {
-    console.log("Uploaded file:", req.file);
-   // res.status(200).json({ filename: req.file.filename }); // Must return JSON
-   res.status(200).json({
-  message: "Upload successful",
-  filename: req.file.filename,
-  imageUrl: `/uploads/${req.file.filename}` // relative path
-});
+    res.status(200).json({
+      message: 'Upload successful',
+      imageUrl: req.file.path, // this is a Cloudinary-hosted image
+      public_id: req.file.filename,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Upload failed' });
   }
 });
+
 
 
 
