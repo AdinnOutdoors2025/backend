@@ -57,6 +57,14 @@ app.use('/OrderCart', require('./OrderCartEmail'));
 
 
 
+//BLOG upload and Edit
+app.use('/BlogAdd', require("./BlogAdd"));
+
+
+
+
+
+
 
 //const storage = multer.diskStorage({
  // destination: (req, file, cb) => {
@@ -101,11 +109,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
   }
 });
 
-
-
-
-
-
 // //RAZORPAY configuration / setup
 // const razorpay = new Razorpay( //new Razorpay - it is in built function to set up the razorpay method...inside we put the generated key and id
 //     {
@@ -113,9 +116,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
 //         key_secret: 'ckOBXQLz2s7ZAqckvnJ1aUxd'
 //     }
 // )
-
 // //create an order ...razorpay order
-
 // app.post(
 //     '/create-order', async (req, res) => {
 //         const { amount, currency } = req.body; //this is in UI...what we type inside the type box amt and their currency type INR(indian rupees/anything)get that
@@ -138,9 +139,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
 //             res.status(500).send("Error creating order");
 //         }
 //     }
-
 // )
-
 // //verify the payment signature
 // app.post(
 //     '/verify-payment', (req, res) => {
