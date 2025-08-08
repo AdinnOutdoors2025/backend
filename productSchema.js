@@ -30,25 +30,6 @@ visible: {
         type: Boolean,
         default: true
     },
-
-    // similarProducts:{
-    //         type : [SimilarProductSchema],
-    //         validate:{
-    //             validator:function(v){
-    //                 return v.length >=4;
-    //             },
-    //             message:"At least 4 similar products are required"
-    //         }
-    // }
-    // similarProducts: [
-    //     {
-    //         Prodname: String,
-    //         ProdCode: String,
-    //         image: String
-    //     }
-    // ],
-
-
     similarProducts: {
         type: [{
             Prodname: String,
@@ -58,15 +39,11 @@ visible: {
             ProdPrintingCost:Number,
             ProdPrice:Number
         }],
-        // validate: {
-        //     validator: function(v) {
-        //         return v.length >= 4;
-        //     },
-        //     message: "At least 4 similar products are required"
-        // },
-
         required: [true, "Similar products array is required"]
-    }
+    },
+    Latitude : String,
+    Longitude : String,
+    LocationLink : String
 });
 const productModel = mongoose.model('Product', productSchema);
 module.exports = productModel;
