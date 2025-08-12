@@ -72,18 +72,6 @@ app.post('/send-otp', async (req, res) => {
     }
 });
 
-// **Verify OTP**
-// app.post('/verify-otp', (req, res) => {
-//     const { contact, otp } = req.body;
-
-//     if (!otpStore[contact] || otpStore[contact].otp.toString() !== otp.toString()) {
-//         return res.status(400).json({ success: false, message: "Invalid OTP" });
-//     }
-
-//     delete otpStore[contact];
-//     res.status(200).json({ success: true, verified: true, message: "OTP verified" });
-// });
-
 app.post('/verify-otp', (req, res) => {
     const { contact, otp } = req.body;
     

@@ -17,7 +17,8 @@ router.use(cors());
 //CONTACT SCHEMA FOR FOOTER
 const Contact = mongoose.model("FooterContact",{
      contactInfo:String,
-    timeStamp:Date
+    createdAt: { type: Date, default: Date.now }
+    // timeStamp:Date
 }); 
 
 // Email configuration
@@ -42,7 +43,6 @@ router.post('/footerContactInfo', async (req, res) => {
         await newContact.save(); 
         // Determine if the input is email or phone
         const isEmail = contactInfo.includes('@');
-
         // Email options
         const mailOptions = {
             from: 'reactdeveloper@adinn.co.in',
@@ -51,9 +51,7 @@ router.post('/footerContactInfo', async (req, res) => {
             html: `
             <div
         style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width: max-content;'>
-
         <h2>NEW CONTACT REQUEST FROM WEBSITE</h2>
-
         <p style="font-size:17px">
             <strong>${isEmail ? 'EMAIL' : 'PHONE'}:</strong>
             ${isEmail ?
@@ -65,15 +63,10 @@ router.post('/footerContactInfo', async (req, res) => {
         <p style="font-size:17px">Please reach out to them at your earliest convenience.</p>
         <br />
        <div style="font-size:17px; margin-top: 30px;">Best regards,</div>
-        <div style="font-size:17px;  margin-top: 8px;">Adinn Outdoors !</div>
-    </div>
-
-                `
+        <div style="font-size:17px;  margin-top: 8px;">Adinn Outdoors !</div> </div> `
             };
-
         // Send email
         await transporter.sendMail(mailOptions);
-
         res.status(200).json({ success: true });
     } catch (error) {
         console.error('Error sending email:', error);
@@ -84,4 +77,4 @@ module.exports = router;
 // const PORT = process.env.PORT || 3001;
 // app.listen(PORT, () => {
 //     console.log(`Server running on port ${PORT}`);
-// });
+// }); 

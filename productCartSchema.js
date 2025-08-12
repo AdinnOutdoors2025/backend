@@ -1,39 +1,4 @@
-// const mongoose = require('mongoose');
-// const cartSchema = new mongoose.Schema({
-//     userId: { type: mongoose.Schema.Types.ObjectId, required: true },
-//     productId: { type: String, required: true },
-//     title: { type: String, required: true },
-//     price: { type: Number, required: true },
-//     image: { type: String, required: true },
-//     dateRange: { type: String },
-//     totalAmount: { type: String },
-//     sizeWidth: { type: String },
-//     sizeHeight: { type: String },
-//     dimension: { type: String },
-//     adType: { type: String },
-//     SpotPay: { type: Number },
-//     Offer: { type: Number },
-//     bookedDates: [{ type: Date }],
-//     booking: {
-//         startDate: Date,
-//         endDate: Date,
-//         totalDays: Number,
-//         totalPrice: Number
-//     },
-//     createdAt: { type: Date, default: Date.now }
-// });
-
-// module.exports = mongoose.model('Cart', cartSchema);
-
-
-
-
-
-
-
-
 const mongoose = require('mongoose');
-
 const cartSchema = new mongoose.Schema({
     userId: { 
         type: mongoose.Schema.Types.ObjectId,  required: true, ref: 'User' // Assuming you have a User model
