@@ -13,13 +13,20 @@ const router = express.Router();
 
 router.use(bodyParser.json());
 router.use(cors());
+// In your main Express app
+router.use(cors({
+    origin: ['https://backend-bq11.onrender.com', 'http://localhost:3000'],
+    methods: ['GET', 'POST', 'DELETE', 'PUT'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 
 //CONTACT SCHEMA FOR FOOTER
-const Contact = mongoose.model("FooterContact",{
-     contactInfo:String,
+const contact = mongoose.model("FooterContact", {
+    contactInfo: String,
     createdAt: { type: Date, default: Date.now }
     // timeStamp:Date
-}); 
+});
 
 // Email configuration
 const transporter = nodemailer.createTransport({
@@ -36,11 +43,11 @@ router.post('/footerContactInfo', async (req, res) => {
     try {
         const { contactInfo } = req.body;
         // Save to database
-        const newContact = new Contact({
+        const newContact = new contact({
             contactInfo: contactInfo,
-            timestamp: new Date()
+            createdAt: { type: Date, default: Date.now }
         });
-        await newContact.save(); 
+        await newContact.save();
         // Determine if the input is email or phone
         const isEmail = contactInfo.includes('@');
         // Email options
@@ -55,16 +62,16 @@ router.post('/footerContactInfo', async (req, res) => {
         <p style="font-size:17px">
             <strong>${isEmail ? 'EMAIL' : 'PHONE'}:</strong>
             ${isEmail ?
-            `<a href="mailto:${contactInfo}" >${contactInfo}</a>` :
-            `<a href="tel:${contactInfo}" >${contactInfo}</a>`
-            }
+                    `<a href="mailto:${contactInfo}" >${contactInfo}</a>` :
+                    `<a href="tel:${contactInfo}" >${contactInfo}</a>`
+                }
         </p>
         <p style="font-size:17px">This user has contacted through the website contact form.</p>
         <p style="font-size:17px">Please reach out to them at your earliest convenience.</p>
         <br />
        <div style="font-size:17px; margin-top: 30px;">Best regards,</div>
         <div style="font-size:17px;  margin-top: 8px;">Adinn Outdoors !</div> </div> `
-            };
+        };
         // Send email
         await transporter.sendMail(mailOptions);
         res.status(200).json({ success: true });
@@ -73,6 +80,38 @@ router.post('/footerContactInfo', async (req, res) => {
         res.status(500).json({ success: false, error: 'Failed to send email' });
     }
 });
+
+
+// GET all footer contacts
+router.get('/footerContactInfo', async (req, res) => {
+    console.log('Footer contact info route hit'); // Add this line
+
+    try {
+        const contacts = await contact.find().sort({ createdAt: -1 }); // Sort by newest first
+        console.log('Found contacts:', contacts.length); // Log how many contacts found
+
+        res.json(contacts);
+    } catch (error) {
+        console.error('Error fetching footer contacts:', error);
+        res.status(500).json({ success: false, error: 'Failed to fetch contacts' });
+    }
+});
+
+// DELETE a footer contact
+router.delete('/footerContactInfo/:id', async (req, res) => {
+    try {
+        const deletedContact = await contact.findByIdAndDelete(req.params.id);
+        if (!deletedContact) {
+            return res.status(404).json({ success: false, error: 'Contact not found' });
+        }
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting contact:', error);
+        res.status(500).json({ success: false, error: 'Failed to delete contact' });
+    }
+});
+
+
 module.exports = router;
 // const PORT = process.env.PORT || 3001;
 // app.listen(PORT, () => {

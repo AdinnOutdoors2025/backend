@@ -8,7 +8,6 @@ const mediaTypeData = require('./mediaTypeSchema');
 const prodOrderData = require('./productOrderSchema');
 const fs = require('fs');
 // const otpVerification = require('./OtpVerificationEnquire');
-
 // Add this near your other route imports
 const cartData = require('./productCartSchema');
 const cors = require('cors');
