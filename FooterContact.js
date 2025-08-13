@@ -21,12 +21,27 @@ router.use(cors({
 }));
 
 
-//CONTACT SCHEMA FOR FOOTER
-const contact = mongoose.model("FooterContact", {
-    contactInfo: String,
-    createdAt: { type: Date, default: Date.now }
-    // timeStamp:Date
+// //CONTACT SCHEMA FOR FOOTER
+// const contact = mongoose.model("FooterContact", {
+//     contactInfo: String,
+//     createdAt: { type: Date, default: Date.now }
+//     // timeStamp:Date
+// });
+
+// Improved Contact Schema
+const contactSchema = new mongoose.Schema({
+    contactInfo: {
+        type: String,
+        required: true
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
 });
+
+const contact = mongoose.model("FooterContact", contactSchema);
+
 
 // Email configuration
 const transporter = nodemailer.createTransport({
@@ -45,7 +60,7 @@ router.post('/footerContactInfo', async (req, res) => {
         // Save to database
         const newContact = new contact({
             contactInfo: contactInfo,
-            createdAt: { type: Date, default: Date.now }
+            // createdAt: { type: Date, default: Date.now }
         });
         await newContact.save();
         // Determine if the input is email or phone
