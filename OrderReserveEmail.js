@@ -136,45 +136,16 @@ router.post('/send-order-confirmation', async (req, res) => {
             from: 'reactdeveloper@adinn.co.in',
             to: 'reactdeveloper@adinn.co.in',
             subject: `New Order Received - #${orderId}`,
-            // html: `
-            // <div style="font-family: Montserrat, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
-            //     <h2 style="color: #333; text-align: center;">New Order Notification</h2>
-                
-            //     <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            //         <h3 style="color: #333; margin-top: 0;">Order Summary</h3>
-            //         <p><strong>Order ID:</strong> ${orderId}</p>
-            //         <p><strong>Order Date:</strong> ${orderDate}</p>
-            //     </div>
-
-            //     <div style="margin: 20px 0;background: #f9f9f9; padding: 15px; border-radius: 5px;">
-            //         <h3 style="color: #333;">Customer Details</h3>
-            //         <p><strong>Name:</strong> ${userName}</p>
-            //         <p><strong>Email:</strong> ${userEmail}</p>
-            //         <p><strong>Phone:</strong> ${userPhone}</p>
-            //         <p><strong>Company:</strong> ${company}</p>
-            //         <p><strong>Address:</strong> ${userAddress}</p>
-            //     </div>
-                
-            //     <div style="margin: 20px 0;background: #f9f9f9; padding: 15px; border-radius: 5px;">
-            //         <h3 style="color: #333;">Product Details</h3>
-            //         <p><strong>Product:</strong> ${productDetails.name}</p>
-            //         <p><strong>Booking Dates:</strong> ${productDetails.dateRange}</p>
-            //         <p><strong>Total Days:</strong> ${productDetails.totalDays}</p>
-            //         <p><strong>Total Amount:</strong> ₹${productDetails.totalAmount.toLocaleString()}</p>
-            //     </div>
-            // </div> `
              html: `
-    
     <div style="font-family:Montserrat; max-width: 650px; margin: 0 auto; color: #444;">
         <!-- Header -->
         <div
-            style="background: linear-gradient(135deg, #7ec5ffff, #115ed2ff); padding: 30px 20px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
+            style="background: linear-gradient(135deg, #f0f0f0, #c4c4c6); padding: 30px 20px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
             <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
                 alt="Adinn Logo" style="height: 50px; margin-bottom: 15px;">
             <h1 style="margin: 0; font-weight: 500;">New Order Received!</h1>
             <p style="margin: 10px 0 0; opacity: 0.9;">Order ${orderId} requires processing</p>
         </div>
-
         <!-- Order Summary -->
         <div style="background: white; padding: 25px; border-bottom: 1px solid #eee;">
             <h2 style="margin: 0 0 15px 0; color: #333; font-size: 20px; display: flex; align-items: center;">

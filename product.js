@@ -6,16 +6,11 @@ const productData = require('./productSchema');
 const categoryData = require('./categorySchema');
 const mediaTypeData = require('./mediaTypeSchema');
 const prodOrderData = require('./productOrderSchema');
-const fs = require('fs');
-// const otpVerification = require('./OtpVerificationEnquire');
-// Add this near your other route imports
 const cartData = require('./productCartSchema');
 const cors = require('cors');
 const Razorpay = require('razorpay');//require razorpay then only we use
 const bodyParser = require('body-parser');//sent the json data
 const crypto = require('crypto');//inbuilt function to embed the data in this we use sha256 algorithm to safest way of payment
-
-
 // Initialize the Express app
 const app = express();
 const PORT = 3001;
@@ -37,45 +32,20 @@ mongoose.connect("mongodb+srv://ba:sLAqxQMpCCjI2Gtf@adinnoutdoors.zpylrw9.mongod
 .then(() => console.log('MongoDB connected successfully'))
 .catch(err => console.error('MongoDB connection error:', err));
 
- 
-
-//mongoose.connect("mongodb+srv://karthiyayinitg1312:Rb8gF80kB2lD5bsM@cluster0.6vythax.mongodb.net/new?retryWrites=true&w=majority&appName=Cluster0");
-
 app.use('/verify', require('./VerifyMain'));
 app.use('/login', require('./LoginMain'));
-
 //ADMIN USER LOGIN 
 app.use('/adminUserLogin', require('./UserAdminLogin'));
-
 //FOOTER CONTACT INFO
 app.use('/ContactInfo', require('./FooterContact'));
 //ORDER RESERVE EMAIL SENT
 app.use('/OrderReserve', require('./OrderReserveEmail'));
 //ORDER CART EMAIL SENT
 app.use('/OrderCart', require('./OrderCartEmail'));
-
-
-
 //BLOG upload and Edit
 app.use('/BlogAdd', require("./BlogAdd"));
 
-
-
-
-
-
-
-//const storage = multer.diskStorage({
- // destination: (req, file, cb) => {
-  //  const uploadPath = path.join(__dirname, 'public/uploads'); // ✅
-  //  fs.mkdirSync(uploadPath, { recursive: true });
-  //  cb(null, uploadPath);
-  //},
-  //filename: (req, file, cb) => {
-  //  cb(null, Date.now() + path.extname(file.originalname));
-  //},
-//});
-
+//IMAGE UPLOAD CLOUDINARY CORRECTED CODE
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { v2: cloudinary } = require('cloudinary');
 
@@ -83,24 +53,42 @@ cloudinary.config({
   cloud_name: 'adinn-outdoors',
   api_key: '288959228422799',
   api_secret: 'hNd1fd5iPmj20YRxnrRFFAVEtiw',
+  secure: true // Add this for HTTPS
 });
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'uploads',
-    allowed_formats: ['jpg', 'jpeg', 'png'],
-  },
+
+//MAIN IMAGE UPLOAD CODE
+const imageStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: async (req, file) => {
+    return {
+      folder: 'uploadProdImages',
+      allowed_formats: ['jpg', 'jpeg', 'png'],
+      transformation: [
+        { width: 1600, height: 1200, crop: 'limit', quality: 'auto' }
+      ]
+    };
+}
 });
 
-const upload = multer({ storage });
 
-app.post('/upload', upload.single('file'), (req, res) => {
+const imageUpload = multer({ storage: imageStorage,
+     limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+ });
+
+app.post('/upload', imageUpload.single('file'), (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    } 
+    console.log("Main image URL:", req.file.path);
+    console.log("Main image public_id:", req.file.filename);
     res.status(200).json({
       message: 'Upload successful',
       imageUrl: req.file.path,       // ✅ Cloudinary secure URL
-      public_id: req.file.public_id, // ✅ Correct ID for future delete, etc.
+      public_id: req.file.filename, // ✅ Correct ID for future delete, etc.
     });
   } catch (err) {
     console.error(err);
@@ -158,6 +146,74 @@ app.post('/upload', upload.single('file'), (req, res) => {
 // )
 
 
+
+const additionalFileStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    const isVideo = file.mimetype.startsWith('video/');
+    return {
+      folder: isVideo ? 'final_uploadProdVideos' : 'final_uploadProdImages',
+      resource_type: isVideo ? 'video' : 'image',
+      allowed_formats: isVideo ? ['mp4', 'mov', 'avi', 'mkv', 'webm'] : ['jpg', 'jpeg', 'png', 'gif'],
+     // format: isVideo ? 'mp4' : 'jpg',
+     // transformation: isVideo ? [] : [{ width: 800, height: 800, crop: 'limit' }]
+   transformation: isVideo ? 
+        { quality: 'auto', fetch_format: 'auto' } : 
+        { width: 800, height: 600, crop: 'limit', quality: 'auto' }
+
+    };
+  }
+});
+
+const additionalFileUpload = multer({ storage: additionalFileStorage });
+
+// Save files endpoint
+app.post('/save-videos', additionalFileUpload.array('files', 3), async (req, res) => {
+  try {
+     if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+    const savedFiles = req.files.map(file => ({
+      url: file.path,
+      public_id: file.filename,
+      type: file.mimetype.startsWith('video/') ? 'video' : 'image'
+    }));
+    
+    res.status(200).json(savedFiles);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'File save failed' });
+  }
+});
+
+// Delete endpoint
+app.post('/delete-video', async (req, res) => {
+  try {
+    const { public_id, resource_type } = req.body;
+    
+    if (!public_id || !resource_type) {
+      return res.status(400).json({ error: 'Missing parameters' });
+    }
+
+    const result = await cloudinary.uploader.destroy(public_id, {
+      resource_type: resource_type
+    });
+
+    if (result.result === 'ok') {
+      res.status(200).json({ message: 'File deleted successfully' });
+    } else {
+      res.status(400).json({ error: 'File deletion failed' });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error during file deletion' });
+  }
+});
+
+
+
+
+
 //PRODUCTS    Other routes (get, post, put, delete)
 app.get('/products', async (req, res) => {
     try {
@@ -180,10 +236,8 @@ app.get('/products/:id', async (req, res) => {
     // Ensure complete image URL
     if (product.image && !product.image.startsWith('http')) {
       product.image = `${req.protocol}://${req.get('host')}${product.image}`;
-    }
-    
-    res.json(product);
-        
+    }  
+    res.json(product);  
     }
     catch (err) {
         res.status(500).json({ message: err.message });
@@ -198,16 +252,13 @@ app.get('/products/similar/:prodCode', async (req, res) => {
         if (!currentProduct || !currentProduct.similarProducts || currentProduct.similarProducts.length === 0) {
             return res.status(404).json({ message: "No similar products found" });
         }
-
         // Extract similar products' ProdCodes
         const prodCodes = currentProduct.similarProducts.map(p => p.ProdCode);
-
         // Fetch details of all similar products (excluding the current one)
         const similarProducts = await productData.find({
             prodCode: { $in: prodCodes },
             _id: { $ne: currentProduct._id } // Exclude current product by ID instead of prodCode
         });
-
         // Map the results to match the frontend expectation
         const mappedResults = similarProducts.map(product => ({
             _id: product._id,
@@ -244,9 +295,13 @@ app.post('/products', async (req, res) => {
     try {
         const prodData = new productData(req.body);
         const saved = await prodData.save();
+        console.log("Product saved to MongoDB:", saved);
         res.json(saved);
     } catch (err) {
-        res.status(500).json({ message: err });
+        console.error("Error saving product to MongoDB:", err);
+        res.status(500).json({ message: err,
+             details: err.errors // This will show validation errors
+         });
     }
 });
 
@@ -298,10 +353,36 @@ app.patch("/products/:id/remove-similar", async (req, res) => {
 
 
 app.delete('/products/:id', async (req, res) => {
+    // try {
+    //     const deleted = await productData.findByIdAndDelete(req.params.id);
+    //     res.json(deleted);
+    // } 
     try {
-        const deleted = await productData.findByIdAndDelete(req.params.id);
-        res.json(deleted);
-    } catch (err) {
+        const product = await productData.findById(req.params.id);
+        if (!product) {
+            return res.status(404).json({ message: "Product not found" });
+        }
+
+        // Delete main image from Cloudinary if it exists
+        if (product.image && product.image.public_id) {
+            await cloudinary.uploader.destroy(product.image.public_id);
+        }
+
+        // Delete additional files from Cloudinary
+        if (product.additionalFiles && product.additionalFiles.length > 0) {
+            for (const file of product.additionalFiles) {
+                if (file.public_id) {
+                    await cloudinary.uploader.destroy(file.public_id, {
+                        resource_type: file.type === 'video' ? 'video' : 'image'
+                    });
+                }
+            }
+        }
+        // Delete from database
+        await productData.findByIdAndDelete(req.params.id);
+        res.json({ message: "Product deleted successfully" });
+    }
+    catch (err) {
         res.status(500).json({ message: err });
     }
 });

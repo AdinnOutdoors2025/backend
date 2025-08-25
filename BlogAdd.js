@@ -20,7 +20,6 @@ cloudinary.config({
   api_key: '288959228422799',
   api_secret: 'hNd1fd5iPmj20YRxnrRFFAVEtiw',
 });
-
 const storage = new CloudinaryStorage({
   cloudinary,
   params: {
@@ -43,19 +42,6 @@ router.post('/uploadBlog', upload.single('file'), (req, res) => {
     res.status(500).json({ error: 'Upload failed' });
   }
 });
-
-
-// // Example backend upload route
-// router.post('/uploadBlog', upload.single('image'), (req, res) => {
-//   if (!req.file) return res.status(400).send("No file uploaded.");
-
-
-//   const imageUrl = `/images/${req.file.filename}`; // relative path for static serving
-//   res.json({ imageUrl: imageUrl }); // OR use full URL: `http://localhost:3001/images/${req.file.filename}`
-// });
-
-
-
 
 //CREATE BLOG
 router.post("/createBlog", async (req, res) => {

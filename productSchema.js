@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
-// const SimilarProductSchema = new mongoose.Schema({
-//     Prodname: String,
-//     ProdCode: String,
-//     image: String
-//   }, { _id: false }); // prevent MongoDB from creating _id for nested
+const additionalFileSchema = new mongoose.Schema({
+  url: String,
+  type: String,
+  public_id: String
+});
 const productSchema = new mongoose.Schema({
     name: String,
     description:String, // Update if you use
@@ -11,6 +11,8 @@ const productSchema = new mongoose.Schema({
     printingCost: Number,
     mountingCost: Number,
     image : String,
+    imagePublicId: String, // Add this field
+    additionalFiles: [additionalFileSchema], // Changed from [String] to proper schema
     prodCode: String,
     lighting: String,
     from: String,
@@ -44,7 +46,7 @@ visible: {
     Latitude : String,
     Longitude : String,
     LocationLink : String,
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now } 
 });
 const productModel = mongoose.model('Product', productSchema);
 module.exports = productModel;
