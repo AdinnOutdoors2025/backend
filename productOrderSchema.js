@@ -74,7 +74,6 @@ const productOrderSchema = new mongoose.Schema({
         enum: ["Added Manually", "UserSideOrder", "Confirmed", "Completed", "Cancelled"],
         default: "Added Manually"
     },
-  
          createdAt: {
       type: Date,
       default: Date.now
@@ -84,10 +83,6 @@ const productOrderSchema = new mongoose.Schema({
         enum: ["single", "cart"],
         default: "single"
     }
-    // cartItems: [{
-    //     type: mongoose.Schema.Types.ObjectId,
-    //     ref: 'Cart'
-    // }],
   });
 
 const productOrderModel = mongoose.model('ProductOrder', productOrderSchema);

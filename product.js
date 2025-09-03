@@ -18,16 +18,8 @@ const PORT = 3001;
 //Middlewares
 app.use(cors());
 app.use(bodyParser.json());
-// app.use("/images", express.static(path.join(__dirname, "../first-app/public/images")));
 app.use("/images", express.static(path.join(__dirname, "../first-app/public/images")));
 app.use(express.static('public'));
-// MongoDB connection
-// mongoose.connect("mongodb://127.0.0.1:27017/your-db-name"
-// //     , {
-// //   serverSelectionTimeoutMS: 5000 // Timeout after 5s instead of 30s
-// // }
-// );
-
 mongoose.connect("mongodb+srv://ba:sLAqxQMpCCjI2Gtf@adinnoutdoors.zpylrw9.mongodb.net/adinnoutdoors")
 .then(() => console.log('MongoDB connected successfully'))
 .catch(err => console.error('MongoDB connection error:', err));
@@ -44,6 +36,8 @@ app.use('/OrderReserve', require('./OrderReserveEmail'));
 app.use('/OrderCart', require('./OrderCartEmail'));
 //BLOG upload and Edit
 app.use('/BlogAdd', require("./BlogAdd"));
+//ADMIN SIDE ORDER EMAIL AND SMS SENT
+app.use('/AdminOrder', require("./AdminOrderConfMessage"));
 
 //IMAGE UPLOAD CLOUDINARY CORRECTED CODE
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
@@ -353,10 +347,6 @@ app.patch("/products/:id/remove-similar", async (req, res) => {
 
 
 app.delete('/products/:id', async (req, res) => {
-    // try {
-    //     const deleted = await productData.findByIdAndDelete(req.params.id);
-    //     res.json(deleted);
-    // } 
     try {
         const product = await productData.findById(req.params.id);
         if (!product) {
@@ -536,7 +526,6 @@ app.get('/booked-dates', async (req, res) => {
                     );
             }
         }
-
         // Combine and deduplicate
         const allDates = [...otherDates, ...sameOrderOtherDates];
         res.json([...new Set(allDates)]);
@@ -555,9 +544,6 @@ app.get('/prodOrders/user/:userId', async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 });
-
-// //UPDATE
-// POST route for creating orders
 //CREATION OF ORDER ID FOR ADMIN SIDE
 const generateNextOrderId = async (prefix = 'AD') => {
     try {
@@ -581,9 +567,6 @@ const generateNextOrderId = async (prefix = 'AD') => {
         return `${prefix}${Date.now().toString().slice(-4)}`;
     }
 };
-
-// Helper function to generate date range
-
 
 app.post('/prodOrders', async (req, res) => {
     try {
@@ -668,36 +651,6 @@ function generateDateRange(startDate, endDate) {
     return dates;
 }
 
-
-// Improved date conflict checking middleware
-const checkDateConflicts = async (req, res, next) => {
-    try {
-        const { products } = req.body;
-        const orderId = req.params.id;
-
-        const allDates = products.flatMap(p =>
-            p.bookedDates.map(d => d.toISOString().split('T')[0])
-        );
-
-        // Check other orders for conflicts
-        const conflict = await prodOrderData.findOne({
-            _id: { $ne: orderId },
-            "products.bookedDates": { $in: allDates },
-            "products.productId": { $in: products.map(p => p.productId) }
-        });
-
-        if (conflict) {
-            return res.status(409).json({
-                message: 'Date conflict with existing bookings',
-                conflicts: conflict._id
-            });
-        }
-        next();
-    } catch (err) {
-        next(err);
-    }
-};
-
 //PUT FOR EDIT THE BOOKED DATES
 app.put('/prodOrders/:id', async (req, res) => {
     try {
@@ -727,22 +680,6 @@ app.put('/prodOrders/:id', async (req, res) => {
                 conflictOrderId: conflict._id
             });
         }
-
-        // // Prepare updated products data
-        // const updatedProducts = products.map(p => ({
-        //     ...p,
-        //     bookedDates: (p.bookedDates || []).map(d => new Date(d)),
-        //     booking: p.booking ? {
-        //         ...p.booking,
-        //         startDate: p.booking.startDate ? new Date(p.booking.startDate) : null,
-        //         endDate: p.booking.endDate ? new Date(p.booking.endDate) : null,
-        //         totalDays: p.booking.totalDays || 
-        //             (p.booking.startDate && p.booking.endDate ? 
-        //                 Math.ceil((new Date(p.booking.endDate) - new Date(p.booking.startDate)) / (1000 * 60 * 60 * 24)) + 1 : 
-        //                 0)
-        //     } : null
-        // }));
-
         // Prepare updated products with proper date calculations
         const updatedProducts = products.map(p => {
             let bookedDates = [];
@@ -818,11 +755,14 @@ app.delete('/prodOrders/:id', async (req, res) => {
 // GET cart items for user
 app.get('/cart/user/:userId', async (req, res) => {
     try {
+                console.log('Received request for user ID:', req.params.userId);
         if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
             return res.status(400).json({ message: 'Invalid user ID format' });
         }
 
         const cartItems = await cartData.find({ userId: req.params.userId });
+        // console.log('Found cart items:', cartItems);
+        console.log('Found cart items:', cartItems.length);
         res.status(200).json(cartItems);
     } catch (err) {
         console.error('Error fetching cart items:', err);
@@ -836,6 +776,7 @@ app.get('/cart/user/:userId', async (req, res) => {
 // ADD item to cart
 app.post('/cart', async (req, res) => {
     try {
+        console.log('Received cart item:', req.body);
         // Validate required fields
         if (!req.body.userId || !req.body.productId) {
             return res.status(400).json({ message: 'Missing required fields' });

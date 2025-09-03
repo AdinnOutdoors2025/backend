@@ -1,6 +1,11 @@
+
+
+
 const express = require('express');
 const nodemailer = require('nodemailer');
 const router = express.Router();
+const request = require('request');
+
 
 const transporter = nodemailer.createTransport(
     {
@@ -12,16 +17,70 @@ const transporter = nodemailer.createTransport(
     }
 );
 
+
+// NettyFish SMS Configuration
+const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
+const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
+const NETTYFISH_BASE_URL = 'https://retailsms.nettyfish.com/api/mt/SendSMS';
+
+// Function to send SMS using NettyFish API
+const sendSMS = (phone, templateId, variables = {}) => {
+    return new Promise((resolve, reject) => {
+        // Format phone number (remove + and add 91 if not present)
+        let formattedPhone = phone.replace('+', '');
+        if (!formattedPhone.startsWith('91')) {
+            formattedPhone = '91' + formattedPhone;
+        }
+
+        // Prepare text with variables
+        let text = "";
+        switch (templateId) {
+            case "1007197121174928712": // User template
+                text = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${variables.orderId}.`;
+                break;
+            case "1007478982147905431": // Admin template
+                text = `New order received! Order ID: ${variables.orderId}. Customer: ${variables.customerName}. Amount: ₹${variables.amount}.`;
+                break;
+            default:
+                text = variables.text || "";
+        }
+
+        const encodedText = encodeURIComponent(text);
+        const url = `${NETTYFISH_BASE_URL}?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${templateId}&text=${encodedText}&route=17`;
+
+        request.get(url, (error, response, body) => {
+            if (error) {
+                console.error("SMS API Error:", error);
+                reject(error);
+            } else {
+                try {
+                    const result = JSON.parse(body);
+                    if (result.ErrorCode === '000') {
+                        console.log("SMS sent successfully:", result);
+                        resolve(result);
+                    } else {
+                        console.error("SMS API Error:", result.ErrorMessage);
+                        reject(new Error(result.ErrorMessage || 'Failed to send SMS'));
+                    }
+                } catch (parseError) {
+                    console.error("SMS Parse Error:", parseError);
+                    reject(parseError);
+                }
+            }
+        });
+    });
+};
+
 router.post('/send-order-confirmation', async (req, res) => {
     try {
         const {
             orderId, userName, userEmail, userPhone, userAddress, company, products, orderDate, totalAmount
         } = req.body;
- if (!products || !Array.isArray(products)) {
-      throw new Error("Invalid products data");
-    }
+        if (!products || !Array.isArray(products)) {
+            throw new Error("Invalid products data");
+        }
 
-  // Generate product details HTML
+        // Generate product details HTML
         const generateProductDetailsHTML = (products) => {
             return products.map((product, index) => `
                 <div style="margin-bottom: 25px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
@@ -51,7 +110,7 @@ router.post('/send-order-confirmation', async (req, res) => {
             from: 'reactdeveloper@adinn.co.in',
             to: userEmail,
             subject: `Order Confirmation - ${orderId}`,
-  html: `
+            html: `
                 <div style="font-family: montserrat; max-width: 650px; margin: 0 auto; color: #444;">
         <!-- Header -->
         <div
@@ -128,24 +187,23 @@ router.post('/send-order-confirmation', async (req, res) => {
             </div>
         </div>
     </div> `
-
-
         }
-       // Admin email
+        // Admin email
         const adminMailOptions = {
             from: 'reactdeveloper@adinn.co.in',
             to: 'reactdeveloper@adinn.co.in',
             subject: `New Order Received - #${orderId}`,
-             html: `
+            html: `
     <div style="font-family:Montserrat; max-width: 650px; margin: 0 auto; color: #444;">
         <!-- Header -->
         <div
-            style="background: linear-gradient(135deg, #f0f0f0, #c4c4c6); padding: 30px 20px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
+            style="background: linear-gradient(135deg, #7ec5ffff, #115ed2ff); padding: 30px 20px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
             <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
                 alt="Adinn Logo" style="height: 50px; margin-bottom: 15px;">
             <h1 style="margin: 0; font-weight: 500;">New Order Received!</h1>
             <p style="margin: 10px 0 0; opacity: 0.9;">Order ${orderId} requires processing</p>
         </div>
+
         <!-- Order Summary -->
         <div style="background: white; padding: 25px; border-bottom: 1px solid #eee;">
             <h2 style="margin: 0 0 15px 0; color: #333; font-size: 20px; display: flex; align-items: center;">
@@ -189,10 +247,33 @@ router.post('/send-order-confirmation', async (req, res) => {
 
     </div> 
     `
-        }; 
+        };
         // Send both emails
         await transporter.sendMail(userMailOptions);
         await transporter.sendMail(adminMailOptions);
+
+        // Send SMS to user
+        try {
+            await sendSMS(userPhone, "1007197121174928712", { orderId });
+            console.log("User SMS sent successfully");
+        } catch (smsError) {
+            console.error("Failed to send user SMS:", smsError);
+            // Don't fail the request if SMS fails
+        }
+
+        // Send SMS to admin
+        try {
+            await sendSMS('reactdeveloper@adinn.co.in', "1007478982147905431", {
+                orderId,
+                customerName: userName,
+                amount: totalAmount
+            });
+            console.log("Admin SMS sent successfully");
+        } catch (smsError) {
+            console.error("Failed to send admin SMS:", smsError);
+            // Don't fail the request if SMS fails
+        }
+
         res.json({ success: true });
 
     }

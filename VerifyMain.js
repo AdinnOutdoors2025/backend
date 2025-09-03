@@ -1,22 +1,17 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const Enquiry = require('./OtpVerificationEnquire')
+const Enquiry = require('./OtpVerificationEnquire');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const request = require('request');
+require('dotenv').config();
 
-require('dotenv').config(); // Load API keys securely
-const accountSid = "ACb93aa441cd1479351f2bb79c9d2249ab"; // Store these in .env
-const authToken = "e0f72e3f7785d575dda78f61394fa5af"; //e0f72e3f7785d575dda78f61394fa5af //Previous c309afe5ed872fb273885285e3337e23
-const client = require('twilio')(accountSid, authToken);
 const router = express.Router();
-
-const app = express();
 router.use(bodyParser.json());
 router.use(cors());
-// const router = express.Router();
-
 
 const otpStore = {}; // Store OTPs temporarily
+
 // Email configuration
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -26,7 +21,14 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// GET  & DELETE THE ENQUIRY DETAILS
+// NettyFish SMS Configuration
+const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
+const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
+const NETTYFISH_TEMPLATE_ID = process.env.NETTYFISH_TEMPLATE_ID || '1007403395830327066';
+const NETTYFISH_BASE_URL = 'https://retailsms.nettyfish.com/api/mt/SendSMS';
+
+// GET & DELETE THE ENQUIRY DETAILS
+
 // Get all enquiries
 router.get('/enquiries', async (req, res) => {
     try {
@@ -69,8 +71,72 @@ router.delete('/enquiries/:id', async (req, res) => {
     }
 });
 
+// Function to send SMS using NettyFish API
+const sendSMS = (phone, otp) => {
+    return new Promise((resolve, reject) => {
+        // Format phone number (remove + and add 91 if not present)
+        let formattedPhone = phone.replace('+', '');
+        if (!formattedPhone.startsWith('91')) {
+            formattedPhone = '91' + formattedPhone;
+        }
+        
+        const text = `Welcome to Adinn Outdoors! Your verification code is ${otp}. Use this OTP to complete your verification. Please don't share it with anyone.`;
+        
+        const encodedText = encodeURIComponent(text);
+        const url = `${NETTYFISH_BASE_URL}?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${NETTYFISH_TEMPLATE_ID}&text=${encodedText}&route=17`;
+        
+        request.get(url, (error, response, body) => {
+            if (error) {
+                reject(error);
+            } else {
+                try {
+                    const result = JSON.parse(body);
+                    if (result.ErrorCode === '000') {
+                        resolve(result);
+                    } else {
+                        reject(new Error(result.ErrorMessage || 'Failed to send SMS'));
+                    }
+                } catch (parseError) {
+                    reject(parseError);
+                }
+            }
+        });
+    });
+};
 
-//POST THE ENQUIRY DETAILS WITH PRODUCT DATA
+// Function to send confirmation SMS using NettyFish API
+const sendConfirmationSMS = (phone) => {
+    return new Promise((resolve, reject) => {
+        // Format phone number (remove + and add 91 if not present)
+        let formattedPhone = phone.replace('+', '');
+        if (!formattedPhone.startsWith('91')) {
+            formattedPhone = '91' + formattedPhone;
+        }
+        
+        const text = "Thanks for enquiring Adinn Outdoor Products! We'll share more details with you shortly.";
+        const templateId = "1007798213348641202"; // Your confirmation template ID
+        
+        const encodedText = encodeURIComponent(text);
+        const url = `${NETTYFISH_BASE_URL}?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${templateId}&text=${encodedText}&route=17`;
+        
+        request.get(url, (error, response, body) => {
+            if (error) {
+                reject(error);
+            } else {
+                try {
+                    const result = JSON.parse(body);
+                    if (result.ErrorCode === '000') {
+                        resolve(result);
+                    } else {
+                        reject(new Error(result.ErrorMessage || 'Failed to send confirmation SMS'));
+                    }
+                } catch (parseError) {
+                    reject(parseError);
+                }
+            }
+        });
+    });
+};
 
 // **Send OTP**
 router.post('/send-otp', async (req, res) => {
@@ -97,44 +163,27 @@ router.post('/send-otp', async (req, res) => {
     otpStore[phone] = { otp, expiresAt: Date.now() + 5 * 60 * 1000 }; // OTP expires in 5 mins
 
     try {
-        const message = await client.messages.create({
-            // body: `Your OTP is: ${otp}. Valid for 5 minutes.`,
-            body: `Welcome to Adinn Outdoors!\nYour One-Time Password (OTP) for verification is\n* ${otp} *\nDo not share this code with anyone.`,
-            //  messagingServiceSid: "MGfdd70b29590d5e1edc19f4cd9fe2e9f4", // ✅ Use Messaging Service SID
-            from: '+19064226997',
-            to: phone
-        });
-
-        console.log(`OTP Sent: ${otp} to ${phone}, Message SID: ${message.sid}`);
+        // Send OTP using NettyFish API
+        const result = await sendSMS(phone, otp);
+        
+        console.log(`OTP Sent: ${otp} to ${phone}, NettyFish Response: ${JSON.stringify(result)}`);
         res.status(200).json({ success: true, message: "OTP sent successfully" });
     } catch (error) {
-        // console.error("Twilio Error:", error);
-
-        // if (error.code === 21608) {
-        //     res.status(400).json({ success: false, message: "Upgrade Twilio account to send to unverified numbers." });
-        // } else {
-        //     res.status(500).json({ success: false, message: "Failed to send OTP. Check Twilio logs." });
-        // }
-
-        console.error("Twilio Error:", error);
+        console.error("NettyFish Error:", error);
 
         let errorMessage = "Failed to send OTP";
-        if (error.code === 21211) {
+        if (error.message.includes('Invalid Number')) {
             errorMessage = "Invalid phone number";
-        } else if (error.code === 21608) {
-            errorMessage = "Twilio trial account limitation - verify number in Twilio console";
         }
 
         res.status(500).json({
             success: false,
             message: errorMessage,
-            twilioError: error.message
+            nettyfishError: error.message
         });
     }
 });
 
-
-//DATABASE STORED THE DATA
 // **Verify OTP** - Updated to store product data
 router.post('/verify-otp', async (req, res) => {
     try {
@@ -178,10 +227,17 @@ router.post('/verify-otp', async (req, res) => {
                     });
                     await enquiry.save();
 
+                    // Send confirmation SMS after successful verification and DB save
+                    try {
+                        await sendConfirmationSMS(phone);
+                        console.log(`Confirmation SMS sent to ${phone}`);
+                    } catch (smsError) {
+                        console.error("Error sending confirmation SMS:", smsError);
+                        // Don't fail verification if SMS fails
+                    }
+
                     // Send emails after successful verification and DB save
                     await sendAdminEmail(enquiry);
-                    // await sendUserSMS(phone); 
-
                 } catch (dbError) {
                     console.error("Database save error:", dbError);
                     // Don't fail verification if DB save fails
@@ -201,7 +257,6 @@ router.post('/verify-otp', async (req, res) => {
     }
 });
 
-
 // Function to send admin email
 async function sendAdminEmail(enquiry) {
     try {
@@ -212,7 +267,7 @@ async function sendAdminEmail(enquiry) {
             html: `
                    <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px; width:max-content;'>
         <h1>New Product Enquiry Details:</h1>
-        <div style="font-size:18px;"><strong>User Phone: </strong> <a href='${enquiry.phone}'>${enquiry.phone}</a></div>
+        <div style="font-size:18px;"><strong>User Phone: </strong> <a href='tel:${enquiry.phone}'>${enquiry.phone}</a></div>
         <div style="font-size:18px;"><strong>Product ID: </strong> ${enquiry.prodCode}</div>
         <div style="font-size:18px;"><strong>Product Name: </strong> ${enquiry.prodName}</div>
         <div style="font-size:18px;"><strong>Date: </strong> ${enquiry.enquiryDate.toLocaleDateString()} <span> <strong> Time: </strong> ${enquiry.enquiryDate.toLocaleTimeString()} </span></div>
@@ -229,11 +284,4 @@ async function sendAdminEmail(enquiry) {
     }
 }
 
-module.exports = router; 
-
-// // **Start Server**
-// const PORT = 4003;
-// router.listen(PORT, () => {
-//     console.log(`Server running on port ${PORT}`);
-// });
-
+module.exports = router;

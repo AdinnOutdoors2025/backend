@@ -1,166 +1,8 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// const express = require('express');
-// const nodemailer = require('nodemailer');
-// const router = express.Router();
-
-// const transporter = nodemailer.createTransport({
-//     service: 'gmail',
-//     auth: {
-//         user: 'reactdeveloper@adinn.co.in',
-//         pass: 'gxnn sezu klyp ifhn'
-//     }
-// });
-
-// router.post('/send-orderCart-confirmation', async (req, res) => {
-//     try {
-//         const {
-//             orderId, 
-//             userName, 
-//             userEmail, 
-//             userPhone, 
-//             userAddress, 
-//             company, 
-//             products, // This will now be an array of products
-//             orderDate,
-//             totalAmount
-//         } = req.body;
-
-//         // Generate product details HTML for both user and admin emails
-//         const generateProductDetailsHTML = (products) => {
-//             return products.map(product => `
-//                 <div style="margin-bottom: 15px; padding: 10px; border-bottom: 1px solid #eee;">
-//                     <div style="display: flex;">
-//                         <div style="flex: 1;">
-//                             <img src="${product.image}" alt="${product.name}" style="max-width: 100px; height: auto;">
-//                         </div>
-//                         <div style="flex: 3;">
-//                             <h4 style="margin-top: 0;">${product.name}</h4>
-//                             <p><strong>Product Code:</strong> ${product.prodCode}</p>
-//                             <p><strong>Price:</strong> ₹${product.price.toLocaleString()} per day</p>
-//                             <p><strong>Booking Dates:</strong> ${new Date(product.booking.startDate).toLocaleDateString()} to ${new Date(product.booking.endDate).toLocaleDateString()}</p>
-//                             <p><strong>Total Days:</strong> ${product.booking.totalDays}</p>
-//                             <p><strong>Amount:</strong> ₹${product.booking.totalPrice.toLocaleString()}</p>
-//                             <p><strong>Location:</strong> ${product.fromLocation} to ${product.toLocation}</p>
-//                             <p><strong>Size:</strong> ${product.size.width} x ${product.size.height} (${product.size.squareFeet} sq.ft)</p>
-//                         </div>
-//                     </div>
-//                 </div>
-//             `).join('');
-//         };
-
-//         // User Email
-//         const userMailOptions = {
-//             from: 'reactdeveloper@adinn.co.in',
-//             to: userEmail,
-//             subject: `Order Confirmation - ${orderId}`,
-//             html: `
-//                 <div style="font-family: Montserrat, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
-//                     <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="Adinn Logo" style="height: 50px; width: auto; display: block; margin: 0 auto 20px;">
-//                     <h2 style="color: #333; text-align: center;">Thank You for Your Order!</h2>
-//                     <p style="text-align: center;">Your order has been received and is being processed.</p>
-
-//                     <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-//                         <h3 style="color: #333; margin-top: 0;">Order Summary</h3>
-//                         <p><strong>Order ID:</strong> ${orderId}</p>
-//                         <p><strong>Order Date:</strong> ${orderDate}</p>
-//                         <p><strong>Total Items:</strong> ${products.length}</p>
-//                         <p><strong>Total Amount:</strong> ₹${totalAmount.toLocaleString()}</p>
-//                     </div>
-
-//                     <div style="margin: 20px 0;">
-//                         <h3 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Order Details</h3>
-//                         ${generateProductDetailsHTML(products)}
-//                     </div>
-
-//                     <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-//                         <h3 style="color: #333; margin-top: 0;">Customer Details</h3>
-//                         <p><strong>Name:</strong> ${userName}</p>
-//                         <p><strong>Company:</strong> ${company}</p>
-//                         <p><strong>Contact:</strong> ${userPhone}</p>
-//                         <p><strong>Address:</strong> ${userAddress}</p>
-//                     </div>
-
-//                     <p style="text-align: center; color: #777; font-size: 14px;">
-//                         Our team will contact you shortly for further details. Thank you for choosing AdinnOutdoors!
-//                     </p>
-//                 </div>
-//             `
-//         };
-
-//         // Admin Email
-//         const adminMailOptions = {
-//             from: 'reactdeveloper@adinn.co.in',
-//             to: 'reactdeveloper@adinn.co.in',
-//             subject: `New Order Received - #${orderId}`,
-//             html: `
-//                 <div style="font-family: Montserrat, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
-//                     <h2 style="color: #333; text-align: center;">New Order Notification</h2>
-
-//                     <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-//                         <h3 style="color: #333; margin-top: 0;">Order Summary</h3>
-//                         <p><strong>Order ID:</strong> ${orderId}</p>
-//                         <p><strong>Order Date:</strong> ${orderDate}</p>
-//                         <p><strong>Total Items:</strong> ${products.length}</p>
-//                         <p><strong>Total Amount:</strong> ₹${totalAmount.toLocaleString()}</p>
-//                     </div>
-
-//                     <div style="margin: 20px 0;">
-//                         <h3 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Order Details</h3>
-//                         ${generateProductDetailsHTML(products)}
-//                     </div>
-
-//                     <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-//                         <h3 style="color: #333; margin-top: 0;">Customer Details</h3>
-//                         <p><strong>Name:</strong> ${userName}</p>
-//                         <p><strong>Company:</strong> ${company}</p>
-//                         <p><strong>Email:</strong> ${userEmail}</p>
-//                         <p><strong>Phone:</strong> ${userPhone}</p>
-//                         <p><strong>Address:</strong> ${userAddress}</p>
-//                     </div>
-
-//                     <p style="text-align: center; color: #777; font-size: 14px;">
-//                         Please process this order promptly.
-//                     </p>
-//                 </div>
-//             `
-//         };
-
-//         // Send both emails
-//         await transporter.sendMail(userMailOptions);
-//         await transporter.sendMail(adminMailOptions);
-
-//         res.json({ success: true, message: 'Emails sent successfully' });
-
-//     } catch (error) {
-//         console.error("Error sending Emails:", error);
-//         res.status(500).json({ success: false, error: "Failed to send emails" });
-//     }
-// });
-
-// module.exports = router;
-
-
 const express = require('express');
 const nodemailer = require('nodemailer');
 const router = express.Router();
+const request = require('request');
+
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -169,6 +11,62 @@ const transporter = nodemailer.createTransport({
         pass: 'gxnn sezu klyp ifhn'
     }
 });
+
+//NEWLY ADDED CODE
+// NettyFish SMS Configuration (same as above)
+const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
+const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
+const NETTYFISH_BASE_URL = 'https://retailsms.nettyfish.com/api/mt/SendSMS';
+
+// Function to send SMS using NettyFish API (same as above)
+const sendSMS = (phone, templateId, variables = {}) => {
+    return new Promise((resolve, reject) => {
+        // Format phone number (remove + and add 91 if not present)
+        let formattedPhone = phone.replace('+', '');
+        if (!formattedPhone.startsWith('91')) {
+            formattedPhone = '91' + formattedPhone;
+        }
+
+        // Prepare text with variables
+        let text = "";
+        switch (templateId) {
+            case "1007197121174928712": // User template
+                text = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${variables.orderId}.`;
+                break;
+            case "1007478982147905431": // Admin template
+                text = `New order received! Order ID: ${variables.orderId}. Customer: ${variables.customerName}. Amount: ₹${variables.amount}.`;
+                break;
+            default:
+                text = variables.text || "";
+        }
+
+        const encodedText = encodeURIComponent(text);
+        const url = `${NETTYFISH_BASE_URL}?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${templateId}&text=${encodedText}&route=17`;
+
+        request.get(url, (error, response, body) => {
+            if (error) {
+                console.error("SMS API Error:", error);
+                reject(error);
+            } else {
+                try {
+                    const result = JSON.parse(body);
+                    if (result.ErrorCode === '000') {
+                        console.log("SMS sent successfully:", result);
+                        resolve(result);
+                    } else {
+                        console.error("SMS API Error:", result.ErrorMessage);
+                        reject(new Error(result.ErrorMessage || 'Failed to send SMS'));
+                    }
+                } catch (parseError) {
+                    console.error("SMS Parse Error:", parseError);
+                    reject(parseError);
+                }
+            }
+        });
+    });
+};
+
+
 
 router.post('/send-orderCart-confirmation', async (req, res) => {
     try {
@@ -291,15 +189,14 @@ router.post('/send-orderCart-confirmation', async (req, res) => {
             </div>
         </div>
     </div> `
-        };  
-     
+        };
+
         // Admin Email Template (similar structure but with different styling)
         const adminMailOptions = {
             from: 'reactdeveloper@adinn.co.in',
             to: 'reactdeveloper@adinn.co.in',
             subject: `🚀 New Order #${orderId} - Action Required`,
             html: `
-    
     <div style="font-family:Montserrat; max-width: 650px; margin: 0 auto; color: #444;">
         <!-- Header -->
         <div
@@ -358,6 +255,29 @@ router.post('/send-orderCart-confirmation', async (req, res) => {
         // Send both emails
         await transporter.sendMail(userMailOptions);
         await transporter.sendMail(adminMailOptions);
+
+        //NEWLY ADDED CODE
+        // Send SMS to user
+        try {
+            await sendSMS(userPhone, "1007197121174928712", { orderId });
+            console.log("User SMS sent successfully");
+        } catch (smsError) {
+            console.error("Failed to send user SMS:", smsError);
+            // Don't fail the request if SMS fails
+        }
+
+        // Send SMS to admin
+        try {
+            await sendSMS('reactdeveloper@adinn.co.in', "1007478982147905431", {
+                orderId,
+                customerName: userName,
+                amount: totalAmount
+            });
+            console.log("Admin SMS sent successfully");
+        } catch (smsError) {
+            console.error("Failed to send admin SMS:", smsError);
+            // Don't fail the request if SMS fails
+        }
 
         res.json({ success: true, message: 'Emails sent successfully' });
 
