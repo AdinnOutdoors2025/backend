@@ -21,8 +21,8 @@ app.use(bodyParser.json());
 app.use("/images", express.static(path.join(__dirname, "../first-app/public/images")));
 app.use(express.static('public'));
 mongoose.connect("mongodb+srv://ba:sLAqxQMpCCjI2Gtf@adinnoutdoors.zpylrw9.mongodb.net/adinnoutdoors")
-.then(() => console.log('MongoDB connected successfully'))
-.catch(err => console.error('MongoDB connection error:', err));
+    .then(() => console.log('MongoDB connected successfully'))
+    .catch(err => console.error('MongoDB connection error:', err));
 
 app.use('/verify', require('./VerifyMain'));
 app.use('/login', require('./LoginMain'));
@@ -44,10 +44,10 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { v2: cloudinary } = require('cloudinary');
 
 cloudinary.config({
-  cloud_name: 'adinn-outdoors',
-  api_key: '288959228422799',
-  api_secret: 'hNd1fd5iPmj20YRxnrRFFAVEtiw',
-  secure: true // Add this for HTTPS
+    cloud_name: 'adinn-outdoors',
+    api_key: '288959228422799',
+    api_secret: 'hNd1fd5iPmj20YRxnrRFFAVEtiw',
+    secure: true // Add this for HTTPS
 });
 
 
@@ -55,39 +55,40 @@ cloudinary.config({
 const imageStorage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: async (req, file) => {
-    return {
-      folder: 'uploadProdImages',
-      allowed_formats: ['jpg', 'jpeg', 'png'],
-      transformation: [
-        { width: 1600, height: 1200, crop: 'limit', quality: 'auto' }
-      ]
-    };
-}
+        return {
+            folder: 'uploadProdImages',
+            allowed_formats: ['jpg', 'jpeg', 'png'],
+            transformation: [
+                { width: 1600, height: 1200, crop: 'limit', quality: 'auto' }
+            ]
+        };
+    }
 });
 
 
-const imageUpload = multer({ storage: imageStorage,
-     limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
-  }
- });
+const imageUpload = multer({
+    storage: imageStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    }
+});
 
 app.post('/upload', imageUpload.single('file'), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    } 
-    console.log("Main image URL:", req.file.path);
-    console.log("Main image public_id:", req.file.filename);
-    res.status(200).json({
-      message: 'Upload successful',
-      imageUrl: req.file.path,       // ✅ Cloudinary secure URL
-      public_id: req.file.filename, // ✅ Correct ID for future delete, etc.
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Upload failed' });
-  }
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+        console.log("Main image URL:", req.file.path);
+        console.log("Main image public_id:", req.file.filename);
+        res.status(200).json({
+            message: 'Upload successful',
+            imageUrl: req.file.path,       // ✅ Cloudinary secure URL
+            public_id: req.file.filename, // ✅ Correct ID for future delete, etc.
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Upload failed' });
+    }
 });
 
 // //RAZORPAY configuration / setup
@@ -142,70 +143,67 @@ app.post('/upload', imageUpload.single('file'), (req, res) => {
 
 
 const additionalFileStorage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: async (req, file) => {
-    const isVideo = file.mimetype.startsWith('video/');
-    return {
-      folder: isVideo ? 'final_uploadProdVideos' : 'final_uploadProdImages',
-      resource_type: isVideo ? 'video' : 'image',
-      allowed_formats: isVideo ? ['mp4', 'mov', 'avi', 'mkv', 'webm'] : ['jpg', 'jpeg', 'png', 'gif'],
-     // format: isVideo ? 'mp4' : 'jpg',
-     // transformation: isVideo ? [] : [{ width: 800, height: 800, crop: 'limit' }]
-   transformation: isVideo ? 
-        { quality: 'auto', fetch_format: 'auto' } : 
-        { width: 800, height: 600, crop: 'limit', quality: 'auto' }
+    cloudinary: cloudinary,
+    params: async (req, file) => {
+        const isVideo = file.mimetype.startsWith('video/');
+        return {
+            folder: isVideo ? 'final_uploadProdVideos' : 'final_uploadProdImages',
+            resource_type: isVideo ? 'video' : 'image',
+            allowed_formats: isVideo ? ['mp4', 'mov', 'avi', 'mkv', 'webm'] : ['jpg', 'jpeg', 'png', 'gif'],
+            // format: isVideo ? 'mp4' : 'jpg',
+            // transformation: isVideo ? [] : [{ width: 800, height: 800, crop: 'limit' }]
+            transformation: isVideo ?
+                { quality: 'auto', fetch_format: 'auto' } :
+                { width: 800, height: 600, crop: 'limit', quality: 'auto' }
 
-    };
-  }
+        };
+    }
 });
 
 const additionalFileUpload = multer({ storage: additionalFileStorage });
 
 // Save files endpoint
 app.post('/save-videos', additionalFileUpload.array('files', 3), async (req, res) => {
-  try {
-     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded' });
+    try {
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ error: 'No files uploaded' });
+        }
+        const savedFiles = req.files.map(file => ({
+            url: file.path,
+            public_id: file.filename,
+            type: file.mimetype.startsWith('video/') ? 'video' : 'image'
+        }));
+
+        res.status(200).json(savedFiles);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'File save failed' });
     }
-    const savedFiles = req.files.map(file => ({
-      url: file.path,
-      public_id: file.filename,
-      type: file.mimetype.startsWith('video/') ? 'video' : 'image'
-    }));
-    
-    res.status(200).json(savedFiles);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'File save failed' });
-  }
 });
 
 // Delete endpoint
 app.post('/delete-video', async (req, res) => {
-  try {
-    const { public_id, resource_type } = req.body;
-    
-    if (!public_id || !resource_type) {
-      return res.status(400).json({ error: 'Missing parameters' });
-    }
+    try {
+        const { public_id, resource_type } = req.body;
 
-    const result = await cloudinary.uploader.destroy(public_id, {
-      resource_type: resource_type
-    });
+        if (!public_id || !resource_type) {
+            return res.status(400).json({ error: 'Missing parameters' });
+        }
 
-    if (result.result === 'ok') {
-      res.status(200).json({ message: 'File deleted successfully' });
-    } else {
-      res.status(400).json({ error: 'File deletion failed' });
+        const result = await cloudinary.uploader.destroy(public_id, {
+            resource_type: resource_type
+        });
+
+        if (result.result === 'ok') {
+            res.status(200).json({ message: 'File deleted successfully' });
+        } else {
+            res.status(400).json({ error: 'File deletion failed' });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Server error during file deletion' });
     }
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error during file deletion' });
-  }
 });
-
-
-
 
 
 //PRODUCTS    Other routes (get, post, put, delete)
@@ -226,12 +224,12 @@ app.get('/products/:id', async (req, res) => {
             res.status(404).json({ message: "Product not found" });
         }
         // res.json(data);
-         const product = data.toObject();
-    // Ensure complete image URL
-    if (product.image && !product.image.startsWith('http')) {
-      product.image = `${req.protocol}://${req.get('host')}${product.image}`;
-    }  
-    res.json(product);  
+        const product = data.toObject();
+        // Ensure complete image URL
+        if (product.image && !product.image.startsWith('http')) {
+            product.image = `${req.protocol}://${req.get('host')}${product.image}`;
+        }
+        res.json(product);
     }
     catch (err) {
         res.status(500).json({ message: err.message });
@@ -293,9 +291,10 @@ app.post('/products', async (req, res) => {
         res.json(saved);
     } catch (err) {
         console.error("Error saving product to MongoDB:", err);
-        res.status(500).json({ message: err,
-             details: err.errors // This will show validation errors
-         });
+        res.status(500).json({
+            message: err,
+            details: err.errors // This will show validation errors
+        });
     }
 });
 
@@ -533,7 +532,7 @@ app.get('/booked-dates', async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 });
- 
+
 //FOR  USER SITE ORDER
 // GET orders for specific user 
 app.get('/prodOrders/user/:userId', async (req, res) => {
@@ -755,7 +754,7 @@ app.delete('/prodOrders/:id', async (req, res) => {
 // GET cart items for user
 app.get('/cart/user/:userId', async (req, res) => {
     try {
-                console.log('Received request for user ID:', req.params.userId);
+        console.log('Received request for user ID:', req.params.userId);
         if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
             return res.status(400).json({ message: 'Invalid user ID format' });
         }

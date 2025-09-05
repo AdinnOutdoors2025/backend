@@ -29,8 +29,6 @@ const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
 const NETTYFISH_TEMPLATE_ID = process.env.NETTYFISH_TEMPLATE_ID || '1007403395830327066';
 
 const otpStore = {}; // Store OTPs temporarily
-// ... (Keep all your existing schema and routes until the send-otp endpoint)
-
 // Root endpoint
 router.get('/', (req, res) => {
     res.send('Welcome to Email OTP Verification API');
@@ -40,8 +38,6 @@ router.get('/', (req, res) => {
 router.post('/check-user', async (req, res) => {
     const { email, phone } = req.body;
     try {
-        // const user = await User.findOne({ UserEmail:email });
-        // res.json({ exists: !!user });
         let user;
         if (email) {
             user = await User.findOne({ userEmail: email });
@@ -78,7 +74,6 @@ router.post('/check-user-exists', async (req, res) => {
 router.post('/create-user', async (req, res) => {
     const { userName, userEmail, userPhone } = req.body;
     try {
-        // Check if user already exists
         // Validate all required fields
         if (!userName || !userEmail || !userPhone) {
             return res.status(400).json({ error: 'All fields are required' });
@@ -92,9 +87,6 @@ router.post('/create-user', async (req, res) => {
 
             });
         }
-        // }
-        // Check if phone already exists
-        // if (userPhone) {
         const existingPhone = await User.findOne({ userPhone });
         if (existingPhone) {
             return res.status(400).json({
@@ -103,7 +95,6 @@ router.post('/create-user', async (req, res) => {
 
             });
         }
-        // }
         // Create new user
         const newUser = new User({
             userName,
@@ -112,7 +103,6 @@ router.post('/create-user', async (req, res) => {
         });
 
         await newUser.save();
-
         // Send welcome SMS after successful registration
         try {
             const welcomeMessage = "Thank you for registering with Adinn Outdoors. We're glad to have you on board!";
@@ -191,8 +181,7 @@ router.post('/create-user', async (req, res) => {
                 style="width: 100%; height: auto;">
         </a>
        </div>
-    </div>
-`
+    </div> `
         };
         const adminMailOptions = {
             from: 'reactdeveloper@adinn.co.in',
@@ -294,13 +283,10 @@ router.post('/send-otp', async (req, res) => {
             const mobileNumber = phone.replace(/\D/g, '');
             // Check if number has country code, if not add 91 for India
             const formattedNumber = mobileNumber.length === 10 ? `91${mobileNumber}` : mobileNumber;
-
             // Use the approved DLT template with the OTP variable properly formatted
             const message = `Welcome to Adinn Outdoors! Your verification code is ${otp}. Use this OTP to complete your verification. Please don't share it with anyone.`;
-
             // Construct the API URL with template ID
             const apiUrl = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedNumber}&dlttemplateid=${NETTYFISH_TEMPLATE_ID}&text=${encodeURIComponent(message)}&route=17`;
-
             console.log("Sending SMS via URL:", apiUrl);
 
             // Make the request to Nettyfish API
@@ -358,7 +344,6 @@ router.post('/verify-otp', async (req, res) => {
     if (otp.toString() !== storedData.otp.toString()) {
         return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
-
     delete otpStore[otpKey]; // Clear OTP after verification
 
     try {

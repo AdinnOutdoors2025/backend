@@ -10,8 +10,7 @@ const router = express.Router();
 router.use(bodyParser.json());
 router.use(cors());
 
-const otpStore = {}; // Store OTPs temporarily
-
+const otpStore = {};
 // Email configuration
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -26,9 +25,6 @@ const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87
 const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
 const NETTYFISH_TEMPLATE_ID = process.env.NETTYFISH_TEMPLATE_ID || '1007403395830327066';
 const NETTYFISH_BASE_URL = 'https://retailsms.nettyfish.com/api/mt/SendSMS';
-
-// GET & DELETE THE ENQUIRY DETAILS
-
 // Get all enquiries
 router.get('/enquiries', async (req, res) => {
     try {
@@ -36,10 +32,10 @@ router.get('/enquiries', async (req, res) => {
         res.status(200).json(enquiries);
     } catch (error) {
         console.error("Error fetching enquiries:", error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: "Failed to fetch enquiries",
-            error: error.message 
+            error: error.message
         });
     }
 });
@@ -49,24 +45,24 @@ router.delete('/enquiries/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const deletedEnquiry = await Enquiry.findByIdAndDelete(id);
-        
+
         if (!deletedEnquiry) {
-            return res.status(404).json({ 
-                success: false, 
-                message: "Enquiry not found" 
+            return res.status(404).json({
+                success: false,
+                message: "Enquiry not found"
             });
         }
-        
-        res.status(200).json({ 
-            success: true, 
-            message: "Enquiry deleted successfully" 
+
+        res.status(200).json({
+            success: true,
+            message: "Enquiry deleted successfully"
         });
     } catch (error) {
         console.error("Error deleting enquiry:", error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: "Failed to delete enquiry",
-            error: error.message 
+            error: error.message
         });
     }
 });
@@ -79,12 +75,12 @@ const sendSMS = (phone, otp) => {
         if (!formattedPhone.startsWith('91')) {
             formattedPhone = '91' + formattedPhone;
         }
-        
+
         const text = `Welcome to Adinn Outdoors! Your verification code is ${otp}. Use this OTP to complete your verification. Please don't share it with anyone.`;
-        
+
         const encodedText = encodeURIComponent(text);
         const url = `${NETTYFISH_BASE_URL}?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${NETTYFISH_TEMPLATE_ID}&text=${encodedText}&route=17`;
-        
+
         request.get(url, (error, response, body) => {
             if (error) {
                 reject(error);
@@ -112,13 +108,13 @@ const sendConfirmationSMS = (phone) => {
         if (!formattedPhone.startsWith('91')) {
             formattedPhone = '91' + formattedPhone;
         }
-        
+
         const text = "Thanks for enquiring Adinn Outdoor Products! We'll share more details with you shortly.";
         const templateId = "1007798213348641202"; // Your confirmation template ID
-        
+
         const encodedText = encodeURIComponent(text);
         const url = `${NETTYFISH_BASE_URL}?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${templateId}&text=${encodedText}&route=17`;
-        
+
         request.get(url, (error, response, body) => {
             if (error) {
                 reject(error);
@@ -141,7 +137,6 @@ const sendConfirmationSMS = (phone) => {
 // **Send OTP**
 router.post('/send-otp', async (req, res) => {
     const { phone } = req.body;
-
     if (!phone || !phone.startsWith('+')) {
         return res.status(400).json({ success: false, message: "Enter a valid phone number in E.164 format" });
     }
@@ -158,24 +153,20 @@ router.post('/send-otp', async (req, res) => {
             message: "Invalid phone number format. Use +91 followed by 10 digits"
         });
     }
-
     const otp = Math.floor(100000 + Math.random() * 900000);
     otpStore[phone] = { otp, expiresAt: Date.now() + 5 * 60 * 1000 }; // OTP expires in 5 mins
 
     try {
         // Send OTP using NettyFish API
         const result = await sendSMS(phone, otp);
-        
         console.log(`OTP Sent: ${otp} to ${phone}, NettyFish Response: ${JSON.stringify(result)}`);
         res.status(200).json({ success: true, message: "OTP sent successfully" });
     } catch (error) {
         console.error("NettyFish Error:", error);
-
         let errorMessage = "Failed to send OTP";
         if (error.message.includes('Invalid Number')) {
             errorMessage = "Invalid phone number";
         }
-
         res.status(500).json({
             success: false,
             message: errorMessage,
@@ -188,19 +179,15 @@ router.post('/send-otp', async (req, res) => {
 router.post('/verify-otp', async (req, res) => {
     try {
         const { phone, otp, productData } = req.body;
-
         if (!phone || !otp) {
             return res.status(400).json({ success: false, message: "Phone and OTP are required" });
         }
-
         const storedData = otpStore[phone];
         if (!storedData || Date.now() > storedData.expiresAt) {
             return res.status(400).json({ success: false, message: "OTP expired or not found" });
         }
-
         if (otp.toString() === storedData.otp.toString()) {
             delete otpStore[phone]; // Remove OTP after verification
-
             // Store enquiry in database if product data exists
             if (productData) {
                 try {
@@ -226,7 +213,6 @@ router.post('/verify-otp', async (req, res) => {
                         enquiryDate: new Date()
                     });
                     await enquiry.save();
-
                     // Send confirmation SMS after successful verification and DB save
                     try {
                         await sendConfirmationSMS(phone);
@@ -235,7 +221,6 @@ router.post('/verify-otp', async (req, res) => {
                         console.error("Error sending confirmation SMS:", smsError);
                         // Don't fail verification if SMS fails
                     }
-
                     // Send emails after successful verification and DB save
                     await sendAdminEmail(enquiry);
                 } catch (dbError) {
@@ -243,7 +228,6 @@ router.post('/verify-otp', async (req, res) => {
                     // Don't fail verification if DB save fails
                 }
             }
-
             return res.status(200).json({ success: true, message: "OTP verified successfully" });
         } else {
             return res.status(400).json({ success: false, message: "Invalid OTP" });

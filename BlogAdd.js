@@ -20,22 +20,53 @@ cloudinary.config({
   api_key: '288959228422799',
   api_secret: 'hNd1fd5iPmj20YRxnrRFFAVEtiw',
 });
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'uploadBlogs',
-    allowed_formats: ['jpg', 'jpeg', 'png'],
-  },
+
+// const storage = new CloudinaryStorage({
+//   cloudinary,
+//   params: {
+//     folder: 'uploadBlogs',
+//     allowed_formats: ['jpg', 'jpeg', 'png'],
+//   },
+// });
+// const upload = multer({ storage });
+// router.post('/uploadBlog', upload.single('file'), (req, res) => {
+//   try {
+//     res.status(200).json({
+//       message: 'Upload successful',
+//       imageUrl: req.file.path,       // ✅ Cloudinary secure URL
+//       public_id: req.file.public_id, // ✅ Correct ID for future delete, etc.
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: 'Upload failed' });
+//   }
+// });
+
+
+
+
+const blogImages = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, res) => {
+    return {
+      folder: 'uploadBlogs',
+      allowed_formats: ['jpg', 'jpeg', 'png'],
+    }
+  }
 });
+const blogImageUpload = multer({ storage: blogImages });
 
-const upload = multer({ storage });
-
-router.post('/uploadBlog', upload.single('file'), (req, res) => {
+router.post('/uploadBlog', blogImageUpload.single('file'), (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    console.log("Blog image URL:", req.file.path);
+    console.log("Blog image public_id:", req.file.filename);
     res.status(200).json({
       message: 'Upload successful',
       imageUrl: req.file.path,       // ✅ Cloudinary secure URL
-      public_id: req.file.public_id, // ✅ Correct ID for future delete, etc.
+      public_id: req.file.filename, // ✅ Correct ID for future delete, etc.
     });
   } catch (err) {
     console.error(err);
@@ -114,8 +145,6 @@ router.delete("/deleteBlog/:id", async (req, res) => {
       return res.status(404).json({ error: 'Blog not found' });
     }
     res.json(deletedBlog);
-
-
   }
   catch (err) {
     console.log(err);
@@ -125,5 +154,3 @@ router.delete("/deleteBlog/:id", async (req, res) => {
 
 
 module.exports = router;
-
-

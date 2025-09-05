@@ -1,12 +1,7 @@
-
-
-
 const express = require('express');
 const nodemailer = require('nodemailer');
 const router = express.Router();
 const request = require('request');
-
-
 const transporter = nodemailer.createTransport(
     {
         service: 'gmail',
@@ -16,7 +11,6 @@ const transporter = nodemailer.createTransport(
         }
     }
 );
-
 
 // NettyFish SMS Configuration
 const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
