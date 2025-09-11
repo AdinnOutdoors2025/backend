@@ -43,8 +43,6 @@ cloudinary.config({
 // });
 
 
-
-
 const blogImages = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, res) => {
