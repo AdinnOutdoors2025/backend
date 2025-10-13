@@ -39,6 +39,16 @@ app.use('/BlogAdd', require("./BlogAdd"));
 //ADMIN SIDE ORDER EMAIL AND SMS SENT
 app.use('/AdminOrder', require("./AdminOrderConfMessage"));
 
+//RAZORPAY NOT IMPLEMENTED
+
+//OFFER PRODUCT 
+app.use('/OfferedProduct', require('./OfferProduct'));
+
+//TIMER 
+app.use('/DealTimerRun', require('./DealTimer'));
+
+
+
 //IMAGE UPLOAD CLOUDINARY CORRECTED CODE
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { v2: cloudinary } = require('cloudinary');
