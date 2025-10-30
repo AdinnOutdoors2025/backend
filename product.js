@@ -265,7 +265,7 @@ app.get('/products/similar/:prodCode', async (req, res) => {
             _id: product._id,
             name: product.name,
             location: `${product.location.district}, ${product.location.state}`,
-            dimensions: `${product.height} x ${product.width}`,
+            dimensions: `${product.width} x ${product.height}`,
             price: product.price,
             rating: product.rating,
             image: product.image,
