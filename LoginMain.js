@@ -7,6 +7,7 @@ const bcyrypt = require('bcryptjs');
 const request = require('request');
 require('dotenv').config();
 
+
 // MongoDB connection 
 //USER LOGIN DETAILS ARE STORED IN THIS COLLECTION / DATABASE
 const UserSchema = new mongoose.Schema(

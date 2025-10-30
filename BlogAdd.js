@@ -13,6 +13,7 @@ router.use(bodyParser.json());
 router.use("/images", express.static(path.join(__dirname, "../first-app/public/images")));
 router.use(express.static('public'));
 
+
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { v2: cloudinary } = require('cloudinary');
 cloudinary.config({

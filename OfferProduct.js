@@ -91,4 +91,3 @@ router.delete('/offerProduct/:id', async (req, res) => {
 }); 
 
 module.exports = router;
-

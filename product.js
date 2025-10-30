@@ -272,6 +272,7 @@ app.get('/products/similar/:prodCode', async (req, res) => {
             category: product.mediaType,
             sizeHeight: product.height,
             sizeWidth: product.width,
+            sizeSide: product.side,
             district: product.location.district,
             state: product.location.state,
             printingCost: product.printingCost,
@@ -282,9 +283,7 @@ app.get('/products/similar/:prodCode', async (req, res) => {
             productTo: product.to,
             productFixedAmount: product.fixedAmount,
             productFixedOffer: product.fixedOffer,
-
         }));
-
         res.json(mappedResults);
     } catch (err) {
         console.error("Error fetching similar products:", err);
