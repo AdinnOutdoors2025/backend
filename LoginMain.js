@@ -6,6 +6,8 @@ const mongoose = require('mongoose');
 const bcyrypt = require('bcryptjs');
 const request = require('request');
 require('dotenv').config();
+//EMAIL CREDENTIALS 
+const {emailID, emailPwd} = require('./EmailCredentials');
 
 
 // MongoDB connection 
@@ -128,14 +130,14 @@ router.post('/create-user', async (req, res) => {
             {
                 service: 'gmail',
                 auth: {
-                    user: 'reactdeveloper@adinn.co.in',
-                    pass: 'gxnn sezu klyp ifhn'
+                    user: emailID,
+                    pass: emailPwd
                 }
             }
         );
         //Welcome Email to user
         const userMailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
+            from: emailID,
             to: userEmail,
             subject: 'Welcome to Adinn - Registration Successful',
             html: `
@@ -176,7 +178,7 @@ router.post('/create-user', async (req, res) => {
             <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube"
                 style="width: 100%; height: auto;">
         </a>
-        <a href="mailto:reactdeveloper@adinn.co.in" target="_blank"
+        <a href="mailto:emailID" target="_blank"
             style="display: inline-block; width: 25px; height: 25px; margin:0px 5px;">
             <img src="https://cdn-icons-png.flaticon.com/512/5968/5968534.png" alt="Gmail"
                 style="width: 100%; height: auto;">
@@ -185,8 +187,8 @@ router.post('/create-user', async (req, res) => {
     </div> `
         };
         const adminMailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
-            to: 'reactdeveloper@adinn.co.in',
+            from: emailID,
+            to: emailID,
             subject: 'New User Registration on Adinn Site',
             html: `
 <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;'> 
@@ -248,14 +250,14 @@ router.post('/send-otp', async (req, res) => {
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: {
-                user: 'reactdeveloper@adinn.co.in',
-                pass: 'gxnn sezu klyp ifhn'
+                user: emailID,
+                pass: emailPwd
             }
         });
 
         const greetingName = userName || 'User';
         const mailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
+            from: emailID,
             to: email,
             subject: 'Your OTP for Verification',
             html: `

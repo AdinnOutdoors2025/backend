@@ -5,6 +5,9 @@ const cors = require('cors');
 const nodemailer = require('nodemailer');
 const request = require('request');
 require('dotenv').config();
+//EMAIL CREDENTIALS 
+const {emailID, emailPwd} = require('./EmailCredentials');
+
 
 const router = express.Router();
 router.use(bodyParser.json());
@@ -15,8 +18,8 @@ const otpStore = {};
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'reactdeveloper@adinn.co.in',
-        pass: 'gxnn sezu klyp ifhn'
+        user: emailID,
+        pass: emailPwd
     }
 });
 
@@ -245,8 +248,8 @@ router.post('/verify-otp', async (req, res) => {
 async function sendAdminEmail(enquiry) {
     try {
         const mailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
-            to: 'reactdeveloper@adinn.co.in',
+            from: emailID,
+            to: emailID,
             subject: 'New Product Enquiry Received',
             html: `
                    <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px; width:max-content;'>

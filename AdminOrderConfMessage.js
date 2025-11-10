@@ -4,6 +4,9 @@ const request = require('request');
 //FOR EMAIL
 const nodemailer = require('nodemailer');
 const router = express.Router();
+//EMAIL CREDENTIALS 
+const {emailID, emailPwd} = require('./EmailCredentials');
+
 
 const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
 const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
@@ -73,8 +76,8 @@ router.post('/send-admin-sms', async (req, res) => {
 const emailTransporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'reactdeveloper@adinn.co.in',
-        pass: 'gxnn sezu klyp ifhn'
+        user: emailID,
+        pass: emailPwd
     }
 });
 
@@ -110,7 +113,7 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
 
         // Send user email
         const userMailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
+            from: emailID,
             to: client.email,
             subject: `Order Confirmation - ${orderId}`,
             html: ` <div style="font-family: montserrat; max-width: 650px; margin: 0 auto; color: #444;">
@@ -171,7 +174,7 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
                                 <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube"
                                     style="width: 100%; height: auto;">
                             </a>
-                             <a href="mailto:reactdeveloper@adinn.co.in" target="_blank"
+                             <a href="mailto:emailID" target="_blank"
                                 style="display: inline-block; width: 20px; height: 20px; margin:0px 5px;">
                                 <img src="https://cdn-icons-png.flaticon.com/512/5968/5968534.png" alt="Gmail"
                                     style="width: 100%; height: auto;">
@@ -186,8 +189,8 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
 
         // Send admin email
         const adminMailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
-            to: 'reactdeveloper@adinn.co.in',
+            from: emailID,
+            to: emailID,
             subject: `New Order Received - #${orderId}`,
             html: `<div style="font-family:Montserrat; max-width: 650px; margin: 0 auto; color: #444;">
                     <!-- Header -->
@@ -249,7 +252,7 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
 
         // Send SMS to admin
         try {
-            await sendAdminSMS('reactdeveloper@adinn.co.in', "1007197121174928712", {
+            await sendAdminSMS(emailID, "1007197121174928712", {
                 orderId: orderId,
                 customerName: client.name,
                 amount: client.paidAmount

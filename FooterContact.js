@@ -4,6 +4,9 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const PORT = process.env.PORT || 3001;
+//EMAIL CREDENTIALS 
+const {emailID, emailPwd} = require('./EmailCredentials');
+
 
 // const app = express();
 const router = express.Router();
@@ -47,8 +50,8 @@ const contact = mongoose.model("FooterContact", contactSchema);
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'reactdeveloper@adinn.co.in',
-        pass: 'gxnn sezu klyp ifhn'
+        user: emailID,
+        pass: emailPwd
     }
 });
 
@@ -67,8 +70,8 @@ router.post('/footerContactInfo', async (req, res) => {
         const isEmail = contactInfo.includes('@');
         // Email options
         const mailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
-            to: 'reactdeveloper@adinn.co.in', // Admin email
+            from: emailID,
+            to: emailID, // Admin email
             subject: 'New Contact Request from Website',
             html: `
             <div

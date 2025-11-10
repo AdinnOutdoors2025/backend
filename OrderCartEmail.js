@@ -2,13 +2,15 @@ const express = require('express');
 const nodemailer = require('nodemailer');
 const router = express.Router();
 const request = require('request');
+//EMAIL CREDENTIALS 
+const {emailID, emailPwd} = require('./EmailCredentials');
 
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'reactdeveloper@adinn.co.in',
-        pass: 'gxnn sezu klyp ifhn'
+        user: emailID,
+        pass: emailPwd
     }
 });
 
@@ -109,7 +111,7 @@ router.post('/send-orderCart-confirmation', async (req, res) => {
 
         // User Email Template
         const userMailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
+            from: emailID,
             to: userEmail,
             subject: `Your Order #${orderId} Confirmation`,
             html: `
@@ -178,7 +180,7 @@ router.post('/send-orderCart-confirmation', async (req, res) => {
                                 <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube"
                                     style="width: 100%; height: auto;">
                             </a>
-                             <a href="mailto:reactdeveloper@adinn.co.in" target="_blank"
+                             <a href="mailto:emailID" target="_blank"
                                 style="display: inline-block; width: 20px; height: 20px; margin:0px 5px;">
                                 <img src="https://cdn-icons-png.flaticon.com/512/5968/5968534.png" alt="Gmail"
                                     style="width: 100%; height: auto;">
@@ -193,8 +195,8 @@ router.post('/send-orderCart-confirmation', async (req, res) => {
 
         // Admin Email Template (similar structure but with different styling)
         const adminMailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
-            to: 'reactdeveloper@adinn.co.in',
+            from: emailID,
+            to: emailID,
             subject: `🚀 New Order #${orderId} - Action Required`,
             html: `
     <div style="font-family:Montserrat; max-width: 650px; margin: 0 auto; color: #444;">
@@ -268,7 +270,7 @@ router.post('/send-orderCart-confirmation', async (req, res) => {
 
         // Send SMS to admin
         try {
-            await sendSMS('reactdeveloper@adinn.co.in', "1007478982147905431", {
+            await sendSMS(emailID, "1007478982147905431", {
                 orderId,
                 customerName: userName,
                 amount: totalAmount
