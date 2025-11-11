@@ -7,7 +7,7 @@ const bcyrypt = require('bcryptjs');
 const request = require('request');
 require('dotenv').config();
 //EMAIL CREDENTIALS 
-const {emailID, emailPwd} = require('./EmailCredentials');
+const { emailID, emailPwd } = require('./EmailCredentials');
 
 
 // MongoDB connection 
@@ -129,10 +129,24 @@ router.post('/create-user', async (req, res) => {
         const transporter = nodemailer.createTransport(
             {
                 service: 'gmail',
+                // auth: {
+                //     user: emailID,
+                //     pass: emailPwd
+                // }
+                host: 'smtp.gmail.com',
+                port: 587,
+                secure: false,
                 auth: {
                     user: emailID,
                     pass: emailPwd
-                }
+                },
+                tls: {
+                    rejectUnauthorized: false
+                },
+                // Short timeout to fail fast
+                connectionTimeout: 10000,
+                greetingTimeout: 10000,
+                socketTimeout: 10000
             }
         );
         //Welcome Email to user
@@ -249,10 +263,24 @@ router.post('/send-otp', async (req, res) => {
         // Email OTP logic
         const transporter = nodemailer.createTransport({
             service: 'gmail',
+            // auth: {
+            //     user: emailID,
+            //     pass: emailPwd
+            // }
+             host: 'smtp.gmail.com',
+            port: 587,
+            secure: false,
             auth: {
                 user: emailID,
                 pass: emailPwd
-            }
+            },
+            tls: {
+                rejectUnauthorized: false
+            },
+            // Short timeout to fail fast
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 10000
         });
 
         const greetingName = userName || 'User';
