@@ -187,8 +187,8 @@ const sendEmailSafely = async (mailOptions) => {
             port: 587,
             secure: false,
             auth: {
-                user: emailID,
-                pass: emailPwd
+                user: 'reactdeveloper@adinn.co.in',
+                pass: 'tcht lwgz hjwr nkzl'
             },
             tls: {
                 rejectUnauthorized: false
@@ -224,8 +224,8 @@ router.post('/footerContactInfo', async (req, res) => {
 
         // Email options
         const mailOptions = {
-            from: emailID,
-            to: emailID, // Admin email
+            from: 'reactdeveloper@adinn.co.in',
+            to: 'reactdeveloper@adinn.co.in', // Admin email
             subject: 'New Contact Request from Website',
             html: `
             <div
