@@ -20,6 +20,7 @@
     "ejs": "^3.1.10",
     "express": "^5.1.0",
     "fast-two-sms": "^3.0.0",
+    "googleapis": "^165.0.0",
     "mongoose": "^8.15.0",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
