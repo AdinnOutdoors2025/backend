@@ -147,33 +147,67 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const PORT = process.env.PORT || 3001;
-// const {emailID, emailPwd} = require('./EmailCredentials');
+const { emailID, emailPwd } = require('./EmailCredentials');
 
 
 // const app = express();
 const router = express.Router();
-
-// app.use(cors());
-// app.use(bodyParser.json());
-
 router.use(bodyParser.json());
 router.use(cors());
 
 //CONTACT SCHEMA FOR FOOTER
-const Contact = mongoose.model("FooterContact",{
-     contactInfo:String,
-    timeStamp:Date
-}); 
-
-// Email configuration
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: 'reactdeveloper@adinn.co.in',
-        pass: 'tcht lwgz hjwr nkzl'
-    }
+const Contact = mongoose.model("FooterContact", {
+    contactInfo: String,
+    timeStamp: Date
 });
 
+// // Email configuration
+// const transporter = nodemailer.createTransport({
+//     service: 'gmail',
+//     auth: {
+//         user: 'reactdeveloper@adinn.co.in',
+//         pass: 'tcht lwgz hjwr nkzl'
+//     }
+// });
+
+
+
+// Enhanced email function that handles SMTP blocks gracefully
+const sendEmailSafely = async (mailOptions) => {
+    // Don't even try to send email on Render to avoid timeouts
+    if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+        console.log('SMTP disabled on Render - skipping email send');
+        return { sent: false, reason: 'SMTP blocked on Render' };
+    }
+
+    try {
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            host: 'smtp.gmail.com',
+            port: 587,
+            secure: false,
+            auth: {
+                user: emailID,
+                pass: emailPwd
+            },
+            tls: {
+                rejectUnauthorized: false
+            },
+            // Short timeout to fail fast
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 10000
+        });
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Email sent successfully:', info.messageId);
+        return { sent: true, info: info };
+
+    } catch (error) {
+        console.log('Email sending failed (non-critical):', error.message);
+        return { sent: false, error: error.message };
+    }
+};
 
 // Contact form endpoint
 router.post('/footerContactInfo', async (req, res) => {
@@ -181,17 +215,17 @@ router.post('/footerContactInfo', async (req, res) => {
         const { contactInfo } = req.body;
         // Save to database
         const newContact = new Contact({
-            contactInfo: contactInfo,
+            contactInfo: contactInfo.trim(),
             timestamp: new Date()
         });
-        await newContact.save(); 
+        await newContact.save();
         // Determine if the input is email or phone
         const isEmail = contactInfo.includes('@');
 
         // Email options
         const mailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
-            to: 'reactdeveloper@adinn.co.in', // Admin email
+            from: emailID,
+            to: emailID, // Admin email
             subject: 'New Contact Request from Website',
             html: `
             <div
@@ -202,9 +236,9 @@ router.post('/footerContactInfo', async (req, res) => {
         <p style="font-size:17px">
             <strong>${isEmail ? 'EMAIL' : 'PHONE'}:</strong>
             ${isEmail ?
-            `<a href="mailto:${contactInfo}" >${contactInfo}</a>` :
-            `<a href="tel:${contactInfo}" >${contactInfo}</a>`
-            }
+                    `<a href="mailto:${contactInfo}" >${contactInfo}</a>` :
+                    `<a href="tel:${contactInfo}" >${contactInfo}</a>`
+                }
         </p>
         <p style="font-size:17px">This user has contacted through the website contact form.</p>
         <p style="font-size:17px">Please reach out to them at your earliest convenience.</p>
@@ -214,15 +248,27 @@ router.post('/footerContactInfo', async (req, res) => {
     </div>
 
                 `
-            };
+        };
 
-        // Send email
-        await transporter.sendMail(mailOptions);
+        // // Send email
+        // await transporter.sendMail(mailOptions);
 
-        res.status(200).json({ success: true });
+        // Try to send email but don't wait for it
+        const emailResult = await sendEmailSafely(mailOptions);
+
+        res.status(200).json({
+            success: true,
+            message: 'Contact information submitted successfully',
+            databaseSaved: true,
+            emailSent: emailResult.sent,
+            emailError: emailResult.sent ? undefined : emailResult.reason
+        });
     } catch (error) {
         console.error('Error sending email:', error);
-        res.status(500).json({ success: false, error: 'Failed to send email' });
+        res.status(500).json({ success: false, error: 'Failed to process contact information',
+                        details: error.message 
+
+         });
     }
 });
 module.exports = router;
