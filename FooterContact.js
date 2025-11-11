@@ -50,8 +50,8 @@ const contact = mongoose.model("FooterContact", contactSchema);
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: emailID,
-        pass: emailPwd
+        user: 'reactdeveloper@adinn.co.in',
+        pass: 'tcht lwgz hjwr nkzl'
     }
 });
 
@@ -70,8 +70,8 @@ router.post('/footerContactInfo', async (req, res) => {
         const isEmail = contactInfo.includes('@');
         // Email options
         const mailOptions = {
-            from: emailID,
-            to: emailID, // Admin email
+            from: 'reactdeveloper@adinn.co.in',
+            to: 'reactdeveloper@adinn.co.in', // Admin email
             subject: 'New Contact Request from Website',
             html: `
             <div
