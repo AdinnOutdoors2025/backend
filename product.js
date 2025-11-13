@@ -386,6 +386,60 @@ app.delete('/products/:id', async (req, res) => {
 
 
 
+
+// Add this to your server.js file after your other routes
+
+// Proxy endpoint for problematic images
+app.get('/proxy-image', async (req, res) => {
+    try {
+        const imageUrl = req.query.url;
+        
+        if (!imageUrl) {
+            return res.status(400).json({ error: 'No URL provided' });
+        }
+
+        // Validate URL
+        try {
+            new URL(imageUrl);
+        } catch (err) {
+            return res.status(400).json({ error: 'Invalid URL' });
+        }
+
+        // Fetch the image
+        const response = await fetch(imageUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        if (!response.ok) {
+            return res.status(response.status).json({ 
+                error: `Failed to fetch image: ${response.statusText}` 
+            });
+        }
+
+        // Get content type and buffer
+        const contentType = response.headers.get('content-type');
+        const buffer = await response.buffer();
+
+        // Set appropriate headers
+        res.setHeader('Content-Type', contentType || 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        // Send the image data
+        res.send(buffer);
+
+    } catch (error) {
+        console.error('Proxy error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+
+
+
 // CATEGORY CRUD OPERATION
 // GET 
 app.get('/category', async (req, res) => {
