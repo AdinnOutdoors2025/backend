@@ -15,10 +15,6 @@ const crypto = require('crypto');//inbuilt function to embed the data in this we
 const app = express();
 const PORT = 3001;
 
-// Add this to your server.js file
-const https = require('https');
-const http = require('http');
-
 //Middlewares
 app.use(cors());
 app.use(bodyParser.json());
@@ -387,95 +383,6 @@ app.delete('/products/:id', async (req, res) => {
         res.status(500).json({ message: err });
     }
 });
-
-
-
-// Enhanced proxy endpoint for Mixed Content issues
-app.get('/proxy-image', async (req, res) => {
-    try {
-        const imageUrl = req.query.url;
-        
-        if (!imageUrl) {
-            return res.status(400).json({ error: 'No URL provided' });
-        }
-
-        // Validate URL
-        let urlObj;
-        try {
-            urlObj = new URL(imageUrl);
-        } catch (err) {
-            return res.status(400).json({ error: 'Invalid URL' });
-        }
-
-        // Choose the appropriate module based on protocol
-        const httpModule = urlObj.protocol === 'https:' ? https : http;
-
-        const options = {
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'image/*,*/*',
-                'Accept-Encoding': 'identity'
-            },
-            timeout: 10000
-        };
-
-        httpModule.get(imageUrl, options, (response) => {
-            // Check if response is successful
-            if (response.statusCode !== 200) {
-                return res.status(response.statusCode).json({ 
-                    error: `Failed to fetch image: ${response.statusCode} ${response.statusMessage}` 
-                });
-            }
-
-            // Check if content type is an image
-            const contentType = response.headers['content-type'];
-            if (!contentType || !contentType.startsWith('image/')) {
-                return res.status(400).json({ 
-                    error: `Invalid content type: ${contentType}. Expected image.` 
-                });
-            }
-
-            const chunks = [];
-            
-            response.on('data', (chunk) => {
-                chunks.push(chunk);
-            });
-
-            response.on('end', () => {
-                const buffer = Buffer.concat(chunks);
-                
-                // Set appropriate headers
-                res.setHeader('Content-Type', contentType);
-                res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
-                res.setHeader('Access-Control-Allow-Origin', '*');
-                res.setHeader('Content-Length', buffer.length);
-                
-                // Send the image data
-                res.send(buffer);
-            });
-
-        }).on('error', (error) => {
-            console.error('Proxy fetch error:', error);
-            res.status(500).json({ error: 'Failed to fetch image from source' });
-        }).on('timeout', () => {
-            res.status(504).json({ error: 'Request timeout' });
-        });
-
-    } catch (error) {
-        console.error('Proxy error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// Add a health check for the proxy
-app.get('/proxy-health', (req, res) => {
-    res.json({ status: 'OK', message: 'Proxy service is running' });
-});
-
-
-
-
 
 
 
