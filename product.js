@@ -8,9 +8,9 @@ const mediaTypeData = require('./mediaTypeSchema');
 const prodOrderData = require('./productOrderSchema');
 const cartData = require('./productCartSchema');
 const cors = require('cors');
-const Razorpay = require('razorpay');//require razorpay then only we use
-const bodyParser = require('body-parser');//sent the json data
-const crypto = require('crypto');//inbuilt function to embed the data in this we use sha256 algorithm to safest way of payment
+const Razorpay = require('razorpay'); //require razorpay then only we use
+const bodyParser = require('body-parser'); //sent the json data
+const crypto = require('crypto'); //inbuilt function to embed the data in this we use sha256 algorithm to safest way of payment
 // Initialize the Express app
 const app = express();
 const PORT = 3001;
@@ -315,6 +315,8 @@ app.put('/products/:id', async (req, res) => {
         res.status(500).json({ message: err });
     }
 });
+
+
 app.patch("/products/:id", async (req, res) => {
     const { id } = req.params;
     const { visible } = req.body;
@@ -541,6 +543,71 @@ app.get('/booked-dates', async (req, res) => {
     }
 });
 
+// Updated booked dates endpoint with exclusion
+app.get('/booked-dates/:prodCode', async (req, res) => {
+    try {
+        const { prodCode } = req.params;
+        const excludeOrderId = req.query.excludeOrderId;
+         
+        console.log(`Fetching booked dates for product: ${prodCode}, excluding order: ${excludeOrderId}`);
+
+        // Build query to find orders with this product code
+        let query = {
+            'products.prodCode': prodCode
+        };
+        
+        // Exclude current order if specified
+        if (excludeOrderId && excludeOrderId !== 'null' && excludeOrderId !== 'undefined') {
+            query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
+        }
+        
+        // Find all orders that contain this product code
+        const orders = await prodOrderData.find(query);
+               console.log(`📊 Found ${orders.length} orders with product ${prodCode}`);
+
+        // Extract all booked dates for this product from other orders
+        const bookedDates = [];
+        orders.forEach(order => {
+            order.products.forEach(product => {
+                if (product.prodCode === prodCode && product.bookedDates) {
+                    // Convert dates to ISO string format for consistency
+                    product.bookedDates.forEach(date => {
+                        // const dateObj = new Date(date);
+                        // bookedDates.push(dateObj.toISOString().split('T')[0]);
+
+
+
+                         try {
+                            const dateObj = new Date(date);
+                            if (!isNaN(dateObj.getTime())) {
+                                // Normalize to UTC midnight for consistent comparison
+                                const utcDate = new Date(Date.UTC(
+                                    dateObj.getUTCFullYear(), 
+                                    dateObj.getUTCMonth(), 
+                                    dateObj.getUTCDate()
+                                ));
+                                bookedDates.push(utcDate.toISOString().split('T')[0]);
+                            }
+                        } catch (e) {
+                            console.warn('Invalid date format:', date);
+                        }
+                    });
+                }
+            });
+        });
+        
+        // Remove duplicates and return
+        const uniqueDates = [...new Set(bookedDates)];
+        console.log(`📅 Final booked dates for ${prodCode}:`, uniqueDates);
+
+        res.json(uniqueDates);
+    } catch (error) {
+        console.error('Error fetching booked dates:', error);
+        res.status(500).json({ error: 'Failed to fetch booked dates' });
+    }
+});
+
+
 //FOR  USER SITE ORDER
 // GET orders for specific user 
 app.get('/prodOrders/user/:userId', async (req, res) => {
@@ -658,7 +725,94 @@ function generateDateRange(startDate, endDate) {
     return dates;
 }
 
-//PUT FOR EDIT THE BOOKED DATES
+// //PUT FOR EDIT THE BOOKED DATES
+// app.put('/prodOrders/:id', async (req, res) => {
+//     try {
+//         const orderId = req.params.id;
+//         const { products } = req.body;
+
+//         // Validate products array
+//         if (!products || !Array.isArray(products)) {
+//             return res.status(400).json({ message: 'Products array is required' });
+//         }
+
+//         // Check for date conflicts
+//         const allDates = products.flatMap(p =>
+//             (p.bookedDates || []).map(d => new Date(d).toISOString().split('T')[0])
+//         );
+
+//         const conflict = await prodOrderData.findOne({
+//             _id: { $ne: orderId },
+//             'products.bookedDates': {
+//                 $in: allDates.map(d => new Date(d))
+//             }
+//         });
+
+//         if (conflict) {
+//             return res.status(409).json({
+//                 message: 'Date conflict with existing bookings',
+//                 conflictOrderId: conflict._id
+//             });
+//         }
+//         // Prepare updated products with proper date calculations
+//         const updatedProducts = products.map(p => {
+//             let bookedDates = [];
+//             if (p.booking && p.booking.startDate && p.booking.endDate) {
+//                 bookedDates = generateDateRange(
+//                     new Date(p.booking.startDate),
+//                     new Date(p.booking.endDate)
+//                 );
+//             }
+
+//             return {
+//                 ...p,
+//                 bookedDates,
+//                 booking: p.booking ? {
+//                     ...p.booking,
+//                     startDate: new Date(p.booking.startDate),
+//                     endDate: new Date(p.booking.endDate),
+//                     totalDays: bookedDates.length,
+//                     totalPrice: (p.price || 0) * bookedDates.length
+//                 } : null
+//             };
+//         });
+
+//         // Update the order
+//         const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//             orderId,
+//             {
+//                 $set: { products: updatedProducts },
+//                 $currentDate: { updatedAt: true }
+//             },
+//             {
+//                 new: true,
+//                 runValidators: true,
+//                 context: 'query'
+//             }
+//         );
+
+//         if (!updatedOrder) {
+//             return res.status(404).json({ message: 'Order not found' });
+//         }
+
+//         res.json({
+//             success: true,
+//             message: 'Order updated successfully',
+//             order: updatedOrder
+//         });
+//     } catch (err) {
+//         console.error('Error updating order:', err);
+//         res.status(500).json({
+//             success: false,
+//             message: 'Server error while updating order',
+//             error: err.message,
+//             stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+//         });
+//     }
+// });
+
+
+// UPDATED: Check for date conflicts (only for same product)
 app.put('/prodOrders/:id', async (req, res) => {
     try {
         const orderId = req.params.id;
@@ -669,24 +823,29 @@ app.put('/prodOrders/:id', async (req, res) => {
             return res.status(400).json({ message: 'Products array is required' });
         }
 
-        // Check for date conflicts
-        const allDates = products.flatMap(p =>
-            (p.bookedDates || []).map(d => new Date(d).toISOString().split('T')[0])
-        );
+        // Check for date conflicts for EACH PRODUCT individually
+        for (const product of products) {
+            const allDates = (product.bookedDates || []).map(d => new Date(d).toISOString().split('T')[0]);
+            
+            if (allDates.length > 0) {
+                const conflict = await prodOrderData.findOne({
+                    _id: { $ne: orderId },
+                    'products.prodCode': product.prodCode, // Only check same product code
+                    'products.bookedDates': {
+                        $in: allDates.map(d => new Date(d))
+                    }
+                });
 
-        const conflict = await prodOrderData.findOne({
-            _id: { $ne: orderId },
-            'products.bookedDates': {
-                $in: allDates.map(d => new Date(d))
+                if (conflict) {
+                    return res.status(409).json({
+                        message: `Date conflict with existing bookings for product ${product.prodCode}`,
+                        conflictOrderId: conflict._id,
+                        productCode: product.prodCode
+                    });
+                }
             }
-        });
-
-        if (conflict) {
-            return res.status(409).json({
-                message: 'Date conflict with existing bookings',
-                conflictOrderId: conflict._id
-            });
         }
+
         // Prepare updated products with proper date calculations
         const updatedProducts = products.map(p => {
             let bookedDates = [];
@@ -738,11 +897,11 @@ app.put('/prodOrders/:id', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Server error while updating order',
-            error: err.message,
-            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+            error: err.message
         });
     }
 });
+
 
 //DELETE THE ORDER 
 app.delete('/prodOrders/:id', async (req, res) => {
@@ -906,7 +1065,6 @@ app.delete('/cart/clear/:userId', async (req, res) => {
         });
     }
 });
-
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
