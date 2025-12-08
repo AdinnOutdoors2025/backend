@@ -30,6 +30,8 @@ router.use(cors());
 const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
 const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
 const NETTYFISH_TEMPLATE_ID = process.env.NETTYFISH_TEMPLATE_ID || '1007403395830327066';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'; //NEWLY ADDED
+
 
 const otpStore = {}; // Store OTPs temporarily
 // Root endpoint
@@ -106,6 +108,9 @@ router.post('/create-user', async (req, res) => {
         });
 
         await newUser.save();
+
+        if (IS_PRODUCTION) {
+
         // Send welcome SMS after successful registration
         try {
             const welcomeMessage = "Thank you for registering with Adinn Outdoors. We're glad to have you on board!";
@@ -125,6 +130,22 @@ router.post('/create-user', async (req, res) => {
             console.error("Error sending welcome SMS:", smsError);
             // Don't fail the registration if SMS fails
         }
+
+                // // STOPS THE SMS FOR TESTING PURPOSE
+    }
+else {
+        // Log welcome message to console instead
+        console.log('=========================================');
+        console.log('WELCOME MESSAGE (Localhost Testing):');
+        console.log('=========================================');
+        console.log(`User: ${userName}`);
+        console.log(`Email: ${userEmail}`);
+        console.log(`Phone: ${userPhone}`);
+        console.log('=========================================');
+        console.log('NOTE: Welcome SMS is disabled for localhost testing');
+        console.log('=========================================');
+}
+        
         //Sent welcome mail to the User
         const transporter = nodemailer.createTransport(
             {
@@ -279,7 +300,9 @@ router.post('/send-otp', async (req, res) => {
             }
             res.json({ success: true, message: "OTP sent to email" });
         });
-    } else if (phone) {
+    } else if (phone) { 
+        if (IS_PRODUCTION) {
+
         // Nettyfish SMS OTP implementation - FIXED
         try {
             // Clean the phone number
@@ -305,11 +328,52 @@ router.post('/send-otp', async (req, res) => {
 
                 console.log("Nettyfish API Response:", body);
 
-                // Check if the response was successful
-                if (response.statusCode === 200) {
-                    console.log(`OTP ${otp} sent to ${phone}`);
-                    res.json({ success: true, message: "OTP sent to phone" });
-                } else {
+                // // Check if the response was successful
+                // if (response.statusCode === 200) {
+                //     console.log(`OTP ${otp} sent to ${phone}`);
+                //     res.json({ success: true, message: "OTP sent to phone" });
+                // } 
+                
+
+                 // Parse the response to check if it was successful
+                    if (response.statusCode === 200) {
+                        try {
+                            const responseData = JSON.parse(body);
+                            if (responseData.ErrorCode === "000") {
+                                console.log(`OTP ${otp} sent to ${phone} via SMS`);
+                                res.json({ 
+                                    success: true, 
+                                    message: "OTP sent to phone via SMS"
+                                });
+                            } else {
+                                console.error("Nettyfish API Error:", responseData.ErrorMessage);
+                                res.status(500).json({
+                                    success: false,
+                                    message: "SMS gateway returned an error",
+                                    apiError: responseData.ErrorMessage
+                                });
+                            }
+                        } catch (parseError) {
+                            console.error("Error parsing Nettyfish response:", parseError);
+                            // Even if parsing fails, check if body contains success indicator
+                            if (body && body.includes("Message Accepted")) {
+                                console.log(`OTP ${otp} sent to ${phone} via SMS`);
+                                res.json({ 
+                                    success: true, 
+                                    message: "OTP sent to phone via SMS"
+                                });
+                            } else {
+                                res.status(500).json({
+                                    success: false,
+                                    message: "Invalid response from SMS gateway",
+                                    apiResponse: body
+                                });
+                            }
+                        }
+                    }
+                
+                
+                else {
                     console.error("Nettyfish API Non-200 Response:", body);
                     res.status(500).json({
                         success: false,
@@ -324,6 +388,30 @@ router.post('/send-otp', async (req, res) => {
                 success: false,
                 message: "Internal server error while sending SMS OTP",
                 error: error.message
+            });
+        }
+    }
+
+
+
+    else {
+            // DEVELOPMENT/LOCALHOST: Show OTP in console
+            console.log('=========================================');
+            console.log('OTP SENDING (Localhost Testing):');
+            console.log('=========================================');
+            console.log(`Phone: ${phone}`);
+            console.log(`OTP: ${otp}`);
+            console.log(`User: ${userName || 'Existing User'}`);
+            console.log(`Mode: ${isSignUp ? 'Signup' : 'Login'}`);
+            console.log('=========================================');
+            console.log('NOTE: In production, this would be sent via SMS');
+            console.log('=========================================');
+            
+            // For localhost testing, return success with test OTP
+            res.json({ 
+                success: true, 
+                message: "OTP sent to phone (check console for testing)",
+                testOtp: otp // Include OTP for testing
             });
         }
     }

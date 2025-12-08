@@ -28,47 +28,8 @@ const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87
 const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
 const NETTYFISH_TEMPLATE_ID = process.env.NETTYFISH_TEMPLATE_ID || '1007403395830327066';
 const NETTYFISH_BASE_URL = 'https://retailsms.nettyfish.com/api/mt/SendSMS';
-// Get all enquiries
-router.get('/enquiries', async (req, res) => {
-    try {
-        const enquiries = await Enquiry.find().sort({ enquiryDate: -1 }); // Newest first
-        res.status(200).json(enquiries);
-    } catch (error) {
-        console.error("Error fetching enquiries:", error);
-        res.status(500).json({
-            success: false,
-            message: "Failed to fetch enquiries",
-            error: error.message
-        });
-    }
-});
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'; //NEWLY ADDED
 
-// Delete an enquiry
-router.delete('/enquiries/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const deletedEnquiry = await Enquiry.findByIdAndDelete(id);
-
-        if (!deletedEnquiry) {
-            return res.status(404).json({
-                success: false,
-                message: "Enquiry not found"
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            message: "Enquiry deleted successfully"
-        });
-    } catch (error) {
-        console.error("Error deleting enquiry:", error);
-        res.status(500).json({
-            success: false,
-            message: "Failed to delete enquiry",
-            error: error.message
-        });
-    }
-});
 
 // Function to send SMS using NettyFish API
 const sendSMS = (phone, otp) => {
@@ -137,6 +98,51 @@ const sendConfirmationSMS = (phone) => {
     });
 };
 
+
+
+// Get all enquiries
+router.get('/enquiries', async (req, res) => {
+    try {
+        const enquiries = await Enquiry.find().sort({ enquiryDate: -1 }); // Newest first
+        res.status(200).json(enquiries);
+    } catch (error) {
+        console.error("Error fetching enquiries:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to fetch enquiries",
+            error: error.message
+        });
+    }
+});
+
+// Delete an enquiry
+router.delete('/enquiries/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedEnquiry = await Enquiry.findByIdAndDelete(id);
+
+        if (!deletedEnquiry) {
+            return res.status(404).json({
+                success: false,
+                message: "Enquiry not found"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Enquiry deleted successfully"
+        });
+    } catch (error) {
+        console.error("Error deleting enquiry:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to delete enquiry",
+            error: error.message
+        });
+    }
+});
+
+
 // **Send OTP**
 router.post('/send-otp', async (req, res) => {
     const { phone } = req.body;
@@ -160,11 +166,39 @@ router.post('/send-otp', async (req, res) => {
     otpStore[phone] = { otp, expiresAt: Date.now() + 5 * 60 * 1000 }; // OTP expires in 5 mins
 
     try {
+
+
+        if (IS_PRODUCTION) {
+
         // Send OTP using NettyFish API
         const result = await sendSMS(phone, otp);
         console.log(`OTP Sent: ${otp} to ${phone}, NettyFish Response: ${JSON.stringify(result)}`);
         res.status(200).json({ success: true, message: "OTP sent successfully" });
-    } catch (error) {
+    } 
+
+          // // STOPS THE SMS FOR TESTING PURPOSE 
+else{
+        // INSTEAD: Show OTP in console for testing
+        console.log('=========================================');
+        console.log('OTP FOR LOCALHOST TESTING:');
+        console.log('=========================================');
+        console.log(`Phone: ${phone}`);
+        console.log(`OTP: ${otp}`);
+        console.log('=========================================');
+        console.log('NOTE: SMS functionality is disabled for localhost testing');
+        console.log('Use the OTP above to proceed with verification');
+        console.log('=========================================');
+        
+        res.status(200).json({ 
+            success: true, 
+            message: "OTP sent successfully (check console for testing)",
+            // Include OTP in response for testing (remove in production)
+            testOtp: otp 
+        });
+} 
+    }
+    
+    catch (error) {
         console.error("NettyFish Error:", error);
         let errorMessage = "Failed to send OTP";
         if (error.message.includes('Invalid Number')) {
@@ -216,6 +250,9 @@ router.post('/verify-otp', async (req, res) => {
                         enquiryDate: new Date()
                     });
                     await enquiry.save();
+
+                    if (IS_PRODUCTION) {
+
                     // Send confirmation SMS after successful verification and DB save
                     try {
                         await sendConfirmationSMS(phone);
@@ -226,7 +263,24 @@ router.post('/verify-otp', async (req, res) => {
                     }
                     // Send emails after successful verification and DB save
                     await sendAdminEmail(enquiry);
-                } catch (dbError) {
+                } 
+                 else{
+ // Log confirmation for testing
+                    console.log('=========================================');
+                    console.log('ENQUIRY SUCCESSFULLY CREATED:');
+                    console.log('=========================================');
+                    console.log(`Phone: ${phone}`);
+                    console.log(`Product: ${productData.prodName}`);
+                    console.log(`Product Code: ${productData.prodCode}`);
+                    console.log(`Price: ₹${productData.price}`);
+                    console.log('=========================================');
+                    console.log('NOTE: Confirmation SMS is disabled for localhost');
+                    console.log('=========================================');
+                    // // Send emails after successful verification and DB save
+                    // await sendAdminEmail(enquiry);
+                }
+            }
+                catch (dbError) {
                     console.error("Database save error:", dbError);
                     // Don't fail verification if DB save fails
                 }

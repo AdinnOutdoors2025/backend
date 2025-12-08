@@ -4,7 +4,7 @@ const router = express.Router();
 const request = require('request');
 
 //EMAIL CREDENTIALS 
-const {emailID, emailPwd} = require('./EmailCredentials');
+const { emailID, emailPwd } = require('./EmailCredentials');
 
 const transporter = nodemailer.createTransport(
     {
@@ -20,6 +20,8 @@ const transporter = nodemailer.createTransport(
 const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
 const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
 const NETTYFISH_BASE_URL = 'https://retailsms.nettyfish.com/api/mt/SendSMS';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production'; //NEWLY ADDED
+
 
 // Function to send SMS using NettyFish API
 const sendSMS = (phone, templateId, variables = {}) => {
@@ -249,31 +251,61 @@ router.post('/send-order-confirmation', async (req, res) => {
         // Send both emails
         await transporter.sendMail(userMailOptions);
         await transporter.sendMail(adminMailOptions);
+        if (IS_PRODUCTION) {
 
-        // Send SMS to user
-        try {
-            await sendSMS(userPhone, "1007197121174928712", { orderId });
-            console.log("User SMS sent successfully");
-        } catch (smsError) {
-            console.error("Failed to send user SMS:", smsError);
-            // Don't fail the request if SMS fails
+            // Send SMS to user
+            try {
+                await sendSMS(userPhone, "1007197121174928712", { orderId });
+                console.log("User SMS sent successfully");
+            }
+            catch (smsError) {
+                console.error("Failed to send user SMS:", smsError);
+                // Don't fail the request if SMS fails
+            }
+
+            // Send SMS to admin
+            try {
+                await sendSMS(emailID, "1007478982147905431", {
+                    orderId,
+                    customerName: userName,
+                    amount: totalAmount
+                });
+                console.log("Admin SMS sent successfully");
+            } catch (smsError) {
+                console.error("Failed to send admin SMS:", smsError);
+                // Don't fail the request if SMS fails
+            }
+
+            // res.json({ success: true });
+
         }
 
-        // Send SMS to admin
-        try {
-            await sendSMS(emailID, "1007478982147905431", {
-                orderId,
-                customerName: userName,
-                amount: totalAmount
-            });
-            console.log("Admin SMS sent successfully");
-        } catch (smsError) {
-            console.error("Failed to send admin SMS:", smsError);
-            // Don't fail the request if SMS fails
+        // Log SMS information to console for testing
+        else {
+            console.log('=========================================');
+            console.log('OTP/SMS Testing Information (localhost):');
+            console.log('=========================================');
+            console.log(`Order ID: ${orderId}`);
+            console.log(`Client: ${userName}, Phone: ${userPhone}, Email: ${userEmail},Total Amount: ₹${totalAmount.toLocaleString()} `);
+            console.log('=========================================');
+            // Product details
+            if (products && products.length > 0) {
+                console.log('--- Product Details ---');
+                products.forEach((product, index) => {
+                    console.log(`Product ${index + 1}:`);
+                    console.log(`  - Name: ${product.name}`);
+                    console.log(`  - Product Code: ${product.prodCode}`);
+                    console.log(`  - Price per day: ₹${product.price.toLocaleString()}`);
+                    console.log(`  - Total Days: ${product.booking?.totalDays || 'N/A'}`);
+                    console.log(`  - Booking Dates: ${product.booking?.startDate ? new Date(product.booking.startDate).toLocaleDateString() : 'N/A'} - ${product.booking?.endDate ? new Date(product.booking.endDate).toLocaleDateString() : 'N/A'}`);
+                });
+            }
+            console.log('NOTE: SMS functionality is disabled for localhost testing');
+            console.log('Emails have been sent successfully');
+            console.log('=========================================');
+
+            res.json({ success: true });
         }
-
-        res.json({ success: true });
-
     }
     catch (error) {
         console.error("Error sending Emails:", error);
