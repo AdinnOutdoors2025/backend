@@ -224,6 +224,38 @@ app.get('/products', async (req, res) => {
         res.status(500).json({ message: err });
     }
 });
+/* order fetched with pagination */
+app.get('/products_new', async (req, res) => {
+    try {
+        
+        const page = parseInt(req.query.page) || 0; 
+        const limit = parseInt(req.query.limit) || 10; 
+
+        const skip = page * limit;
+
+        const data = await productData.find()
+            .skip(skip)
+            .limit(limit);
+
+        const totalCount = await productData.countDocuments();
+
+        res.json({
+            status: true,
+            current_page: page,
+            limit: limit,
+            total_products: totalCount,
+            total_pages: Math.ceil(totalCount / limit),
+            data: data
+        });
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+/* order fetched with pagination */
+
+
+
 //GET THE PRODUCT USING ID FOR SPECIFIC PRODUCT
 app.get('/products/:id', async (req, res) => {
     try {
