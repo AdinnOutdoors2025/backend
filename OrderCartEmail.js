@@ -4,6 +4,7 @@ const router = express.Router();
 const request = require('request');
 //EMAIL CREDENTIALS 
 const {emailID, emailPwd} = require('./EmailCredentials');
+const productTable = require('./productOrderSchema')
 
 
 const transporter = nodemailer.createTransport({
@@ -323,5 +324,60 @@ if (products && products.length > 0) {
         res.status(500).json({ success: false, error: "Failed to send emails" });
     }
 });
+
+
+
+/* update handle by name particular order against */
+router.put('/update-order', async (req, res) => {
+    try {
+        const orderId = req.query.id;
+        const handledBy = req.query.handled_by;
+
+        // CASE 1: If ID is missing
+        if (!orderId || orderId.trim() === "") {
+            return res.status(400).json({
+                status: false,
+                message: "ID cannot be empty",
+                data : null
+            });
+        }
+
+        // Prepare update data
+        const updateData = {
+            ...req.body,
+            handled_by: handledBy || null  // default null if not provided
+        };
+
+        // Perform update
+        const updatedOrder = await productTable.findByIdAndUpdate(
+            orderId,
+            updateData,
+            { new: true }
+        );
+
+        // CASE 2: If no document found with given ID
+        if (!updatedOrder) {
+            return res.status(404).json({
+                status: false,
+                message: "Order ID not found",
+                data : null
+            });
+        }
+
+        // Success response
+        res.json({
+            status: true,
+            message: "Order updated successfully",
+            data: updatedOrder
+        });
+
+    } catch (error) {
+        console.error("Error updating order:", error);
+        res.status(500).json({ status: false, message: "Internal server error" });
+    }
+});
+
+/* update handle by name particular order against */
+
 
 module.exports = router;

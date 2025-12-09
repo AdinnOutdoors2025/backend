@@ -74,6 +74,12 @@ const productOrderSchema = new mongoose.Schema({
         enum: ["Added Manually", "UserSideOrder", "Confirmed", "Completed", "Cancelled"],
         default: "Added Manually"
     },
+     handled_by: {
+    type: String,
+    default: null,   // allows null value
+    required: false  // not mandatory,
+    
+},
          createdAt: {
       type: Date,
       default: Date.now
