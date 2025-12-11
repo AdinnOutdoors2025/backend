@@ -225,19 +225,161 @@ app.get('/products', async (req, res) => {
     }
 });
 /* order fetched with pagination */
-app.get('/products_new', async (req, res) => {
-    try {
+// app.get('/products_new', async (req, res) => {
+//     try {
         
-        const page = parseInt(req.query.page) || 0; 
-        const limit = parseInt(req.query.limit) || 10; 
+//         const page = parseInt(req.query.page) || 0; 
+//         const limit = parseInt(req.query.limit) || 9; 
 
+//         const skip = page * limit;
+
+//         const data = await productData.find()
+//             .skip(skip)
+//             .limit(limit);
+
+//         const totalCount = await productData.countDocuments();
+
+//         res.json({
+//             status: true,
+//             current_page: page,
+//             limit: limit,
+//             total_products: totalCount,
+//             total_pages: Math.ceil(totalCount / limit),
+//             data: data
+//         });
+
+//     } catch (err) {
+//         res.status(500).json({ message: err.message });
+//     }
+// });
+/* order fetched with pagination */
+
+/* order fetched with pagination */
+app.get('/products_paginated', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 0;
+        const limit = parseInt(req.query.limit) || 9; 
         const skip = page * limit;
 
-        const data = await productData.find()
+        const { 
+            states, 
+            districts, 
+            categories,
+            sortBy,
+            visibleOnly = true 
+        } = req.query;
+
+        // Build filter object
+        let filter = {};
+
+        if (visibleOnly === 'true') {
+            filter.visible = { $ne: false };
+        }
+
+        // Filter by states
+        if (states) {
+            const stateArray = Array.isArray(states) ? states : [states];
+            filter['location.state'] = { $in: stateArray };
+        }
+
+        // Filter by districts
+        if (districts) {
+            const districtArray = Array.isArray(districts) ? districts : [districts];
+            filter['location.district'] = { $in: districtArray };
+        }
+
+        // Filter by categories (media types)
+        if (categories) {
+            const categoryArray = Array.isArray(categories) ? categories : [categories];
+            filter.mediaType = { $in: categoryArray };
+        }
+
+        // Build sort object
+        let sort = {};
+        switch (sortBy) {
+            case 'price_asc':
+                sort.price = 1;
+                break;
+            case 'price_desc':
+                sort.price = -1;
+                break;
+            case 'rating_desc':
+                sort.rating = -1;
+                break;
+            case 'rating_asc':
+                sort.rating = 1;
+                break;
+            default:
+                sort.createdAt = -1; 
+        }
+
+        console.log('Filter:', filter);
+        console.log('Sort:', sort);
+
+        const data = await productData.find(filter)
+            .sort(sort)
             .skip(skip)
             .limit(limit);
 
-        const totalCount = await productData.countDocuments();
+        const totalCount = await productData.countDocuments(filter);
+
+        const transformedData = data.map(product => ({
+            id: product._id,
+            prodName: product.name,
+            printingCost: product.printingCost,
+            mountingCost: product.mountingCost,
+            prodCode: product.prodCode,
+            prodLighting: product.lighting,
+            productFrom: product.from,
+            productTo: product.to,
+            productFixedAmount: product.fixedAmount,
+            productFixedOffer: product.fixedOffer,
+            location: `${product.location.district}, ${product.location.state}`,
+            category: product.mediaType,
+            price: product.price,
+            sizeHeight: product.height,
+            sizeWidth: product.width,
+            sizeSide: product.side,
+            productsquareFeet: product.productsquareFeet,
+            rating: product.rating,
+            imageUrl: product.image,
+            district: product.location.district,
+            state: product.location.state,
+            latitude: product.Latitude,
+            longitude: product.Longitude,
+            prodLocationLink: product.LocationLink,
+            visible: product.visible
+        }));
+
+        res.json({
+            status: true,
+            current_page: page,
+            limit: limit,
+            total_products: totalCount,
+            total_pages: Math.ceil(totalCount / limit),
+            data: transformedData
+        });
+
+    } catch (err) {
+        console.error("Error in products_paginated:", err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+app.get('/products_new', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 0;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = page * limit;
+
+        // Only get visible products
+        const filter = { visible: { $ne: false } };
+
+        const data = await productData.find(filter)
+            .skip(skip)
+            .limit(limit);
+
+        const totalCount = await productData.countDocuments(filter);
 
         res.json({
             status: true,
