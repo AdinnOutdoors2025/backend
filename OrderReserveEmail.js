@@ -3,25 +3,24 @@ const nodemailer = require('nodemailer');
 const router = express.Router();
 const request = require('request');
 
-//EMAIL CREDENTIALS 
-const { emailID, emailPwd } = require('./EmailCredentials');
+// Import formatters
+const { formatIndianCurrency, formatIndianDate, getCurrentIndianDate } = require('./FORMATTED.js');
 
 const transporter = nodemailer.createTransport(
     {
         service: 'gmail',
         auth: {
-            user: emailID,
-            pass: emailPwd
+            user: 'reactdeveloper@adinn.co.in',
+            pass: 'gxnn sezu klyp ifhn'
         }
     }
 );
-
+// // STOPS THE SMS FOR TESTING PURPOSE 
 // NettyFish SMS Configuration
 const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
 const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
 const NETTYFISH_BASE_URL = 'https://retailsms.nettyfish.com/api/mt/SendSMS';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production'; //NEWLY ADDED
-
 
 // Function to send SMS using NettyFish API
 const sendSMS = (phone, templateId, variables = {}) => {
@@ -71,245 +70,557 @@ const sendSMS = (phone, templateId, variables = {}) => {
     });
 };
 
+// // STOPS THE SMS FOR TESTING PURPOSE
 router.post('/send-order-confirmation', async (req, res) => {
-    try {
+    try {  
         const {
             orderId, userName, userEmail, userPhone, userAddress, company, products, orderDate, totalAmount
         } = req.body;
+    
         if (!products || !Array.isArray(products)) {
             throw new Error("Invalid products data");
         }
 
+         // Parse totalAmount to ensure it's a number
+        const parsedTotalAmount = typeof totalAmount === 'number' ? 
+            totalAmount : 
+            parseFloat(totalAmount) || 0;
+
+        console.log("Raw totalAmount:", totalAmount);
+        console.log("Parsed totalAmount:", parsedTotalAmount);
+        console.log("Type of totalAmount:", typeof totalAmount);
+
+
         // Generate product details HTML
         const generateProductDetailsHTML = (products) => {
-            return products.map((product, index) => `
-                <div style="margin-bottom: 25px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
-                    <div style="display: flex; background: #fff; border-left: 4px solid #4CAF50;">
-                        <div>
-                        
-                        </div>
-                        <div style="flex: 3; padding: 15px;">
-                            <h3 style="margin: 0 0 10px 0; color: #333; font-size: 18px;">${product.name}</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                <div>
-                                    <p style="margin: 5px 0; font-size: 14px;"><strong style="color: #666;">Product Code:</strong> ${product.prodCode}</p>
-                                    <p style="margin: 5px 0; font-size: 14px;"><strong style="color: #666;">Price:</strong> ₹${product.price.toLocaleString()} per day</p>
-                                    <p style="margin: 5px 0; font-size: 14px;"><strong style="color: #666;">Total Days:</strong> ${product.booking.totalDays}</p>
-                                    <p style="margin: 5px 0; font-size: 14px;"><strong style="color: #666;">Total Amount:</strong> ₹${product.booking.totalPrice.toLocaleString()}</p>
-                                    <p style="margin: 5Px 0; font-size: 14px;"><strong style="color: #666;">Booking Dates:</strong> ${new Date(product.booking.startDate).toLocaleDateString()} - ${new Date(product.booking.endDate).toLocaleDateString()}</p>
-                                </div>
-                            </div> 
-                        </div>
-                    </div>
-                </div>
-            `).join('');
+            return products.map((product, index) => 
+          {
+
+
+             // Parse product amounts
+                const productPrice = typeof product.price === 'number' ? 
+                    product.price : 
+                    parseFloat(product.price) || 0;
+                
+                const bookingTotalPrice = product.booking?.totalPrice ? 
+                    (typeof product.booking.totalPrice === 'number' ? 
+                        product.booking.totalPrice : 
+                        parseFloat(product.booking.totalPrice) || 0) : 
+                    0;
+
+ // Use product.image if available, otherwise use a placeholder
+        const productImage = product.image;
+        const startDate = formatIndianDate(product.booking?.startDate);
+        const endDate = formatIndianDate(product.booking?.endDate);
+        const pricePerDay = formatIndianCurrency(product.price || 0);
+        const totalPrice = formatIndianCurrency(product.booking?.totalPrice || 0);
+
+
+
+            return `
+             
+        <!-- Product 1 -->
+        <table width="100%" cellpadding="0" cellspacing="0"
+            style="border-bottom:2px solid #C4C1C1; margin-bottom:20px; padding-bottom:20px;">
+            <tr>
+                <td width="120">
+                    <img src="${productImage}"
+                        style="height:90px;width:90px;border-radius:10px;">
+                </td>
+                <td>
+                    <table style="font-size:16px;">
+                        <tr><td>Product Name</td><td>:</td><td>${product.name}</td></tr>
+                        <tr><td>Product Code</td><td>:</td><td> ${product.prodCode}</td></tr>
+                         <tr><td>Price Per Day</td><td>:</td><td> ${pricePerDay}</td></tr>
+                        <tr><td>Booked Dates</td><td>:</td><td> ${startDate} - ${endDate}</td></tr>
+                        <tr><td>Total Days</td><td>:</td><td> ${product.booking?.totalDays || 0}</td></tr>
+                        <tr><td>Total Price</td><td>:</td><td> ${totalPrice}</td></tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+
+       
+            `
+          }
+        
+        ).join('');
         };
+
+
+        console.log("Sending notifications for order:", orderId);
+        console.log("Client data:", { orderId, userName, userEmail, userPhone, userAddress, company, orderDate, totalAmount : parsedTotalAmount} );
+
+        // Format total amount for display
+        const formattedTotalAmount = formatIndianCurrency(parsedTotalAmount);
+        const currentDate = getCurrentIndianDate();
+        
+        console.log("FORMATTED TOTAL AMOUNT FROM USER SIDE:", formattedTotalAmount);
+
+        const userMailHtmlTemplate = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>User Email</title>
+</head>
+
+<body style="margin:0; padding:0; font-family: Arial, sans-serif;">
+
+    <div style="max-width:700px; margin:auto; font-family:'Montserrat', Arial, sans-serif;">
+
+        <!-- Logo -->
+        <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
+            alt="Adinn Logo" style="height:50px; margin-bottom:15px;">
+
+        <!-- Header -->
+        <div style="
+            text-align:center;
+            padding:20px 0;
+            background: linear-gradient(180deg,#00573F 0%,#12AC81 100%);
+            font-weight:700;
+            font-size:35px;
+            color:#FFFFFF;">
+            Order Confirmation – Thank You for Choosing Us
+        </div>
+
+        <!-- Intro -->
+        <div style="font-size:24px; font-weight:600; margin:30px 0;">Hi ${userName},</div>
+
+        <!-- Order Details Table -->
+        <div style="margin:30px 0;">
+            <table border="1" cellpadding="0" cellspacing="0"
+                style="border-collapse:collapse; width:100%; border:1px solid gray; text-align:center;">
+                <thead>
+                    <tr style="color:#E31F25; font-weight:600; font-size:20px;">
+                        <th style="padding:12px;">Order ID</th>
+                        <th style="padding:12px;">Order Date</th>
+                        <th style="padding:12px;">Total Items</th>
+                        <th style="padding:12px;">Total Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding:12px;"> ${orderId}</td>
+                        <td style="padding:12px;"> ${currentDate}</td>
+                        <td style="padding:12px;"> ${products.length}</td>
+                        <td style="padding:12px; font-weight:600; color:#2ecc71;">${formattedTotalAmount}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+<div>
+ ${generateProductDetailsHTML(products)}
+</div>
+
+
+
+        <!-- Message -->
+        <div style="font-size:20px; margin:30px 0;">
+            We’ve received your request, and our team will reach out within the next 15 hours.  
+            If you need to update anything, contact us below:
+        </div>
+
+        <div style="font-size:20px;"><strong>Email :</strong> 
+          <a href="mailto:Vinothkumar@adinn.co.in" style="color:#2B3333; text-decoration:none;">
+                                        Vinothkumar@adinn.co.in
+                                    </a>
+        </div>
+        <div style="font-size:20px;"><strong>Phone :</strong> 
+
+                                    <a href="tel:7373785057" style="color:#2B3333; text-decoration:none;">7373785057</a> |
+                                    <a href="tel:9626987861" style="color:#2B3333; text-decoration:none;">9626987861</a>         
+        </div>
+
+        <div style="font-size:20px; margin:20px 0;">
+            <div>We’re here to help.</div>
+            <div>Thank you.</div>
+        </div>
+
+
+        <!-- FOOTER (Email-Safe Version) -->
+        <table width="100%" cellpadding="0" cellspacing="0" 
+            background="https://www.adinntechnologies.com/images/FooterBannerImgEmail.png"
+            style="
+            background-size:cover; 
+            background-repeat:no-repeat; 
+            text-align:center; 
+            padding:50px 0;
+            "
+            >
+
+            <tr>
+                <td align="center">
+
+                    <!-- Thank You Message -->
+                    <table align="center" width="65%" cellpadding="0" cellspacing="0"
+                     style="margin-left: 20%;"   >
+                        <tr>
+                            <td align="center" style="font-size:24px; font-weight:500; color:#2B3333; ">
+                                <img src="https://www.adinntechnologies.com/images/FooterThankIconEmail.png"
+                                    style="width:30px; vertical-align:middle;">
+                                <span style="color:#E31F25;font-weight:700;">Thank you</span> for choosing us - we’re
+                                here to keep you happy, steady and ready.
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Footer 3 columns -->
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:40px;">
+
+                        <tr>
+                            <!-- Column 1 -->
+                            <td width="33%" valign="top" style="padding:10px;">
+                                <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
+                                    style="height:40px;">
+
+                                <!-- Social -->
+                                <div style="margin:20px 0;">
+                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon1.png"
+                                        style="height:35px; margin:0 2px;">
+                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon2.png"
+                                        style="height:35px; margin:0 2px;">
+                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon3.png"
+                                        style="height:35px; margin:0 2px;">
+                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon4.png"
+                                        style="height:35px; margin:0 2px;">
+                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon5.png"
+                                        style="height:35px; margin:0 2px;">
+                                </div>
+
+                                <div style="font-size:14px; color:#2B3333;">
+                                    <a href="tel:7373785057" style="color:#2B3333; text-decoration:none;">7373785057</a> |
+                                    <a href="tel:9626987861" style="color:#2B3333; text-decoration:none;">9626987861</a>
+                                </div>
+                                <div style="font-size:14px; margin-top:10px;">
+                                    <a href="mailto:ba@adinn.co.in" style="color:#2B3333; text-decoration:none;">
+                                        ba@adinn.co.in
+                                    </a>
+                                </div>
+                            </td>
+
+                            <!-- Column 2 -->
+                            <td width="33%" valign="top" style="padding:10px; padding-left: 50px; font-size:15px;">
+                                <div style="font-weight:700; margin-bottom:10px;">Services</div>
+                                <div style="margin: 10px 0px;">3D & Cutouts</div>
+                                <div style="margin: 10px 0px;">Dynamic Advertising</div>
+                                <div style="margin: 10px 0px;">Geo Targeting</div>
+                                <div style="margin: 10px 0px;">Innovation</div>
+                                <div style="margin: 10px 0px;">Traditional</div>
+                                <div style="margin: 10px 0px;">Wall Painting</div>
+                            </td>
+
+                            <!-- Column 3 -->
+                            <td width="33%" valign="top" style="padding:10px; font-size:15px;">
+                                <div style="font-weight:700; margin-bottom:10px;">Address</div>
+                                29, 1st Cross Street, Vanamamalai Nagar,<br>
+                                <span style="font-weight:700;">Madurai-625010</span><br><br>
+
+                                Door No.3, Vijayalakshmi Street,<br>
+                                Nungambakkam,<br>
+                                <span style="font-weight:700;">Chennai – 600034</span><br><br>
+
+                                Old No.76, New No.976,<br>
+                                Rajarajeswari Nagar,<br>
+                                <span style="font-weight:700;">Bangalore – 560038</span>
+                            </td>
+
+                        </tr>
+                    </table>
+
+                    <div style="color:#FFFFFF; font-size:14px; margin-top:30px;">
+                        Copyright © 2025 Adinn Outdoors. All Rights Reserved.
+                    </div>
+
+                </td>
+            </tr>
+
+        </table>
+
+    </div>
+
+</body>
+</html>
+
+    
+        
+        
+        `
+
+
+        const adminMailHtmlTemplate = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1.0">
+        <title>Admin Email</title>
+        </head>
+
+        <body style="margin:0; padding:0; font-family: Arial, sans-serif;">
+
+        <div style="max-width:700px; margin:auto; font-family:'Montserrat', Arial, sans-serif;">
+
+        <!-- Logo -->
+        <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
+        alt="Adinn Logo" style="height:50px; margin-bottom:15px;">
+
+        <!-- Header -->
+        <div style="
+        text-align:center;
+        padding:20px 0;
+        background: linear-gradient(180deg,#00573F 0%,#12AC81 100%);
+        font-weight:700;
+        font-size:35px;
+        color:#FFFFFF;">
+        A new order has been received from a customer
+        </div>
+
+        <!-- Intro -->
+        <div style="font-size:24px; font-weight:600; margin:30px 0;">Hi Admin,</div>
+
+        <!-- Order Details Table -->
+        <div style="margin:30px 0;">
+        <table border="1" cellpadding="0" cellspacing="0"
+        style="border-collapse:collapse; width:100%; border:1px solid gray; text-align:center;">
+        <thead>
+            <tr style="color:#E31F25; font-weight:600; font-size:20px;">
+                <th style="padding:12px;">Order ID</th>
+                <th style="padding:12px;">Order Date</th>
+                <th style="padding:12px;">Total Items</th>
+                <th style="padding:12px;">Total Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding:12px;"> ${orderId}</td>
+                <td style="padding:12px;"> ${currentDate}</td>
+                <td style="padding:12px;"> ${products.length}</td>
+                <td style="padding:12px; font-weight:600; color:#2ecc71;"> ${formattedTotalAmount}</td>
+            </tr>
+        </tbody>
+        </table>
+        </div>
+
+        <div>
+        ${generateProductDetailsHTML(products)}
+        </div>
+
+        <!-- Message -->
+        <div style="font-size:20px; margin:30px 0;">
+        Please review the order and contact the customer within 15 hours. <br>
+        If any corrections or updates are needed, please reach out to the customer using the provided contact details.
+        </div>
+
+        <!-- CUSTOMER DETAILS -->
+        <div style="margin:30px 0;">
+        <h3>Customer Details : </h3>
+        <table border="1" cellpadding="0" cellspacing="0"
+        style="border-collapse:collapse; width:100%; border:1px solid gray; text-align:center;">
+        <thead>
+            <tr style="color:#E31F25; font-weight:600; font-size:20px;">
+                <th style="padding:12px;">Name</th>
+                <th style="padding:12px;">Email</th>
+                <th style="padding:12px;">Phone</th>
+                <th style="padding:12px;">Company</th>
+                <th style="padding:12px;">Address</th>
+
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding:12px;">${userName}</td>
+                <td style="padding:12px;">${userEmail}</td>
+                <td style="padding:12px;"><a href='tel:${userPhone}' style="text-decoration:none; color:black;"> ${userPhone} </a></td>
+                <td style="padding:12px;">${company}</td>
+                <td style="padding:12px;">${userAddress}</td>
+
+            </tr>
+        </tbody>
+        </table>
+        </div>
+
+
+        <div style="font-size:20px; margin:20px 0;">
+        <div>Thank you.</div>
+        <div>Adinn Outdoors</div>
+        </div>
+
+        <!-- FOOTER -->
+        <table width="100%" cellpadding="0" cellspacing="0"
+        background="https://www.adinntechnologies.com/images/FooterBannerImgEmail.png" style="
+        background-size:cover; 
+        background-repeat:no-repeat; 
+        text-align:center; 
+        padding:50px 0;
+        ">
+        <tr>
+        <td align="center">
+            <!-- Thank You Message -->
+            <table align="center" width="65%" cellpadding="0" cellspacing="0" style="margin-left: 20%;">
+                <tr>
+                    <td align="center" style="font-size:24px; font-weight:500; color:#2B3333; ">
+                        <img src="https://www.adinntechnologies.com/images/FooterThankIconEmail.png"
+                            style="width:30px; vertical-align:middle;">
+                        <span style="color:#E31F25;font-weight:700;">Thank you</span> for choosing us - we're
+                        here to keep you happy, steady and ready.
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Footer 3 columns -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:40px;">
+                <tr>
+                    <!-- Column 1 -->
+                    <td width="33%" valign="top" style="padding:10px;">
+                        <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
+                            style="height:40px;">
+
+                        <!-- Social -->
+                        <div style="margin:20px 0;">
+                            <img src="https://www.adinntechnologies.com/images/FootSocIcon1.png"
+                                style="height:35px; margin:0 2px;">
+                            <img src="https://www.adinntechnologies.com/images/FootSocIcon2.png"
+                                style="height:35px; margin:0 2px;">
+                            <img src="https://www.adinntechnologies.com/images/FootSocIcon3.png"
+                                style="height:35px; margin:0 2px;">
+                            <img src="https://www.adinntechnologies.com/images/FootSocIcon4.png"
+                                style="height:35px; margin:0 2px;">
+                            <img src="https://www.adinntechnologies.com/images/FootSocIcon5.png"
+                                style="height:35px; margin:0 2px;">
+                        </div>
+
+                        <div style="font-size:14px; color:#2B3333;">
+                            <a href="tel:7373785057" style="color:#2B3333; text-decoration:none;">7373785057</a> |
+                            <a href="tel:9626987861" style="color:#2B3333; text-decoration:none;">9626987861</a>
+                        </div>
+                        <div style="font-size:14px; margin-top:10px;">
+                            <a href="mailto:ba@adinn.co.in" style="color:#2B3333; text-decoration:none;">
+                                ba@adinn.co.in
+                            </a>
+                        </div>
+                    </td>
+
+                    <!-- Column 2 -->
+                    <td width="33%" valign="top" style="padding:10px; padding-left: 50px; font-size:15px;">
+                        <div style="font-weight:700; margin-bottom:10px;">Services</div>
+                        <div style="margin: 10px 0px;">3D & Cutouts</div>
+                        <div style="margin: 10px 0px;">Dynamic Advertising</div>
+                        <div style="margin: 10px 0px;">Geo Targeting</div>
+                        <div style="margin: 10px 0px;">Innovation</div>
+                        <div style="margin: 10px 0px;">Traditional</div>
+                        <div style="margin: 10px 0px;">Wall Painting</div>
+                    </td>
+
+                    <!-- Column 3 -->
+                    <td width="33%" valign="top" style="padding:10px; font-size:15px;">
+                        <div style="font-weight:700; margin-bottom:10px;">Address</div>
+                        29, 1st Cross Street, Vanamamalai Nagar,<br>
+                        <span style="font-weight:700;">Madurai-625010</span><br><br>
+
+                        Door No.3, Vijayalakshmi Street,<br>
+                        Nungambakkam,<br>
+                        <span style="font-weight:700;">Chennai – 600034</span><br><br>
+
+                        Old No.76, New No.976,<br>
+                        Rajarajeswari Nagar,<br>
+                        <span style="font-weight:700;">Bangalore – 560038</span>
+                    </td>
+                </tr>
+            </table>
+
+            <div style="color:#FFFFFF; font-size:14px; margin-top:30px;">
+                Copyright © 2025 Adinn Outdoors. All Rights Reserved.
+            </div>
+        </td>
+        </tr>
+        </table>
+        </div>
+        </body>
+        </html>
+        `;
 
         //User Email
         const userMailOptions = {
-            from: emailID,
+            from: 'reactdeveloper@adinn.co.in',
             to: userEmail,
             subject: `Order Confirmation - ${orderId}`,
-            html: `
-                <div style="font-family: montserrat; max-width: 650px; margin: 0 auto; color: #444;">
-        <!-- Header -->
-        <div
-            style="background: linear-gradient(135deg, #4CAF50, #2E7D32); padding: 30px 20px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
-            <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
-                alt="Adinn Logo" style="height: 50px; margin-bottom: 15px;">
-            <h1 style="margin: 0; font-weight: 500;">Thank You For Your Order!</h1>
-            <p style="margin: 10px 0 0; opacity: 0.9;">Your order has been received and is being processed</p>
-        </div>
-
-        <!-- Order Summary -->
-        <div style="background: white; padding: 25px; border-bottom: 1px solid #eee;">
-            <h2 style="margin: 0 0 15px 0; color: #333; font-size: 20px; display: flex; align-items: center;">
-         
-                ORDER SUMMARY
-
-            </h2>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Order ID:</strong> ${orderId}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Order Date:</strong> ${orderDate}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Total Items:</strong> ${products.length}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Total Amount:</strong> ₹${totalAmount.toLocaleString()}</p>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- Order Details -->
-        <div style="background: white; padding: 25px; border-bottom: 1px solid #eee;">
-            <h2 style="margin: 0 0 15px 0; color: #333; font-size: 20px; display: flex; align-items: center;">
-                ORDER DETAILS
-            </h2>
-            ${generateProductDetailsHTML(products)}
-        </div>
-
-        <div style="margin-top: 20px; background: #E3F2FD; padding: 15px 15px 0px 15px; border-radius: 4px; text-align: center;">
-            <h3 style="margin: 0 0 0px 0; color: #1769e3; font-size: 16px;">Quick Actions</h3>
-            <!-- Footer -->
-            <div style="text-align: center; padding: 20px; color: #777; font-size: 14px;">
-                <p style="margin: 0;">Our team will contact you shortly for further details.</p>
-                <p style="margin: 10px 0 0;">Thank you for choosing Adinn Outdoors!</p>
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
-                    <div>Need help? Contact us for more details
-                        <div style="margin: 10px auto;">
-                            <a href="https://www.facebook.com/adinnoutdoors/" target="_blank"
-                                style="display: inline-block; width: 20px; height: 20px; margin:0px 5px;">
-                                <img src="https://cdn-icons-png.flaticon.com/512/124/124010.png" alt="Facebook"
-                                    style="width: 100%; height: auto;">
-                            </a>
-                            <a href="https://www.instagram.com/adinnoutdoor/" target="_blank"
-                                style="display: inline-block; width: 20px; height: 20px; margin:0px 5px;">
-                                <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram"
-                                    style="width: 100%; height: auto;">
-                            </a>
-                            <a href="https://www.linkedin.com/showcase/adinn-outdoors/" target="_blank"
-                                style="display: inline-block; width: 20px; height: 20px; margin:0px 5px;">
-                                <img src="https://cdn-icons-png.flaticon.com/512/174/174857.png" alt="LinkedIn"
-                                    style="width: 100%; height: auto;">
-                            </a>
-                            <a href="https://www.youtube.com/@AdinnChannel" target="_blank"
-                                style="display: inline-block; width: 20px; height: 20px; margin:0px 5px;">
-                                <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube"
-                                    style="width: 100%; height: auto;">
-                            </a>
-                             <a href="mailto:emailID" target="_blank"
-                                style="display: inline-block; width: 20px; height: 20px; margin:0px 5px;">
-                                <img src="https://cdn-icons-png.flaticon.com/512/5968/5968534.png" alt="Gmail"
-                                    style="width: 100%; height: auto;">
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div> `
+            html: userMailHtmlTemplate
         }
         // Admin email
         const adminMailOptions = {
-            from: emailID,
-            to: emailID,
-            subject: `New Order Received - #${orderId}`,
-            html: `
-    <div style="font-family:Montserrat; max-width: 650px; margin: 0 auto; color: #444;">
-        <!-- Header -->
-        <div
-            style="background: linear-gradient(135deg, #7ec5ffff, #115ed2ff); padding: 30px 20px; text-align: center; color: white; border-radius: 8px 8px 0 0;">
-            <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
-                alt="Adinn Logo" style="height: 50px; margin-bottom: 15px;">
-            <h1 style="margin: 0; font-weight: 500;">New Order Received!</h1>
-            <p style="margin: 10px 0 0; opacity: 0.9;">Order ${orderId} requires processing</p>
-        </div>
-
-        <!-- Order Summary -->
-        <div style="background: white; padding: 25px; border-bottom: 1px solid #eee;">
-            <h2 style="margin: 0 0 15px 0; color: #333; font-size: 20px; display: flex; align-items: center;">
-                ORDER SUMMARY
-            </h2>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
-                <div>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Order ID:</strong> ${orderId}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Order Date:</strong> ${orderDate}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Total Items:</strong> ${products.length}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Total Amount:</strong>
-                        ₹${totalAmount.toLocaleString()}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Order Details -->
-        <div style="background: white; padding: 25px; border-bottom: 1px solid #eee;">
-            <h2 style="margin: 0 0 15px 0; color: #333; font-size: 20px; display: flex; align-items: center;">
-                ORDER DETAILS
-            </h2>
-            ${generateProductDetailsHTML(products)}
-        </div>
-
-        <!-- Customer Details -->
-        <div style="background: white; padding: 25px; border-radius: 0 0 8px 8px;">
-            <h2 style="margin: 0 0 15px 0; color: #333; font-size: 20px; display: flex; align-items: center;"> CUSTOMER DETAILS </h2>
-                <div>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Name:</strong> ${userName}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Email:</strong> ${userEmail}</p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Phone:</strong><a href='tel:${userPhone}' style="text-decoration:none; color:black;"> ${userPhone} </a></p>
-                    <p style="margin: 8px 0; font-size: 15px;"><strong>Company:</strong> ${company} </p>
-                    <p style="margin: 15px 0 8px 0; font-size: 15px;"><strong>Address:</strong> ${userAddress} </p>
-                </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="text-align: center; padding: 20px; color: #777; font-size: 14px;">
-            <p style="margin: 0;">This order was placed through the Adinn Outdoors website.</p>
-        </div>
-
-    </div> 
-    `
+            from: 'reactdeveloper@adinn.co.in',
+            to: 'reactdeveloper@adinn.co.in',
+            subject: `New Order Received - #${orderId} Action Required`,
+            html: adminMailHtmlTemplate
+            
+          
         };
         // Send both emails
         await transporter.sendMail(userMailOptions);
         await transporter.sendMail(adminMailOptions);
-        if (IS_PRODUCTION) {
 
-            // Send SMS to user
-            try {
-                await sendSMS(userPhone, "1007197121174928712", { orderId });
-                console.log("User SMS sent successfully");
-            }
-            catch (smsError) {
-                console.error("Failed to send user SMS:", smsError);
-                // Don't fail the request if SMS fails
-            }
+        
+// // STOPS THE SMS FOR TESTING PURPOSE 
 
-            // Send SMS to admin
-            try {
-                await sendSMS(emailID, "1007478982147905431", {
-                    orderId,
-                    customerName: userName,
-                    amount: totalAmount
-                });
-                console.log("Admin SMS sent successfully");
-            } catch (smsError) {
-                console.error("Failed to send admin SMS:", smsError);
-                // Don't fail the request if SMS fails
-            }
-
-            // res.json({ success: true });
-
+if (IS_PRODUCTION) {
+        // Send SMS to user
+        try {
+            await sendSMS(userPhone, "1007197121174928712", { orderId });
+            console.log("User SMS sent successfully");
+        } catch (smsError) {
+            console.error("Failed to send user SMS:", smsError);
+            // Don't fail the request if SMS fails
         }
 
-        // Log SMS information to console for testing
-        else {
-            console.log('=========================================');
-            console.log('OTP/SMS Testing Information (localhost):');
-            console.log('=========================================');
-            console.log(`Order ID: ${orderId}`);
-            console.log(`Client: ${userName}, Phone: ${userPhone}, Email: ${userEmail},Total Amount: ₹${totalAmount.toLocaleString()} `);
-            console.log('=========================================');
-            // Product details
-            if (products && products.length > 0) {
-                console.log('--- Product Details ---');
-                products.forEach((product, index) => {
-                    console.log(`Product ${index + 1}:`);
-                    console.log(`  - Name: ${product.name}`);
-                    console.log(`  - Product Code: ${product.prodCode}`);
-                    console.log(`  - Price per day: ₹${product.price.toLocaleString()}`);
-                    console.log(`  - Total Days: ${product.booking?.totalDays || 'N/A'}`);
-                    console.log(`  - Booking Dates: ${product.booking?.startDate ? new Date(product.booking.startDate).toLocaleDateString() : 'N/A'} - ${product.booking?.endDate ? new Date(product.booking.endDate).toLocaleDateString() : 'N/A'}`);
-                });
-            }
-            console.log('NOTE: SMS functionality is disabled for localhost testing');
-            console.log('Emails have been sent successfully');
-            console.log('=========================================');
-
-            res.json({ success: true });
+        // Send SMS to admin
+        try {
+            await sendSMS('reactdeveloper@adinn.co.in', "1007478982147905431", {
+                orderId,
+                customerName: userName,
+                amount: parsedTotalAmount
+            });
+            console.log("Admin SMS sent successfully");
+        } catch (smsError) {
+            console.error("Failed to send admin SMS:", smsError);
+            // Don't fail the request if SMS fails
         }
+}
+// // STOPS THE SMS FOR TESTING PURPOSE 
+
+// Log SMS information to console for testing
+else{
+        console.log('=========================================');
+        console.log('OTP/SMS Testing Information (localhost):');
+        console.log('=========================================');
+        console.log(`Order ID: ${orderId}`);
+        console.log(`Client: ${userName}, Phone: ${userPhone}, Email: ${userEmail},Total Amount: ₹${totalAmount.toLocaleString()} `);
+        console.log('=========================================');
+        // Product details
+if (products && products.length > 0) {
+    console.log('--- Product Details ---');
+    products.forEach((product, index) => {
+        console.log(`Product ${index + 1}:`);
+        console.log(`  - Name: ${product.name}`);
+        console.log(`  - Product Code: ${product.prodCode}`);
+        console.log(`  - Price per day: ₹${product.price.toLocaleString()}`);
+        console.log(`  - Total Days: ${product.booking?.totalDays || 'N/A'}`);
+        console.log(`  - Booking Dates: ${product.booking?.startDate ? new Date(product.booking.startDate).toLocaleDateString() : 'N/A'} - ${product.booking?.endDate ? new Date(product.booking.endDate).toLocaleDateString() : 'N/A'}`);
+    });
+}
+        console.log('NOTE: SMS functionality is disabled for localhost testing');
+        console.log('Emails have been sent successfully');
+        console.log('=========================================');
+
+        res.json({ success: true });
+}
     }
     catch (error) {
         console.error("Error sending Emails:", error);
         res.status(500).json({ success: false, error: "Failed to send emails" });
     }
 });
+
 module.exports = router;
