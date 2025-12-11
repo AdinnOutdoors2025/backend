@@ -80,6 +80,11 @@ const productOrderSchema = new mongoose.Schema({
     required: false  // not mandatory,
     
 },
+last_edited: {
+  type: Date,
+  default: null
+},
+
          createdAt: {
       type: Date,
       default: Date.now

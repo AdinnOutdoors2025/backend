@@ -918,7 +918,19 @@ app.put('/prodOrders/:id', async (req, res) => {
         if (!updatedOrder) {
             return res.status(404).json({ message: 'Order not found' });
         }
+        /* update last edited */
+          const updateData = {
+            ...req.body,
+            last_edited: new Date()  // default null if not provided
+        };
 
+        // Perform update
+       await prodOrderData.findByIdAndUpdate(
+            orderId,
+            updateData,
+            { new: true }
+        );
+        /* updated last edited */
         res.json({
             success: true,
             message: 'Order updated successfully',
