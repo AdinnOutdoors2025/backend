@@ -84,6 +84,10 @@ last_edited: {
   type: Date,
   default: null
 },
+order_status: {
+  type: String,
+  default: null
+},
 
          createdAt: {
       type: Date,
