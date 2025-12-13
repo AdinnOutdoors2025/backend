@@ -11,7 +11,9 @@ const productOrderSchema = new mongoose.Schema({
         pincode: { type: String },
         state: { type: String },
         city: { type: String },
+        totalAmount: { type: Number, required: true },
         paidAmount: { type: Number, required: true },
+        balanceAmount: { type: Number, required: true },
     },
     products: [{
        // Added product reference for conflict checking
@@ -59,8 +61,6 @@ const productOrderSchema = new mongoose.Schema({
           default: []
         }
     }],
-   
-   
      orderId: { 
       type: String, 
       required: true,
@@ -77,8 +77,7 @@ const productOrderSchema = new mongoose.Schema({
      handled_by: {
     type: String,
     default: null,   // allows null value
-    required: false  // not mandatory,
-    
+    required: false  // not mandatory,   
 },
 last_edited: {
   type: Date,

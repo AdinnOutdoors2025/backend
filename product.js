@@ -1314,6 +1314,81 @@ app.delete("/prodOrders/:id", async (req, res) => {
   }
 });
 
+// NEWLY ADDED Handled by admin
+// UPDATE HANDLED_BY AND LAST_EDITED
+app.put('/prodOrders/:id/handled-by', async (req, res) => {
+    try {  
+      const orderId = req.params.id;
+        const { handled_by } = req.body;
+
+        if (!handled_by || handled_by.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                message: 'Handler name is required'
+            });
+        }
+
+        // Check if order exists
+        const existingOrder = await prodOrderData.findById(orderId);
+        if (!existingOrder) { 
+            console.log('❌ Order not found:', orderId);
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // // Check if already handled by someone else
+        // if (existingOrder.handled_by && existingOrder.handled_by.trim() !== '') {
+        //     if (existingOrder.handled_by.toLowerCase() !== handled_by.toLowerCase()) {
+        //         return res.status(200).json({
+        //             success: false,
+        //             already_handled: true,
+        //             current_handler: existingOrder.handled_by,
+        //             message: `This order is already being handled by ${existingOrder.handled_by}`
+        //         });
+        //     }
+        // }
+          
+
+        // Always update, even if already handled by someone
+        // (Remove the check that prevents updating if already handled)
+        const trimmedName = handled_by.trim();
+
+        // Update order
+        const updatedOrder = await prodOrderData.findByIdAndUpdate(
+            orderId,
+            {
+                $set: {
+                    handled_by:trimmedName,
+                    last_edited: new Date()
+                }
+            },
+            {
+                new: true,
+                runValidators: true
+            }
+        );
+        console.log('✅ Order updated successfully:', updatedOrder._id);
+
+        res.json({
+            success: true,
+            message: 'Handler name updated successfully',
+            order: updatedOrder
+        });
+
+    } catch (err) {
+        console.error('❌ Error updating handler:', err);
+        res.status(500).json({
+            success: false,
+            message: 'Server error while updating handler',
+            error: err.message
+        });
+    }
+});
+// NEWLY ADDED Handled by admin
+
+
 //CART ITEMS ROUTE
 // GET cart items for user
 app.get("/cart/user/:userId", async (req, res) => {
