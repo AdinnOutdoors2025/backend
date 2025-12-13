@@ -11,9 +11,9 @@ const productOrderSchema = new mongoose.Schema({
         pincode: { type: String },
         state: { type: String },
         city: { type: String },
-        totalAmount: { type: Number, required: true },
-        paidAmount: { type: Number, required: true },
-        balanceAmount: { type: Number, required: true },
+        totalAmount: { type: Number},
+        paidAmount: { type: Number},
+        balanceAmount: { type: Number},
     },
     products: [{
        // Added product reference for conflict checking
