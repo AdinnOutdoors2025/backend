@@ -38,7 +38,7 @@ const sendSMS = (phone, templateId, variables = {}) => {
                 text = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${variables.orderId}.`;
                 break;
             case "1007478982147905431": // Admin template
-                text = `New order received! Order ID: ${variables.orderId}. Customer: ${variables.customerName}. Amount: ₹${variables.amount}.`;
+                text = `New order received! Order ID: ${variables.orderId}. Customer: ${variables.customerName}.`;
                 break;
             default:
                 text = variables.text || "";
