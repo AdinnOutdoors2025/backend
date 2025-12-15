@@ -914,45 +914,94 @@ app.get("/deleteProductOrder/:orderId/:productId", async (req, res) => {
   try {
     const { orderId, productId } = req.params;
 
-    // STEP 1: FIND the order using orderId (NOT Mongo _id)
-    const order = await prodOrderData.findOne({ orderId: orderId });
-
+    const order = await prodOrderData.findOne({ orderId });
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // STEP 2: CHECK if product exists in order.products
-    // const productExists = order.products.some(p => p.id === productId);
+    /* ---------- HARD NORMALIZE paidAmount ---------- */
 
-    // if (!productExists) {
-    //   return res.status(404).json({ message: "Product not found in this order" });
-    // }
+    let normalizedPaid = [];
 
-    // STEP 3: REMOVE that product from array
+    if (Array.isArray(order.client.paidAmount)) {
+      normalizedPaid = order.client.paidAmount
+        .map((p) => {
+          // already correct
+          if (p && typeof p === "object" && typeof p.amount === "number") {
+            return {
+              amount: p.amount,
+              paidAt: p.paidAt || order.createdAt || new Date(),
+            };
+          }
+
+          // array of numbers case
+          if (typeof p === "number") {
+            return {
+              amount: p,
+              paidAt: order.createdAt || new Date(),
+            };
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+    } else if (typeof order.client.paidAmount === "number") {
+      normalizedPaid = [
+        {
+          amount: order.client.paidAmount,
+          paidAt: order.createdAt || new Date(),
+        },
+      ];
+    }
+
+    order.client.paidAmount = normalizedPaid;
+
+    /* ---------- REMOVE PRODUCT ---------- */
+
     order.products = order.products.filter((p) => p.id !== productId);
 
-    // STEP 4: RECALCULATE total amount (optional)
-    const newTotalAmount = order.products.reduce(
+    /* ---------- RECALCULATE TOTAL ---------- */
+
+    const totalAmount = order.products.reduce(
       (sum, p) => sum + (p.booking?.totalPrice || 0),
       0
     );
-    order.client.paidAmount = newTotalAmount; // if needed
 
+    /* ---------- RECALCULATE PAID & BALANCE ---------- */
+
+    const totalPaid = order.client.paidAmount.reduce(
+      (sum, p) => sum + p.amount,
+      0
+    );
+
+    const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+    /* ---------- REQUIRED FIELDS ---------- */
+
+    order.client.totalAmount = totalAmount;
+    order.client.balanceAmount = balanceAmount;
     order.last_edited = new Date();
 
-    // STEP 5: SAVE CHANGES
     await order.save();
 
-    return res.json({
+    res.json({
+      status: true,
       message: "Product removed successfully",
+      total: totalAmount,
+      totalPaid: totalPaid,
+      balanceAmount: balanceAmount,
       updatedOrder: order,
-      total: newTotalAmount,
     });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Server Error", error });
+    console.error(error);
+    res.status(500).json({
+      status: false,
+      message: "Server Error",
+      error: error.message,
+    });
   }
 });
+
 /* delete product for particular order -SK */
 
 /* import order status -Sk */
@@ -1014,9 +1063,9 @@ app.get("/getOrderStatuses", async (req, res) => {
 app.put("/updateOrderStatus/:orderId", async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status } = req.body;
+    const { status, cancel, reason } = req.body;
 
-    if (!status) {
+    if (!status && cancel == false) {
       return res.status(400).json({
         status: false,
         message: "Status is required",
@@ -1031,24 +1080,51 @@ app.put("/updateOrderStatus/:orderId", async (req, res) => {
       });
     }
     // Find and update
-    const updatedOrder = await prodOrderData.findByIdAndUpdate(
-      orderId,
-      { $set: { order_status: status } },
-      { new: true }
-    );
+    if (cancel == false) {
+      const updatedOrder = await prodOrderData.findByIdAndUpdate(
+        orderId,
+        { $set: { order_status: status } },
+        { new: true }
+      );
 
-    if (!updatedOrder) {
-      return res.status(404).json({
-        status: false,
-        message: "Order not found",
+      if (!updatedOrder) {
+        return res.status(404).json({
+          status: false,
+          message: "Order not found",
+        });
+      }
+
+      return res.status(200).json({
+        status: true,
+        message: "Order status updated successfully",
+        data: updatedOrder,
       });
     }
+    if (cancel == true) {
+      const updatedOrder = await prodOrderData.findByIdAndUpdate(
+        orderId,
+        {
+          $set: {
+            order_cancel_reason: reason,
+            order_status: status, // overwrites if already exists
+          },
+        },
+        { new: true }
+      );
 
-    return res.status(200).json({
-      status: true,
-      message: "Order status updated successfully",
-      data: updatedOrder,
-    });
+      if (!updatedOrder) {
+        return res.status(404).json({
+          status: false,
+          message: "Order not found",
+        });
+      }
+
+      return res.status(200).json({
+        status: true,
+        message: "Reason updated successfully",
+        data: updatedOrder,
+      });
+    }
   } catch (error) {
     console.error("Error updating order status:", error);
     res.status(500).json({
@@ -1064,7 +1140,7 @@ app.put("/updateOrderStatus/:orderId", async (req, res) => {
 
 app.post("/addOrderStatus/", async (req, res) => {
   try {
-    const { name, createdAt, updatedAt } = req.body;
+    const { name, cancel, createdAt, updatedAt } = req.body;
 
     // Check duplicate
     const exists = await OrderStatus.findOne({ name: name.trim() });
@@ -1072,7 +1148,7 @@ app.post("/addOrderStatus/", async (req, res) => {
       return res.status(200).json({
         status: false,
         message: "Status already exists",
-        data : null
+        data: null,
       });
     }
 
@@ -1099,6 +1175,100 @@ app.post("/addOrderStatus/", async (req, res) => {
 });
 
 /* add new order status -SK */
+
+/* Update advance and remaining amount in particular order */
+app.post("/updateOrderAmounts", async (req, res) => {
+  try {
+    const { orderId, advanceAmount } = req.body;
+
+    if (!orderId || advanceAmount === undefined) {
+      return res.json({
+        status: false,
+        message: "orderId and advanceAmount are required",
+      });
+    }
+
+    const order = await prodOrderData.findOne({ orderId });
+    if (!order) {
+      return res.json({
+        status: false,
+        message: "Order not found",
+      });
+    }
+
+    /* ---------- NORMALIZE paidAmount ---------- */
+
+    if (!Array.isArray(order.client.paidAmount)) {
+      if (typeof order.client.paidAmount === "number") {
+        order.client.paidAmount = [
+          {
+            amount: order.client.paidAmount,
+            paidAt: order.createdAt || new Date(),
+          },
+        ];
+      } else {
+        order.client.paidAmount = [];
+      }
+    }
+
+    /* ---------- CALCULATE TOTAL AMOUNT ---------- */
+
+    const totalAmount = order.products.reduce(
+      (sum, p) => sum + Number(p.booking?.totalPrice || 0),
+      0
+    );
+
+    /* ---------- ADD NEW PAYMENT ---------- */
+
+    const paidValue = Number(advanceAmount);
+    if (isNaN(paidValue) || paidValue <= 0) {
+      return res.json({
+        status: false,
+        message: "Invalid advanceAmount",
+      });
+    }
+
+    order.client.paidAmount.push({
+      amount: paidValue,
+      paidAt: new Date(),
+    });
+
+    /* ---------- TOTAL PAID ---------- */
+
+    const totalPaid = order.client.paidAmount.reduce(
+      (sum, p) => sum + Number(p.amount || 0),
+      0
+    );
+
+    const remainingAmount = Math.max(totalAmount - totalPaid, 0);
+
+    /* ---------- SAVE REQUIRED FIELDS ---------- */
+
+    order.client.totalAmount = totalAmount;
+    order.client.balanceAmount = remainingAmount;
+    order.last_edited = new Date();
+
+    await order.save();
+
+    return res.json({
+      status: true,
+      message: "Payment added successfully",
+      totalAmount,
+      totalPaid,
+      remainingAmount,
+      data: order,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.json({
+      status: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+/* Update advance and remaining amount in particular order */
 
 function generateDateRange(startDate, endDate) {
   const dates = [];
@@ -1316,78 +1486,75 @@ app.delete("/prodOrders/:id", async (req, res) => {
 
 // NEWLY ADDED Handled by admin
 // UPDATE HANDLED_BY AND LAST_EDITED
-app.put('/prodOrders/:id/handled-by', async (req, res) => {
-    try {  
-      const orderId = req.params.id;
-        const { handled_by } = req.body;
+app.put("/prodOrders/:id/handled-by", async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { handled_by } = req.body;
 
-        if (!handled_by || handled_by.trim() === '') {
-            return res.status(400).json({
-                success: false,
-                message: 'Handler name is required'
-            });
-        }
-
-        // Check if order exists
-        const existingOrder = await prodOrderData.findById(orderId);
-        if (!existingOrder) { 
-            console.log('❌ Order not found:', orderId);
-            return res.status(404).json({
-                success: false,
-                message: 'Order not found'
-            });
-        }
-
-        // // Check if already handled by someone else
-        // if (existingOrder.handled_by && existingOrder.handled_by.trim() !== '') {
-        //     if (existingOrder.handled_by.toLowerCase() !== handled_by.toLowerCase()) {
-        //         return res.status(200).json({
-        //             success: false,
-        //             already_handled: true,
-        //             current_handler: existingOrder.handled_by,
-        //             message: `This order is already being handled by ${existingOrder.handled_by}`
-        //         });
-        //     }
-        // }
-          
-
-        // Always update, even if already handled by someone
-        // (Remove the check that prevents updating if already handled)
-        const trimmedName = handled_by.trim();
-
-        // Update order
-        const updatedOrder = await prodOrderData.findByIdAndUpdate(
-            orderId,
-            {
-                $set: {
-                    handled_by:trimmedName,
-                    last_edited: new Date()
-                }
-            },
-            {
-                new: true,
-                runValidators: true
-            }
-        );
-        console.log('✅ Order updated successfully:', updatedOrder._id);
-
-        res.json({
-            success: true,
-            message: 'Handler name updated successfully',
-            order: updatedOrder
-        });
-
-    } catch (err) {
-        console.error('❌ Error updating handler:', err);
-        res.status(500).json({
-            success: false,
-            message: 'Server error while updating handler',
-            error: err.message
-        });
+    if (!handled_by || handled_by.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Handler name is required",
+      });
     }
+
+    // Check if order exists
+    const existingOrder = await prodOrderData.findById(orderId);
+    if (!existingOrder) {
+      console.log("❌ Order not found:", orderId);
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // // Check if already handled by someone else
+    // if (existingOrder.handled_by && existingOrder.handled_by.trim() !== '') {
+    //     if (existingOrder.handled_by.toLowerCase() !== handled_by.toLowerCase()) {
+    //         return res.status(200).json({
+    //             success: false,
+    //             already_handled: true,
+    //             current_handler: existingOrder.handled_by,
+    //             message: `This order is already being handled by ${existingOrder.handled_by}`
+    //         });
+    //     }
+    // }
+
+    // Always update, even if already handled by someone
+    // (Remove the check that prevents updating if already handled)
+    const trimmedName = handled_by.trim();
+
+    // Update order
+    const updatedOrder = await prodOrderData.findByIdAndUpdate(
+      orderId,
+      {
+        $set: {
+          handled_by: trimmedName,
+          last_edited: new Date(),
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+    console.log("✅ Order updated successfully:", updatedOrder._id);
+
+    res.json({
+      success: true,
+      message: "Handler name updated successfully",
+      order: updatedOrder,
+    });
+  } catch (err) {
+    console.error("❌ Error updating handler:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error while updating handler",
+      error: err.message,
+    });
+  }
 });
 // NEWLY ADDED Handled by admin
-
 
 //CART ITEMS ROUTE
 // GET cart items for user
