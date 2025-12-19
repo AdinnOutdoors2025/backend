@@ -1832,6 +1832,14 @@ app.post("/sendMailAdinnContactUs/", async (req, res) => {
 
 
 
+// Simple GET  HI
+app.get("/test", (req, res) => {
+    res.json({ message: 'hi' });
+});
+app.get("/testurl", async (req, res) => {
+  return res.json({message : 'hai'})
+})
+
 
 
 
