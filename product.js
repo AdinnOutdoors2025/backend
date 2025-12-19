@@ -15,6 +15,7 @@ const crypto = require("crypto"); //inbuilt function to embed the data in this w
 // Initialize the Express app
 const app = express();
 const PORT = 3001;
+const nodemailer = require('nodemailer');
 
 //Middlewares
 app.use(cors());
@@ -1704,6 +1705,137 @@ app.delete("/cart/clear/:userId", async (req, res) => {
     });
   }
 });
+
+
+
+/* send mail on adinn.com site -Sk */
+const contactUserTemplate = ({ firstname, lastname, email, message }) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>User Email</title>
+</head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f9f9f9;">
+  <div style="max-width:700px;margin:auto;background:#ffffff;padding:20px;border:1px solid #ddd;">
+
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:20px;">
+      <img src="cid:adinnlogo" alt="Adinn Logo" style="height:50px;">
+    </div>
+
+    <!-- Greeting -->
+    <div style="font-size:24px;font-weight:600;margin-bottom:20px;">Hi ${firstname},</div>
+
+    <!-- Message -->
+    <p style="font-size:16px;line-height:1.5;">
+      Thank you for contacting <strong>Adinn Advertising Services Ltd</strong>.
+      We have received your message and our team will get back to you shortly.
+    </p>
+
+    <!-- User Details Table -->
+    <h3 style="margin-top:30px;">Your submitted details</h3>
+    <table style="border-collapse:collapse;width:100%;font-size:14px;">
+      <tr>
+        <td style="padding:6px 0;font-weight:bold;">Name:</td>
+        <td style="padding:6px 0;">${firstname} ${lastname}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;font-weight:bold;">Email:</td>
+        <td style="padding:6px 0;"><a href="mailto:${email}" style="color:#2B3333;text-decoration:none;">${email}</a></td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;font-weight:bold;vertical-align:top;">Message:</td>
+        <td style="padding:6px 0;">${message}</td>
+      </tr>
+    </table>
+
+    <!-- Footer -->
+    <p style="margin-top:30px;font-size:14px;line-height:1.5;">
+      Regards,<br/>
+      <strong>Adinn Advertising Services Ltd</strong><br/>
+      📞 +91 7373785048 | 9626987861<br/>
+      📧 <a href="mailto:info@adinn.co.in" style="color:#2B3333;text-decoration:none;">contact@adinn.com</a><br/>
+      🌐 <a href="https://www.adinn.com" target="_blank" style="color:#2B3333;text-decoration:none;">www.adinn.com</a>
+    </p>
+
+
+  </div>
+</body>
+</html>
+`;
+
+
+app.post("/sendMailAdinnContactUs/", async (req, res) => {
+  try {
+    const { firstName, lastName, email, message } = req.body;
+
+    if (!firstName || !lastName || !email || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: "sg2plzcpnl504573.prod.sin2.secureserver.net",
+      port: 587,
+      secure: false, // TLS (IMPORTANT)
+      auth: {
+        user: "contact@adinn.com",
+        pass: "DdFu2$L{90Ss",
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+
+    const mailOptions = {
+      from: `"Adinn Advertising Services Ltd" <contact@adinn.com>`,
+      // to: "info@adinn.co.in",
+      to: "reactdeveloper@adinn.co.in",
+      cc: "srbedev@adinn.co.in",
+      subject: "Thank you for contacting Adinn",
+      html: contactUserTemplate({
+        firstname: firstName,
+        lastname: lastName,
+        email,
+        message,
+      }),
+      attachments: [
+        {
+          filename: "adinn.png",
+          path: path.join(__dirname, "adinn.png"),
+          cid: "adinnlogo",
+        },
+      ],
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        return res.status(500).json({ success: false, message: error });
+      }
+      return res
+        .status(200)
+        .json({ success: true, message: "OTP sent successfully" });
+    });
+  } catch (error) {
+    console.error("Add Status Error:", error);
+    res.status(500).json({
+      status: false,
+      message: "Internal server error",
+    });
+  }
+});
+/* send mail on adinn.com site -SK */
+
+
+
+
+
+
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
