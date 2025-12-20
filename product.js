@@ -1832,7 +1832,7 @@ app.post("/sendMailAdinnContactUs/", async (req, res) => {
 
 
 
-// Simple GET  HI
+// Simple GET  HII
 app.post("/checkPost", (req, res) => {
   const { firstName, lastName, email, message } = req.body;
     res.json({ firstName: firstName, lastName : lastName,email:email,message:message , test : "test"});
