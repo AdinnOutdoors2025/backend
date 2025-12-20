@@ -1812,8 +1812,8 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
       },
       {
         headers: {
-          // "api-key": process.env.BREVO_API_KEY,
-          "api-key": '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',
+          "api-key": process.env.BREVO_API_KEY,
+          
           "Content-Type": "application/json",
         },
         timeout: 15000, // 15 sec safety
