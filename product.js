@@ -1772,6 +1772,7 @@ const contactUserTemplate = ({ firstname, lastname, email, message }) => `
 app.post("/sendMailAdinnContactUs", async (req, res) => {
   try {
     const { firstName, lastName, email, message } = req.body;
+    return res.json({key:process.env.BREVO_API_KEY});
 
     // ✅ Validation
     if (!firstName || !lastName || !email || !message) {
