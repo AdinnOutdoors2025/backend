@@ -1771,7 +1771,7 @@ app.post("/sendMailAdinnContactUs/", async (req, res) => {
   try {
     
     const { firstName, lastName, email, message } = req.body;
-    return res.json({firstName:firstName,lastName:lastName,email:email,message:message})
+    
     if (!firstName || !lastName || !email || !message) {
       return res.status(400).json({
         success: false,
