@@ -1773,6 +1773,7 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
   try {
     const { firstName, lastName, email, message } = req.body;
 
+    // ✅ Validation
     if (!firstName || !lastName || !email || !message) {
       return res.status(400).json({
         success: false,
@@ -1780,123 +1781,67 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
       });
     }
 
-    const mailOptions = {
-      from: `"Adinn Advertising Services Ltd" <contact@adinn.com>`,
-      to: "reactdeveloper@adinn.co.in",
-      cc: "srbedev@adinn.co.in",
-      subject: "Thank you for contacting Adinn",
-      html: contactUserTemplate({
-        firstname: firstName,
-        lastname: lastName,
-        email,
-        message,
-      }),
-         attachments: [
-        {
-          filename: "adinn.png",
-          path: path.join(__dirname, "adinn.png"),
-          cid: "adinnlogo",
+    // ✅ Email HTML
+    const htmlContent = contactUserTemplate({
+      firstname: firstName,
+      lastname: lastName,
+      email,
+      message,
+    });
+
+    // ✅ Brevo API call
+    const response = await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: {
+          name: "Adinn Advertising Services Ltd",
+          email: "contact@adinn.com",
         },
-      ],
-    };
-
-    // ✅ Retry once on socket failure
-    try {
-      const info = await transporter.sendMail(mailOptions);
-
-      return res.status(200).json({
-        success: true,
-        message: "Mail sent successfully",
-        response: info.response,
-      });
-    } catch (err) {
-      if (err.code === "ESOCKET" || err.code === "ECONNRESET") {
-        console.warn("Retrying mail send...");
-        const retryInfo = await transporter.sendMail(mailOptions);
-
-        return res.status(200).json({
-          success: true,
-          message: "Mail sent successfully (retry)",
-          response: retryInfo.response,
-        });
+        to: [
+          {
+            email: "reactdeveloper@adinn.co.in",
+          },
+        ],
+        cc: [
+          {
+            email: "srbedev@adinn.co.in",
+          },
+        ],
+        subject: "Thank you for contacting Adinn",
+        htmlContent: htmlContent,
+      },
+      {
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json",
+        },
+        timeout: 15000, // 15 sec safety
       }
+    );
 
-      throw err;
-    }
+    // ✅ Success response
+    return res.status(200).json({
+      success: true,
+      message: "Mail sent successfully",
+      response: response.data,
+    });
+
   } catch (error) {
-    console.error("Mail error:", error);
+    console.error(
+      "Brevo Mail Error:",
+      error.response?.data || error.message
+    );
 
     return res.status(500).json({
       success: false,
       message: "Mail sending failed",
-      error: error.message,
-      code: error.code,
+      error: error.response?.data || error.message,
     });
   }
 });
 
-// app.post("/sendMailAdinnContactUs/", async (req, res) => {
-//   try {
-    
-//     const { firstName, lastName, email, message } = req.body;
-    
-//     if (!firstName || !lastName || !email || !message) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "All fields are required",
-//       });
-//     }
 
-//     const transporter = nodemailer.createTransport({
-//       host: "sg2plzcpnl504573.prod.sin2.secureserver.net",
-//       port: 587,
-//       secure: false, // TLS (IMPORTANT)
-//       auth: {
-//         user: "contact@adinn.com",
-//         pass: "DdFu2$L{90Ss",
-//       },
-//       tls: {
-//         rejectUnauthorized: false,
-//       },
-//     });
 
-//     const mailOptions = {
-//       from: `"Adinn Advertising Services Ltd" <contact@adinn.com>`,
-//       // to: "info@adinn.co.in",
-//       to: "reactdeveloper@adinn.co.in",
-//       cc: "srbedev@adinn.co.in",
-//       subject: "Thank you for contacting Adinn",
-//       html: contactUserTemplate({
-//         firstname: firstName,
-//         lastname: lastName,
-//         email,
-//         message,
-//       }),
-//       attachments: [
-//         {
-//           filename: "adinn.png",
-//           path: path.join(__dirname, "adinn.png"),
-//           cid: "adinnlogo",
-//         },
-//       ],
-//     };
-
-//     transporter.sendMail(mailOptions, (error, info) => {
-//       if (error) {
-//         return res.status(500).json({ success: false, message: error });
-//       }
-//       return res
-//         .status(200)
-//         .json({ success: true, message: "OTP sent successfully" });
-//     });
-//   } catch (error) {
-//     console.error("Add Status Error:", error);
-//     res.status(500).json({
-//       status: false,
-//       message: "Internal server error",
-//     });
-//   }
-// });
 /* send mail on adinn.com site -SK */
 
 
