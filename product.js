@@ -1798,24 +1798,7 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
       },
     });
 
-    // ✅ Verify SMTP connection
-    try {
-      await transporter.verify();
-      console.log("SMTP connection successful");
-    } catch (smtpError) {
-      console.error("SMTP verification failed:", smtpError);
 
-      return res.status(500).json({
-        success: false,
-        message: "SMTP connection failed",
-        error: {
-          message: smtpError.message,
-          code: smtpError.code,
-        },
-      });
-    }
-
-    // ✅ Mail options
     const mailOptions = {
       from: `"Adinn Advertising Services Ltd" <contact@adinn.com>`,
       to: "reactdeveloper@adinn.co.in",
@@ -1827,40 +1810,14 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
         email,
         message,
       }),
-      attachments: [
-        {
-          filename: "adinn.png",
-          path: path.join(__dirname, "adinn.png"),
-          cid: "adinnlogo",
-        },
-      ],
     };
 
-    // ✅ Send mail
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Mail send error:", error);
+    const info = await transporter.sendMail(mailOptions);
 
-        return res.status(500).json({
-          success: false,
-          message: "Mail sending failed",
-          error: {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            response: error.response,
-            command: error.command,
-          },
-        });
-      }
-
-      console.log("Mail sent:", info.response);
-
-      return res.status(200).json({
-        success: true,
-        message: "Mail sent successfully",
-        info: info.response,
-      });
+    return res.status(200).json({
+      success: true,
+      message: "Mail sent successfully",
+      response: info.response,
     });
   } catch (error) {
     console.error("Unhandled error:", error);
