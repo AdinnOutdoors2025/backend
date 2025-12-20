@@ -1816,7 +1816,7 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
           
           "Content-Type": "application/json",
         },
-        timeout: 15000, // 15 sec safety
+        timeout: 15000, // 15 sec safety's
       }
     );
 
