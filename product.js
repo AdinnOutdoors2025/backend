@@ -12,7 +12,7 @@ const cors = require("cors");
 const Razorpay = require("razorpay"); //require razorpay then only we use
 const bodyParser = require("body-parser"); //sent the json data
 const crypto = require("crypto"); //inbuilt function to embed the data in this we use sha256 algorithm to safest way of payment
-// Initialize the Express apps
+// Initialize the Express appss
 const app = express();
 const PORT = 3001;
 const nodemailer = require("nodemailer");
@@ -1771,6 +1771,7 @@ const contactUserTemplate = ({ firstname, lastname, email, message }) => `
 app.post("/sendMailAdinnContactUs", async (req, res) => {
   try {
     const { firstName, lastName, email, message } = req.body;
+    return res.json({key:process.env.BREVO_API_KEY});
 
     // ✅ Validation
     if (!firstName || !lastName || !email || !message) {
@@ -1811,7 +1812,7 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
       },
       {
         headers: {
-          "api-key": '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',
+          "api-key": process.env.BREVO_API_KEY,
           "Content-Type": "application/json",
         },
         timeout: 15000, // 15 sec safety
@@ -1840,68 +1841,7 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
 });
 
 
-// app.post("/sendMailAdinnContactUs/", async (req, res) => {
-//   try {
-    
-//     const { firstName, lastName, email, message } = req.body;
-    
-//     if (!firstName || !lastName || !email || !message) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "All fields are required",
-//       });
-//     }
 
-//     const transporter = nodemailer.createTransport({
-//       host: "sg2plzcpnl504573.prod.sin2.secureserver.net",
-//       port: 587,
-//       secure: false, // TLS (IMPORTANT)
-//       auth: {
-//         user: "contact@adinn.com",
-//         pass: "DdFu2$L{90Ss",
-//       },
-//       tls: {
-//         rejectUnauthorized: false,
-//       },
-//     });
-
-//     const mailOptions = {
-//       from: `"Adinn Advertising Services Ltd" <contact@adinn.com>`,
-//       // to: "info@adinn.co.in",
-//       to: "reactdeveloper@adinn.co.in",
-//       cc: "srbedev@adinn.co.in",
-//       subject: "Thank you for contacting Adinn",
-//       html: contactUserTemplate({
-//         firstname: firstName,
-//         lastname: lastName,
-//         email,
-//         message,
-//       }),
-//       attachments: [
-//         {
-//           filename: "adinn.png",
-//           path: path.join(__dirname, "adinn.png"),
-//           cid: "adinnlogo",
-//         },
-//       ],
-//     };
-
-//     transporter.sendMail(mailOptions, (error, info) => {
-//       if (error) {
-//         return res.status(500).json({ success: false, message: error });
-//       }
-//       return res
-//         .status(200)
-//         .json({ success: true, message: "OTP sent successfully" });
-//     });
-//   } catch (error) {
-//     console.error("Add Status Error:", error);
-//     res.status(500).json({
-//       status: false,
-//       message: "Internal server error",
-//     });
-//   }
-// });
 /* send mail on adinn.com site -SK */
 
 
