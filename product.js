@@ -1770,7 +1770,7 @@ const contactUserTemplate = ({ firstname, lastname, email, message }) => `
 app.post("/sendMailAdinnContactUs/", async (req, res) => {
   try {
     const { firstName, lastName, email, message } = req.body;
-
+    return res.json({firstName:firstName,lastName:lastName,email:email,message:message})
     if (!firstName || !lastName || !email || !message) {
       return res.status(400).json({
         success: false,
@@ -1832,12 +1832,13 @@ app.post("/sendMailAdinnContactUs/", async (req, res) => {
 
 
 
-// Simple GET  HI
-app.get("/test", (req, res) => {
-    res.json({ message: 'hi' });
+// Simple GET  HII
+app.post("/checkPost", (req, res) => {
+  const { firstName, lastName, email, message } = req.body;
+    res.json({ firstName: firstName, lastName : lastName,email:email,message:message , test : "test"});
 });
 app.get("/testurl", async (req, res) => {
-  return res.json({message : 'hai'})
+  return res.json({message : 'hasi'})
 })
 
 
