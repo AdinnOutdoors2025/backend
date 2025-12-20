@@ -1767,11 +1767,15 @@ const contactUserTemplate = ({ firstname, lastname, email, message }) => `
 `;
 
 
-app.post("/sendMailAdinnContactUs/", async (req, res) => {
+
+app.post("/sendMailAdinnContactUs", async (req, res) => {
   try {
+    console.log("Incoming request body:", req.body);
     
+
     const { firstName, lastName, email, message } = req.body;
-    
+
+    // ✅ Validate request body
     if (!firstName || !lastName || !email || !message) {
       return res.status(400).json({
         success: false,
@@ -1779,22 +1783,41 @@ app.post("/sendMailAdinnContactUs/", async (req, res) => {
       });
     }
 
+    // ✅ Create transporter (Render safe)
     const transporter = nodemailer.createTransport({
       host: "sg2plzcpnl504573.prod.sin2.secureserver.net",
       port: 587,
-      secure: false, // TLS (IMPORTANT)
+      secure: false,
+      requireTLS: true,
       auth: {
-        user: "contact@adinn.com",
-        pass: "DdFu2$L{90Ss",
+        user: process.env.FROM_MAIL_ID || "contact@adinn.com",
+        pass: process.env.MAIL_PASSWORD || "dsfsdf@555",
       },
       tls: {
-        rejectUnauthorized: false,
+        rejectUnauthorized: true,
       },
     });
 
+    // ✅ Verify SMTP connection
+    try {
+      await transporter.verify();
+      console.log("SMTP connection successful");
+    } catch (smtpError) {
+      console.error("SMTP verification failed:", smtpError);
+
+      return res.status(500).json({
+        success: false,
+        message: "SMTP connection failed",
+        error: {
+          message: smtpError.message,
+          code: smtpError.code,
+        },
+      });
+    }
+
+    // ✅ Mail options
     const mailOptions = {
       from: `"Adinn Advertising Services Ltd" <contact@adinn.com>`,
-      // to: "info@adinn.co.in",
       to: "reactdeveloper@adinn.co.in",
       cc: "srbedev@adinn.co.in",
       subject: "Thank you for contacting Adinn",
@@ -1813,22 +1836,105 @@ app.post("/sendMailAdinnContactUs/", async (req, res) => {
       ],
     };
 
+    // ✅ Send mail
     transporter.sendMail(mailOptions, (error, info) => {
       if (error) {
-        return res.status(500).json({ success: false, message: error });
+        console.error("Mail send error:", error);
+
+        return res.status(500).json({
+          success: false,
+          message: "Mail sending failed",
+          error: {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            response: error.response,
+            command: error.command,
+          },
+        });
       }
-      return res
-        .status(200)
-        .json({ success: true, message: "OTP sent successfully" });
+
+      console.log("Mail sent:", info.response);
+
+      return res.status(200).json({
+        success: true,
+        message: "Mail sent successfully",
+        info: info.response,
+      });
     });
   } catch (error) {
-    console.error("Add Status Error:", error);
-    res.status(500).json({
-      status: false,
+    console.error("Unhandled error:", error);
+
+    return res.status(500).json({
+      success: false,
       message: "Internal server error",
+      error: error.message,
     });
   }
 });
+
+// app.post("/sendMailAdinnContactUs/", async (req, res) => {
+//   try {
+    
+//     const { firstName, lastName, email, message } = req.body;
+    
+//     if (!firstName || !lastName || !email || !message) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "All fields are required",
+//       });
+//     }
+
+//     const transporter = nodemailer.createTransport({
+//       host: "sg2plzcpnl504573.prod.sin2.secureserver.net",
+//       port: 587,
+//       secure: false, // TLS (IMPORTANT)
+//       auth: {
+//         user: "contact@adinn.com",
+//         pass: "DdFu2$L{90Ss",
+//       },
+//       tls: {
+//         rejectUnauthorized: false,
+//       },
+//     });
+
+//     const mailOptions = {
+//       from: `"Adinn Advertising Services Ltd" <contact@adinn.com>`,
+//       // to: "info@adinn.co.in",
+//       to: "reactdeveloper@adinn.co.in",
+//       cc: "srbedev@adinn.co.in",
+//       subject: "Thank you for contacting Adinn",
+//       html: contactUserTemplate({
+//         firstname: firstName,
+//         lastname: lastName,
+//         email,
+//         message,
+//       }),
+//       attachments: [
+//         {
+//           filename: "adinn.png",
+//           path: path.join(__dirname, "adinn.png"),
+//           cid: "adinnlogo",
+//         },
+//       ],
+//     };
+
+//     transporter.sendMail(mailOptions, (error, info) => {
+//       if (error) {
+//         return res.status(500).json({ success: false, message: error });
+//       }
+//       return res
+//         .status(200)
+//         .json({ success: true, message: "OTP sent successfully" });
+//     });
+//   } catch (error) {
+//     console.error("Add Status Error:", error);
+//     res.status(500).json({
+//       status: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
 /* send mail on adinn.com site -SK */
 
 
