@@ -12,7 +12,7 @@ const cors = require("cors");
 const Razorpay = require("razorpay"); //require razorpay then only we use
 const bodyParser = require("body-parser"); //sent the json data
 const crypto = require("crypto"); //inbuilt function to embed the data in this we use sha256 algorithm to safest way of payment
-// Initialize the Express apps
+// Initialize the Express appss
 const app = express();
 const PORT = 3001;
 const nodemailer = require("nodemailer");
