@@ -1732,7 +1732,7 @@ const contactUserTemplate = ({ firstname, lastname, email, message }) => `
     <!-- Message -->
     <p style="font-size:16px;line-height:1.5;">
       Thank you for contacting <strong>Adinn Advertising Services Ltd</strong>.
-      We have received your message and our team will get back to you shortly.
+      We have received your message and our team will get back to you shortlys.
     </p>
 
     <!-- User Details Table -->
@@ -1791,6 +1791,13 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
         email,
         message,
       }),
+         attachments: [
+        {
+          filename: "adinn.png",
+          path: path.join(__dirname, "adinn.png"),
+          cid: "adinnlogo",
+        },
+      ],
     };
 
     // ✅ Retry once on socket failure
