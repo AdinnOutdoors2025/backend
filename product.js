@@ -15,7 +15,8 @@ const crypto = require("crypto"); //inbuilt function to embed the data in this w
 // Initialize the Express app
 const app = express();
 const PORT = 3001;
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
+const transporter = require("./mailer");
 
 //Middlewares
 app.use(cors());
@@ -1770,34 +1771,14 @@ const contactUserTemplate = ({ firstname, lastname, email, message }) => `
 
 app.post("/sendMailAdinnContactUs", async (req, res) => {
   try {
-    console.log("Incoming request body:", req.body);
-    
-
     const { firstName, lastName, email, message } = req.body;
 
-    // ✅ Validate request body
     if (!firstName || !lastName || !email || !message) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
       });
     }
-
-    // ✅ Create transporter (Render safe)
-    const transporter = nodemailer.createTransport({
-      host: "sg2plzcpnl504573.prod.sin2.secureserver.net",
-      port: 587,
-      secure: false,
-      requireTLS: true,
-      auth: {
-        user: process.env.FROM_MAIL_ID || "contact@adinn.com",
-        pass: process.env.MAIL_PASSWORD || "dsfsdf@555",
-      },
-      tls: {
-        rejectUnauthorized: true,
-      },
-    });
-
 
     const mailOptions = {
       from: `"Adinn Advertising Services Ltd" <contact@adinn.com>`,
@@ -1812,20 +1793,37 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
       }),
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    // ✅ Retry once on socket failure
+    try {
+      const info = await transporter.sendMail(mailOptions);
 
-    return res.status(200).json({
-      success: true,
-      message: "Mail sent successfully",
-      response: info.response,
-    });
+      return res.status(200).json({
+        success: true,
+        message: "Mail sent successfully",
+        response: info.response,
+      });
+    } catch (err) {
+      if (err.code === "ESOCKET" || err.code === "ECONNRESET") {
+        console.warn("Retrying mail send...");
+        const retryInfo = await transporter.sendMail(mailOptions);
+
+        return res.status(200).json({
+          success: true,
+          message: "Mail sent successfully (retry)",
+          response: retryInfo.response,
+        });
+      }
+
+      throw err;
+    }
   } catch (error) {
-    console.error("Unhandled error:", error);
+    console.error("Mail error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message: "Mail sending failed",
       error: error.message,
+      code: error.code,
     });
   }
 });
