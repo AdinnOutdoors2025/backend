@@ -17,7 +17,7 @@ const app = express();
 const PORT = 3001;
 const nodemailer = require("nodemailer");
 const transporter = require("./mailer");
-
+const axios = require("axios");
 //Middlewares
 app.use(cors());
 app.use(bodyParser.json());
