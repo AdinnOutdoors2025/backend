@@ -77,7 +77,3 @@ const offerProductSchema = new mongoose.Schema({
 );
 
 module.exports = mongoose.model('OfferProduct', offerProductSchema);
-
-
-
-
