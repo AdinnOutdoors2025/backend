@@ -21,7 +21,6 @@ const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
 const NETTYFISH_BASE_URL = 'https://retailsms.nettyfish.com/api/mt/SendSMS';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production'; //NEWLY ADDED
 
-
 // Function to send SMS using NettyFish API (same as above)
 const sendSMS = (phone, templateId, variables = {}) => {
     return new Promise((resolve, reject) => {
@@ -73,6 +72,101 @@ const sendSMS = (phone, templateId, variables = {}) => {
 
 
 
+// router.post('/send-sms', async (req, res) => {
+//     try {
+//         const { phone, orderId, customerName, amount } = req.body;
+        
+//         if (!phone || !orderId) {
+//             return res.status(400).json({ 
+//                 success: false, 
+//                 error: "Phone and Order ID are required" 
+//             });
+//         }
+
+//         // Format phone number (remove + and add 91 if not present)
+//         let formattedPhone = phone.replace('+', '');
+//         if (!formattedPhone.startsWith('91')) {
+//             formattedPhone = '91' + formattedPhone;
+//         }
+
+//         // User template ID - FIXED VALUE
+//         const USER_TEMPLATE_ID = "1007197121174928712";
+        
+//         // Prepare SMS text for user
+//         const smsText = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${orderId}.`;
+        
+//         const encodedText = encodeURIComponent(smsText);
+//         const url = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=aspv58uRbkqDbhCcCN87Mw&senderid=ADINAD&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${USER_TEMPLATE_ID}&text=${encodedText}&route=17`;
+
+//         // For production, uncomment the actual SMS sending
+//         if (process.env.NODE_ENV === 'production') {
+//             request.get(url, (error, response, body) => {
+//                 if (error) {
+//                     console.error("SMS API Error:", error);
+//                     return res.status(500).json({ 
+//                         success: false, 
+//                         error: "SMS sending failed" 
+//                     });
+//                 } else {
+//                     try {
+//                         const result = JSON.parse(body);
+//                         if (result.ErrorCode === '000') {
+//                             console.log("SMS sent successfully:", result);
+//                             return res.json({ 
+//                                 success: true, 
+//                                 message: "SMS sent successfully" 
+//                             });
+//                         } else {
+//                             console.error("SMS API Error:", result.ErrorMessage);
+//                             return res.status(400).json({ 
+//                                 success: false, 
+//                                 error: result.ErrorMessage 
+//                             });
+//                         }
+//                     } catch (parseError) {
+//                         console.error("SMS Parse Error:", parseError);
+//                         return res.status(500).json({ 
+//                             success: false, 
+//                             error: "Failed to parse SMS response" 
+//                         });
+//                     }
+//                 }
+//             });
+//         } else {
+//             // For development/local testing
+//             console.log('=========================================');
+//             console.log('SMS Testing Information (Development):');
+//             console.log('=========================================');
+//             console.log(`To: ${formattedPhone}`);
+//             console.log(`Template ID: ${USER_TEMPLATE_ID}`);
+//             console.log(`Order ID: ${orderId}`);
+//             console.log(`Customer: ${customerName}`);
+//             console.log(`Amount: ₹${amount || 0}`);
+//             console.log(`Message: ${smsText}`);
+//             console.log('=========================================');
+            
+//             return res.json({ 
+//                 success: true, 
+//                 message: "SMS would be sent in production",
+//                 debug: {
+//                     phone: formattedPhone,
+//                     templateId: USER_TEMPLATE_ID,
+//                     orderId,
+//                     customerName,
+//                     amount
+//                 }
+//             });
+//         }
+//     } catch (error) {
+//         console.error("Error in send-sms route:", error);
+//         res.status(500).json({ 
+//             success: false, 
+//             error: "Internal server error" 
+//         });
+//     }
+// }); 
+
+
 router.post('/send-sms', async (req, res) => {
     try {
         const { phone, orderId, customerName, amount } = req.body;
@@ -90,8 +184,11 @@ router.post('/send-sms', async (req, res) => {
             formattedPhone = '91' + formattedPhone;
         }
 
-        // User template ID - FIXED VALUE
-        const USER_TEMPLATE_ID = "1007197121174928712";
+        // User template ID - FIXED VALUE (use the correct template ID for production)
+        const USER_TEMPLATE_ID = "1007197121174928712"; // User template ID
+        
+        // For admin SMS (if needed)
+        const ADMIN_TEMPLATE_ID = "1007478982147905431"; // Admin template ID
         
         // Prepare SMS text for user
         const smsText = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${orderId}.`;
@@ -99,7 +196,7 @@ router.post('/send-sms', async (req, res) => {
         const encodedText = encodeURIComponent(smsText);
         const url = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=aspv58uRbkqDbhCcCN87Mw&senderid=ADINAD&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${USER_TEMPLATE_ID}&text=${encodedText}&route=17`;
 
-        // For production, uncomment the actual SMS sending
+        // For production, send actual SMS
         if (process.env.NODE_ENV === 'production') {
             request.get(url, (error, response, body) => {
                 if (error) {
@@ -113,6 +210,21 @@ router.post('/send-sms', async (req, res) => {
                         const result = JSON.parse(body);
                         if (result.ErrorCode === '000') {
                             console.log("SMS sent successfully:", result);
+                            
+                            // Also send admin SMS
+                            const adminText = `New order received! Order ID: ${orderId}. Customer: ${customerName}. Amount: ₹${amount || 0}.`;
+                            const adminEncodedText = encodeURIComponent(adminText);
+                            const adminUrl = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=aspv58uRbkqDbhCcCN87Mw&senderid=ADINAD&channel=Trans&DCS=0&flashsms=0&number=919626987861&dlttemplateid=${ADMIN_TEMPLATE_ID}&text=${adminEncodedText}&route=17`;
+                            
+                            // Send admin SMS asynchronously (don't wait for response)
+                            request.get(adminUrl, (adminError, adminResponse, adminBody) => {
+                                if (adminError) {
+                                    console.error("Admin SMS Error:", adminError);
+                                } else {
+                                    console.log("Admin SMS sent");
+                                }
+                            });
+                            
                             return res.json({ 
                                 success: true, 
                                 message: "SMS sent successfully" 
@@ -165,8 +277,7 @@ router.post('/send-sms', async (req, res) => {
             error: "Internal server error" 
         });
     }
-}); 
-
+});
 
 
 
