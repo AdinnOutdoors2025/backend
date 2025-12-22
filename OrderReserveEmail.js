@@ -72,7 +72,6 @@ const sendSMS = (phone, templateId, variables = {}) => {
 
 
 
-// Add this route to your main server.js or routes file
 router.post('/send-sms', async (req, res) => {
     try {
         const { phone, orderId, customerName, amount } = req.body;
@@ -94,7 +93,7 @@ router.post('/send-sms', async (req, res) => {
         const USER_TEMPLATE_ID = "1007197121174928712";
         
         // Prepare SMS text for user
-        const smsText = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${orderId}. Total amount: ₹${amount || 0}.`;
+        const smsText = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${orderId}.`;
         
         const encodedText = encodeURIComponent(smsText);
         const url = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=aspv58uRbkqDbhCcCN87Mw&senderid=ADINAD&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${USER_TEMPLATE_ID}&text=${encodedText}&route=17`;

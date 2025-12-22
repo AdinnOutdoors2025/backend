@@ -71,6 +71,105 @@ const sendSMS = (phone, templateId, variables = {}) => {
 };
 // // // STOPS THE SMS FOR TESTING PURPOSE
 
+
+
+router.post('/send-sms', async (req, res) => {
+    try {
+        const { phone, orderId, customerName, amount } = req.body;
+        
+        if (!phone || !orderId) {
+            return res.status(400).json({ 
+                success: false, 
+                error: "Phone and Order ID are required" 
+            });
+        }
+
+        // Format phone number (remove + and add 91 if not present)
+        let formattedPhone = phone.replace('+', '');
+        if (!formattedPhone.startsWith('91')) {
+            formattedPhone = '91' + formattedPhone;
+        }
+
+        // User template ID - FIXED VALUE
+        const USER_TEMPLATE_ID = "1007197121174928712";
+        
+        // Prepare SMS text for user
+        const smsText = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${orderId}.`;
+        
+        const encodedText = encodeURIComponent(smsText);
+        const url = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=aspv58uRbkqDbhCcCN87Mw&senderid=ADINAD&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${USER_TEMPLATE_ID}&text=${encodedText}&route=17`;
+
+        // For production, uncomment the actual SMS sending
+        if (process.env.NODE_ENV === 'production') {
+            request.get(url, (error, response, body) => {
+                if (error) {
+                    console.error("SMS API Error:", error);
+                    return res.status(500).json({ 
+                        success: false, 
+                        error: "SMS sending failed" 
+                    });
+                } else {
+                    try {
+                        const result = JSON.parse(body);
+                        if (result.ErrorCode === '000') {
+                            console.log("SMS sent successfully:", result);
+                            return res.json({ 
+                                success: true, 
+                                message: "SMS sent successfully" 
+                            });
+                        } else {
+                            console.error("SMS API Error:", result.ErrorMessage);
+                            return res.status(400).json({ 
+                                success: false, 
+                                error: result.ErrorMessage 
+                            });
+                        }
+                    } catch (parseError) {
+                        console.error("SMS Parse Error:", parseError);
+                        return res.status(500).json({ 
+                            success: false, 
+                            error: "Failed to parse SMS response" 
+                        });
+                    }
+                }
+            });
+        } else {
+            // For development/local testing
+            console.log('=========================================');
+            console.log('SMS Testing Information (Development):');
+            console.log('=========================================');
+            console.log(`To: ${formattedPhone}`);
+            console.log(`Template ID: ${USER_TEMPLATE_ID}`);
+            console.log(`Order ID: ${orderId}`);
+            console.log(`Customer: ${customerName}`);
+            console.log(`Amount: ₹${amount || 0}`);
+            console.log(`Message: ${smsText}`);
+            console.log('=========================================');
+            
+            return res.json({ 
+                success: true, 
+                message: "SMS would be sent in production",
+                debug: {
+                    phone: formattedPhone,
+                    templateId: USER_TEMPLATE_ID,
+                    orderId,
+                    customerName,
+                    amount
+                }
+            });
+        }
+    } catch (error) {
+        console.error("Error in send-sms route:", error);
+        res.status(500).json({ 
+            success: false, 
+            error: "Internal server error" 
+        });
+    }
+}); 
+
+
+
+
 router.post('/send-orderCart-confirmation', async (req, res) => {
     try {
         const {
