@@ -2569,14 +2569,14 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
         },
         to: [
           {
-            email: "reactdeveloper@adinn.co.in",
+            email: "info@adinn.co.in",
           },
         ],
-        cc: [
-          {
-            email: "srbedev@adinn.co.in",
-          },
-        ],
+        // cc: [
+        //   {
+        //     email: "srbedev@adinn.co.in",
+        //   },
+        // ],
         subject: "Thank you for contacting Adinn",
         htmlContent: htmlContent,
       },
