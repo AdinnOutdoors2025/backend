@@ -56,6 +56,12 @@ app.use("/OfferedProduct", require("./OfferProduct"));
 
 //TIMER
 app.use("/DealTimerRun", require("./DealTimer"));
+//UPDATE ORDER EMAIL NOTIFICATION
+app.use("/notifications", require("./UPDATED_NOTIFICATIONS"));
+
+//PRIME SPOT PRODUCT
+app.use("/PrimeSpoted", require("./PrimeSpots"));
+
 
 //IMAGE UPLOAD CLOUDINARY CORRECTED CODE
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
@@ -233,35 +239,6 @@ app.get("/products", async (req, res) => {
     res.status(500).json({ message: err });
   }
 });
-/* order fetched with pagination */
-// app.get('/products_new', async (req, res) => {
-//     try {
-
-//         const page = parseInt(req.query.page) || 0;
-//         const limit = parseInt(req.query.limit) || 9;
-
-//         const skip = page * limit;
-
-//         const data = await productData.find()
-//             .skip(skip)
-//             .limit(limit);
-
-//         const totalCount = await productData.countDocuments();
-
-//         res.json({
-//             status: true,
-//             current_page: page,
-//             limit: limit,
-//             total_products: totalCount,
-//             total_pages: Math.ceil(totalCount / limit),
-//             data: data
-//         });
-
-//     } catch (err) {
-//         res.status(500).json({ message: err.message });
-//     }
-// });
-/* order fetched with pagination */
 
 /* order fetched with pagination */
 app.get("/products_paginated", async (req, res) => {
@@ -570,6 +547,1079 @@ app.delete("/products/:id", async (req, res) => {
   }
 });
 
+// // PRIME SPOT SECTION 
+
+// // // Route to mark product as Prime in main products collection
+// // app.put('/products/:id/mark-prime', async (req, res) => {
+// //   try {
+// //     const { isPrime } = req.body;
+    
+// //     // Validate isPrime value
+// //     if (isPrime !== 0 && isPrime !== 1) {
+// //       return res.status(400).json({ 
+// //         message: 'Invalid prime status. Must be 0 or 1' 
+// //       });
+// //     }
+
+// //     const updatedProduct = await productData.findByIdAndUpdate(
+// //       req.params.id,
+// //       { 
+// //         isPrime,
+// //         updatedAt: new Date()
+// //       },
+// //       { new: true }
+// //     );
+    
+// //     if (!updatedProduct) {
+// //       return res.status(404).json({ message: 'Product not found' });
+// //     }
+    
+// //     res.json({
+// //       success: true,
+// //       message: `Product marked as ${isPrime === 1 ? 'Prime' : 'Regular'} successfully`,
+// //       product: updatedProduct
+// //     });
+// //   } catch (error) {
+// //     console.error('Error updating product prime status:', error);
+// //     res.status(500).json({ 
+// //       success: false,
+// //       message: error.message 
+// //     });
+// //   }
+// // });
+
+
+
+
+
+// // // Route to mark product as Prime in main products collection
+// // app.put('/products/:id/mark-prime', async (req, res) => {
+// //   try {
+// //     const { isPrime } = req.body;
+    
+// //     // Validate isPrime value
+// //     if (isPrime !== 0 && isPrime !== 1 && isPrime !== undefined) {
+// //       return res.status(400).json({ 
+// //         success: false,
+// //         message: 'Invalid prime status. Must be 0 or 1' 
+// //       });
+// //     }
+
+// //     const updateData = { 
+// //       isPrime: isPrime || 0,
+// //       updatedAt: new Date()
+// //     };
+
+// //     // If setting as prime, add primeUpdatedAt timestamp
+// //     if (isPrime === 1) {
+// //       updateData.primeUpdatedAt = new Date();
+// //     } else if (isPrime === 0) {
+// //       updateData.primeUpdatedAt = null;
+// //     }
+
+// //     const updatedProduct = await productData.findByIdAndUpdate(
+// //       req.params.id,
+// //       updateData,
+// //       { new: true }
+// //     );
+    
+// //     if (!updatedProduct) {
+// //       return res.status(404).json({ 
+// //         success: false,
+// //         message: 'Product not found' 
+// //       });
+// //     }
+    
+// //     res.json({
+// //       success: true,
+// //       message: `Product marked as ${isPrime === 1 ? 'Prime' : 'Regular'} successfully`,
+// //       product: updatedProduct
+// //     });
+// //   } catch (error) {
+// //     console.error('Error updating product prime status:', error);
+// //     res.status(500).json({ 
+// //       success: false,
+// //       message: error.message 
+// //     });
+// //   }
+// // });
+// // Route to mark product as Prime in main products collection
+// app.put('/products/:id/mark-prime', async (req, res) => {
+//   try {
+//     const { isPrime } = req.body;
+    
+//     // Validate isPrime value
+//     if (isPrime !== 0 && isPrime !== 1 && isPrime !== undefined) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'Invalid prime status. Must be 0 or 1' 
+//       });
+//     }
+
+//     const updateData = { 
+//       isPrime: isPrime || 0,
+//       updatedAt: new Date()
+//     };
+
+//     // If setting as prime, add primeUpdatedAt timestamp
+//     if (isPrime === 1) {
+//       updateData.primeUpdatedAt = new Date();
+//     } else if (isPrime === 0) {
+//       updateData.primeUpdatedAt = null;
+//     }
+
+//     const updatedProduct = await productData.findByIdAndUpdate(
+//       req.params.id,
+//       updateData,
+//       { new: true }
+//     );
+    
+//     if (!updatedProduct) {
+//       return res.status(404).json({ 
+//         success: false,
+//         message: 'Product not found' 
+//       });
+//     }
+    
+//     res.json({
+//       success: true,
+//       message: `Product marked as ${isPrime === 1 ? 'Prime' : 'Regular'} successfully`,
+//       product: updatedProduct
+//     });
+//   } catch (error) {
+//     console.error('Error updating product prime status:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// });
+
+
+// // // Check if product is already prime
+// // app.get('/products/check-prime/:prodCode', async (req, res) => {
+// //   try {
+// //     const cleanedCode = req.params.prodCode.replace(/^#/, '').trim();
+    
+// //     const product = await productData.findOne({
+// //       prodCode: { $regex: new RegExp(`^${cleanedCode}$`, 'i') }
+// //     });
+    
+// //     if (!product) {
+// //       return res.status(404).json({
+// //         success: false,
+// //         message: 'Product not found'
+// //       });
+// //     }
+    
+// //     res.json({
+// //       success: true,
+// //       isPrime: product.isPrime || 0,
+// //       productId: product._id,
+// //       name: product.name,
+// //       message: product.isPrime === 1 ? 'Product is already Prime' : 'Product is not Prime'
+// //     });
+// //   } catch (error) {
+// //     console.error('Error checking prime status:', error);
+// //     res.status(500).json({
+// //       success: false,
+// //       message: error.message
+// //     });
+// //   }
+// // });
+
+
+
+// // Check if product is already prime
+// app.get('/products/check-prime/:prodCode', async (req, res) => {
+//   try {
+//     const cleanedCode = req.params.prodCode.replace(/^#/, '').trim();
+    
+//     const product = await productData.findOne({
+//       prodCode: { $regex: new RegExp(`^${cleanedCode}$`, 'i') }
+//     });
+    
+//     if (!product) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Product not found'
+//       });
+//     }
+    
+//     res.json({
+//       success: true,
+//       isPrime: product.isPrime || 0,
+//       productId: product._id,
+//       name: product.name,
+//       message: product.isPrime === 1 ? 'Product is already Prime' : 'Product is not Prime'
+//     });
+//   } catch (error) {
+//     console.error('Error checking prime status:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message
+//     });
+//   }
+// });
+
+
+// // // Get products with prime status filter
+// // app.get('/products/with-prime-status', async (req, res) => {
+// //   try {
+// //     const { status, includeHidden } = req.query;
+// //     let filter = {};
+
+// //     // Filter by prime status if provided
+// //     if (status === '0' || status === '1') {
+// //       filter.isPrime = parseInt(status);
+// //     } else if (status === 'all') {
+// //       // Include all products with isPrime field
+// //       filter.isPrime = { $in: [0, 1] };
+// //     } else if (status === 'undefined') {
+// //       // Products without isPrime field
+// //       filter.isPrime = { $exists: false };
+// //     }
+
+// //     // Handle visibility
+// //     if (includeHidden !== 'true') {
+// //       filter.visible = { $ne: false };
+// //     }
+
+// //     const products = await productData.find(filter)
+// //       .sort({ 
+// //         isPrime: -1, // Prime products first
+// //         primeUpdatedAt: -1, // Recently updated prime first
+// //         createdAt: -1 
+// //       });
+
+// //     res.json({
+// //       success: true,
+// //       count: products.length,
+// //       data: products
+// //     });
+// //   } catch (error) {
+// //     console.error('Error fetching products with prime status:', error);
+// //     res.status(500).json({ 
+// //       success: false,
+// //       message: error.message 
+// //     });
+// //   }
+// // });
+
+
+
+
+// // FIXED: Get products with prime status filter
+// app.get('/products/with-prime-status', async (req, res) => {
+//   try {
+//     const { status, includeHidden } = req.query;
+//     let filter = {};
+
+//     // Handle visibility
+//     if (includeHidden !== 'true') {
+//       filter.visible = { $ne: false };
+//     }
+
+//     // Filter by prime status if provided
+//     if (status) {
+//       if (status === '0' || status === '1') {
+//         filter.isPrime = parseInt(status);
+//       } else if (status === 'all') {
+//         // Include all products with isPrime field (both 0 and 1)
+//         filter.isPrime = { $in: [0, 1] };
+//       } else if (status === 'undefined') {
+//         // Products without isPrime field
+//         filter.isPrime = { $exists: false };
+//       }
+//     } else {
+//       // Default: show all products that have isPrime field
+//       filter.isPrime = { $exists: true };
+//     }
+
+//     console.log('Prime filter:', filter);
+
+//     const products = await productData.find(filter)
+//       .sort({ 
+//         isPrime: -1, // Prime products first
+//         primeUpdatedAt: -1, // Recently updated prime first
+//         createdAt: -1 
+//       });
+
+//     res.json({
+//       success: true,
+//       count: products.length,
+//       data: products
+//     });
+//   } catch (error) {
+//     console.error('Error fetching products with prime status:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // PRIME SPOT SECTION 
+
+// // Route to mark product as Prime in main products collection
+// app.put('/products/:id/mark-prime', async (req, res) => {
+//   try {
+//     const { isPrime } = req.body;
+    
+//     // Validate isPrime value
+//     if (isPrime !== 0 && isPrime !== 1) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'Invalid prime status. Must be 0 or 1' 
+//       });
+//     }
+
+//     const updateData = { 
+//       isPrime: isPrime,
+//       updatedAt: new Date()
+//     };
+
+//     // If setting as prime, add primeUpdatedAt timestamp
+//     if (isPrime === 1) {
+//       updateData.primeUpdatedAt = new Date();
+//     } else if (isPrime === 0) {
+//       updateData.primeUpdatedAt = null;
+//     }
+
+//     const updatedProduct = await productData.findByIdAndUpdate(
+//       req.params.id,
+//       updateData,
+//       { new: true }
+//     );
+    
+//     if (!updatedProduct) {
+//       return res.status(404).json({ 
+//         success: false,
+//         message: 'Product not found' 
+//       });
+//     }
+    
+//     res.json({
+//       success: true,
+//       message: `Product marked as ${isPrime === 1 ? 'Prime' : 'Regular'} successfully`,
+//       product: updatedProduct
+//     });
+//   } catch (error) {
+//     console.error('Error updating product prime status:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// });
+
+// // Check if product is already prime (FIXED)
+// app.get('/products/check-prime/:prodCode', async (req, res) => {
+//   try {
+//     const cleanedCode = req.params.prodCode.replace(/^#/, '').trim();
+    
+//     const product = await productData.findOne({
+//       prodCode: { $regex: new RegExp(`^${cleanedCode}$`, 'i') }
+//     });
+    
+//     if (!product) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Product not found'
+//       });
+//     }
+    
+//     res.json({
+//       success: true,
+//       isPrime: product.isPrime || 0,
+//       productId: product._id,
+//       name: product.name,
+//       prodCode: product.prodCode,
+//       message: product.isPrime === 1 ? 'Product is already Prime' : 'Product is not Prime'
+//     });
+//   } catch (error) {
+//     console.error('Error checking prime status:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message
+//     });
+//   }
+// });
+
+// // Get products with prime status filter (FIXED)
+// app.get('/products/with-prime-status', async (req, res) => {
+//   try {
+//     const { status, includeHidden } = req.query;
+//     let filter = {};
+
+//     // Handle visibility
+//     if (includeHidden !== 'true') {
+//       filter.visible = { $ne: false };
+//     }
+
+//     // Filter by prime status
+//     if (status === '0' || status === '1') {
+//       filter.isPrime = parseInt(status);
+//     } else if (status === 'all') {
+//       // Include all products
+//       filter.$or = [
+//         { isPrime: 0 },
+//         { isPrime: 1 },
+//         { isPrime: { $exists: false } }
+//       ];
+//     } else if (status === 'undefined') {
+//       // Products without isPrime field
+//       filter.isPrime = { $exists: false };
+//     } else {
+//       // Default: get all products
+//       filter.$or = [
+//         { isPrime: 0 },
+//         { isPrime: 1 },
+//         { isPrime: { $exists: false } }
+//       ];
+//     }
+
+//     const products = await productData.find(filter)
+//       .sort({ 
+//         isPrime: -1, // Prime products first
+//         primeUpdatedAt: -1, // Recently updated prime first
+//         createdAt: -1 
+//       });
+
+//     res.json({
+//       success: true,
+//       count: products.length,
+//       data: products
+//     });
+//   } catch (error) {
+//     console.error('Error fetching products with prime status:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// });
+
+// // Route to get only Prime products (for homepage)
+// app.get('/products/get-prime', async (req, res) => {
+//   try {
+//     const primeProducts = await productData.find({ 
+//       isPrime: 1,
+//       visible: { $ne: false }
+//     }).sort({ 
+//       primeUpdatedAt: -1,
+//       createdAt: -1 
+//     });
+    
+//     res.json({
+//       success: true,
+//       count: primeProducts.length,
+//       data: primeProducts
+//     });
+//   } catch (error) {
+//     console.error('Error fetching prime products:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// });
+
+// // Get all products with isPrime field for admin table (FIXED)
+// app.get('/products/admin/prime-table', async (req, res) => {
+//   try {
+//     const { includeHidden } = req.query;
+    
+//     let filter = {};
+    
+//     // Handle visibility
+//     if (includeHidden !== 'true') {
+//       filter.visible = { $ne: false };
+//     }
+    
+//     // Get all products (including those without isPrime field)
+//     const products = await productData.find(filter)
+//       .sort({ 
+//         isPrime: -1, // Prime products first
+//         primeUpdatedAt: -1, // Recently updated prime first
+//         createdAt: -1 
+//       });
+    
+//     res.json({
+//       success: true,
+//       count: products.length,
+//       data: products
+//     });
+//   } catch (error) {
+//     console.error('Error fetching products for admin table:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// });
+// // PRIME SPOT SECTION 
+
+
+
+// PRIME SPOT SECTION 
+
+// Route to mark product as Prime in main products collection
+app.put('/products/:id/mark-prime', async (req, res) => {
+  try {
+    const { isPrime } = req.body;
+    
+    // Validate isPrime value
+    if (isPrime !== 0 && isPrime !== 1) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid prime status. Must be 0 or 1' 
+      });
+    }
+
+    const updateData = { 
+      isPrime: isPrime,
+      updatedAt: new Date()
+    };
+
+    // If setting as prime, add primeUpdatedAt timestamp
+    if (isPrime === 1) {
+      updateData.primeUpdatedAt = new Date();
+    } else if (isPrime === 0) {
+      updateData.primeUpdatedAt = null;
+    }
+
+    const updatedProduct = await productData.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    );
+    
+    if (!updatedProduct) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Product not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Product marked as ${isPrime === 1 ? 'Prime' : 'Regular'} successfully`,
+      product: updatedProduct
+    });
+  } catch (error) {
+    console.error('Error updating product prime status:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  }
+});
+
+// Check if product is already prime
+app.get('/products/check-prime/:prodCode', async (req, res) => {
+  try {
+    const cleanedCode = req.params.prodCode.replace(/^#/, '').trim();
+    
+    const product = await productData.findOne({
+      prodCode: { $regex: new RegExp(`^${cleanedCode}$`, 'i') }
+    });
+    
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      isPrime: product.isPrime || 0,
+      productId: product._id,
+      name: product.name,
+      prodCode: product.prodCode,
+      message: product.isPrime === 1 ? 'Product is already Prime' : 'Product is not Prime'
+    });
+  } catch (error) {
+    console.error('Error checking prime status:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Route to get only Prime products (FIXED - SIMPLE VERSION)
+app.get('/products/get-prime', async (req, res) => {
+  try {
+    console.log('Fetching prime products...');
+    
+    // Find products where isPrime = 1 and visible is not false
+    const primeProducts = await productData.find({ 
+      $and: [
+        { isPrime: 1 },
+        { $or: [
+          { visible: true },
+          { visible: { $exists: false } },
+          { visible: null }
+        ]}
+      ]
+    }).sort({ 
+      primeUpdatedAt: -1,
+      createdAt: -1 
+    });
+    
+    console.log(`Found ${primeProducts.length} prime products`);
+    
+    // Transform the data for frontend
+    const transformedProducts = primeProducts.map(product => ({
+      _id: product._id,
+      name: product.name,
+      prodCode: product.prodCode,
+      price: product.price,
+      height: product.height,
+      width: product.width,
+      rating: product.rating || 0,
+      image: product.image,
+      mediaType: product.mediaType,
+      lighting: product.lighting,
+      from: product.from,
+      to: product.to,
+      printingCost: product.printingCost,
+      mountingCost: product.mountingCost,
+      Latitude: product.Latitude,
+      Longitude: product.Longitude,
+      LocationLink: product.LocationLink,
+      isPrime: product.isPrime || 1,
+      location: {
+        state: product.location?.state || '',
+        district: product.location?.district || ''
+      },
+      productsquareFeet: product.productsquareFeet || (product.width * product.height).toFixed(2),
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+      primeUpdatedAt: product.primeUpdatedAt
+    }));
+    
+    res.json({
+      success: true,
+      count: transformedProducts.length,
+      data: transformedProducts
+    });
+  } catch (error) {
+    console.error('Error fetching prime products:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message,
+      error: error.stack 
+    });
+  }
+});
+
+// Get products with prime status filter
+app.get('/products/with-prime-status', async (req, res) => {
+  try {
+    const { status, includeHidden } = req.query;
+    let filter = {};
+
+    // Handle visibility
+    if (includeHidden !== 'true') {
+      filter.visible = { $ne: false };
+    }
+
+    // Filter by prime status
+    if (status === '0' || status === '1') {
+      filter.isPrime = parseInt(status);
+    } else if (status === 'all') {
+      // Include all products
+      filter.$or = [
+        { isPrime: 0 },
+        { isPrime: 1 },
+        { isPrime: { $exists: false } }
+      ];
+    } else if (status === 'undefined') {
+      // Products without isPrime field
+      filter.isPrime = { $exists: false };
+    } else {
+      // Default: get all products
+      filter.$or = [
+        { isPrime: 0 },
+        { isPrime: 1 },
+        { isPrime: { $exists: false } }
+      ];
+    }
+
+    const products = await productData.find(filter)
+      .sort({ 
+        isPrime: -1,
+        primeUpdatedAt: -1,
+        createdAt: -1 
+      });
+
+    res.json({
+      success: true,
+      count: products.length,
+      data: products
+    });
+  } catch (error) {
+    console.error('Error fetching products with prime status:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  }
+});
+
+// Get all products for admin table
+app.get('/products/admin/prime-table', async (req, res) => {
+  try {
+    const { includeHidden } = req.query;
+    
+    let filter = {};
+    
+    // Handle visibility
+    if (includeHidden !== 'true') {
+      filter.visible = { $ne: false };
+    }
+    
+    // Get all products
+    const products = await productData.find(filter)
+      .sort({ 
+        isPrime: -1,
+        primeUpdatedAt: -1,
+        createdAt: -1 
+      });
+    
+    res.json({
+      success: true,
+      count: products.length,
+      data: products
+    });
+  } catch (error) {
+    console.error('Error fetching products for admin table:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  }
+});
+
+// DEBUG Route: Get all products to check data
+app.get('/products-debug/all', async (req, res) => {
+  try {
+    const allProducts = await productData.find({});
+    
+    // Count prime products
+    const primeProducts = allProducts.filter(p => p.isPrime === 1);
+    const visiblePrimeProducts = allProducts.filter(p => p.isPrime === 1 && p.visible !== false);
+    
+    res.json({
+      success: true,
+      totalCount: allProducts.length,
+      primeCount: primeProducts.length,
+      visiblePrimeCount: visiblePrimeProducts.length,
+      allProducts: allProducts.map(p => ({
+        _id: p._id,
+        name: p.name,
+        prodCode: p.prodCode,
+        isPrime: p.isPrime || 0,
+        visible: p.visible,
+        location: p.location
+      })),
+      primeProducts: primeProducts.map(p => ({
+        _id: p._id,
+        name: p.name,
+        prodCode: p.prodCode,
+        isPrime: p.isPrime
+      }))
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  }
+});
+// PRIME SPOT SECTION 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // Get only Prime products
+// app.get('/products/prime-only', async (req, res) => {
+//   try {
+//     const filter = { 
+//       isPrime: 1,
+//       visible: { $ne: false }
+//     };
+
+//     const products = await productData.find(filter)
+//       .sort({ 
+//         primeUpdatedAt: -1, // Recently updated first
+//         createdAt: -1 
+//       });
+    
+//     res.json({
+//       success: true,
+//       count: products.length,
+//       data: products
+//     });
+//   } catch (error) {
+//     console.error('Error fetching prime products:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// });
+
+
+
+// Route to get only Prime products
+app.get('/products/prime', async (req, res) => {
+  try {
+    const primeProducts = await productData.find({ 
+      isPrime: 1,
+      visible: { $ne: false }
+    }).sort({ createdAt: -1 });
+    
+    res.json(primeProducts);
+  } catch (error) {
+    console.error('Error fetching prime products:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// // Route to get products by prime status
+// app.get('/products/filter/prime-status/:status', async (req, res) => {
+//   try {
+//     const status = parseInt(req.params.status); // 0 or 1
+    
+//     if (status !== 0 && status !== 1) {
+//       return res.status(400).json({ message: 'Invalid prime status' });
+//     }
+    
+//     const filter = { isPrime: status };
+    
+//     // Only show visible products by default
+//     if (req.query.includeHidden !== 'true') {
+//       filter.visible = { $ne: false };
+//     }
+    
+//     const products = await productData.find(filter).sort({ createdAt: -1 });
+    
+//     res.json({
+//       success: true,
+//       count: products.length,
+//       data: products
+//     });
+//   } catch (error) {
+//     console.error('Error filtering by prime status:', error);
+//     res.status(500).json({ message: error.message });
+//   }
+// });
+
+
+
+
+
+
+// // Route to get products by prime status
+// app.get('/products/filter/prime-status/:status', async (req, res) => {
+//   try {
+//     const status = parseInt(req.params.status); // 0 or 1
+    
+//     if (status !== 0 && status !== 1) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'Invalid prime status' 
+//       });
+//     }
+    
+//     const filter = { isPrime: status };
+    
+//     // Only show visible products by default
+//     if (req.query.includeHidden !== 'true') {
+//       filter.visible = { $ne: false };
+//     }
+    
+//     const products = await productData.find(filter)
+//       .sort({ 
+//         primeUpdatedAt: -1,
+//         createdAt: -1 
+//       });
+    
+//     res.json({
+//       success: true,
+//       count: products.length,
+//       data: products
+//     });
+//   } catch (error) {
+//     console.error('Error filtering by prime status:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// }); 
+
+
+
+
+// Route to get products by prime status (0 or 1)
+app.get('/products/filter/prime-status/:status', async (req, res) => {
+  try {
+    const status = parseInt(req.params.status); // 0 or 1
+    
+    if (status !== 0 && status !== 1) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid prime status' 
+      });
+    }
+    
+    const filter = { isPrime: status };
+    
+    // Only show visible products by default
+    if (req.query.includeHidden !== 'true') {
+      filter.visible = { $ne: false };
+    }
+    
+    const products = await productData.find(filter)
+      .sort({ 
+        primeUpdatedAt: -1,
+        createdAt: -1 
+      });
+    
+    res.json({
+      success: true,
+      count: products.length,
+      data: products
+    });
+  } catch (error) {
+    console.error('Error filtering by prime status:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  }
+});
+
+// Get only Prime products (for homepage)
+app.get('/products/prime-only', async (req, res) => {
+  try {
+    const filter = { 
+      isPrime: 1,
+      visible: { $ne: false }
+    };
+
+    const products = await productData.find(filter)
+      .sort({ 
+        primeUpdatedAt: -1, // Recently updated first
+        createdAt: -1 
+      });
+    
+    res.json({
+      success: true,
+      count: products.length,
+      data: products
+    });
+  } catch (error) {
+    console.error('Error fetching prime products:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message 
+    });
+  }
+});
+
+// // Alternative route: Get only Prime products (simple version)
+// app.get('/products/get-prime', async (req, res) => {
+//   try {
+//     const primeProducts = await productData.find({ 
+//       isPrime: 1,
+//       visible: { $ne: false }
+//     }).sort({ 
+//       primeUpdatedAt: -1,
+//       createdAt: -1 
+//     });
+    
+//     res.json({
+//       success: true,
+//       count: primeProducts.length,
+//       data: primeProducts
+//     });
+//   } catch (error) {
+//     console.error('Error fetching prime products:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// });
+
+// // Get all products with isPrime field for admin table
+// app.get('/products/admin/prime-table', async (req, res) => {
+//   try {
+//     const { includeHidden } = req.query;
+    
+//     let filter = {};
+    
+//     // Handle visibility
+//     if (includeHidden !== 'true') {
+//       filter.visible = { $ne: false };
+//     }
+    
+//     // Only get products that have isPrime field
+//     filter.isPrime = { $exists: true };
+    
+//     const products = await productData.find(filter)
+//       .sort({ 
+//         isPrime: -1, // Prime products first
+//         primeUpdatedAt: -1, // Recently updated prime first
+//         createdAt: -1 
+//       });
+    
+//     res.json({
+//       success: true,
+//       count: products.length,
+//       data: products
+//     });
+//   } catch (error) {
+//     console.error('Error fetching products for admin table:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// });
+// PRIME SPOT SECTION 
+
+
 // CATEGORY CRUD OPERATION
 // GET
 app.get("/category", async (req, res) => {
@@ -656,6 +1706,16 @@ app.delete("/mediatype/:id", async (req, res) => {
   }
 });
 
+
+
+
+
+
+
+
+
+
+
 //PRODUCT ORDER SECTION
 //GET
 // Get orders with user filter
@@ -730,74 +1790,76 @@ app.get("/booked-dates", async (req, res) => {
 });
 
 // Updated booked dates endpoint with exclusion
-app.get("/booked-dates/:prodCode", async (req, res) => {
-  try {
-    const { prodCode } = req.params;
-    const excludeOrderId = req.query.excludeOrderId;
+// app.get("/booked-dates/:prodCode", async (req, res) => {
+//   try {
+//     const { prodCode } = req.params;
+//     const excludeOrderId = req.query.excludeOrderId;
 
-    console.log(
-      `Fetching booked dates for product: ${prodCode}, excluding order: ${excludeOrderId}`
-    );
+//     console.log(
+//       `Fetching booked dates for product: ${prodCode}, excluding order: ${excludeOrderId}`
+//     );
 
-    // Build query to find orders with this product code
-    let query = {
-      "products.prodCode": prodCode,
-    };
+//     // Build query to find orders with this product code
+//     let query = {
+//       "products.prodCode": prodCode,
+//     };
 
-    // Exclude current order if specified
-    if (
-      excludeOrderId &&
-      excludeOrderId !== "null" &&
-      excludeOrderId !== "undefined"
-    ) {
-      query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
-    }
+//     // Exclude current order if specified
+//     if (
+//       excludeOrderId &&
+//       excludeOrderId !== "null" &&
+//       excludeOrderId !== "undefined"
+//     ) {
+//       query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
+//     }
 
-    // Find all orders that contain this product code
-    const orders = await prodOrderData.find(query);
-    console.log(`📊 Found ${orders.length} orders with product ${prodCode}`);
+//     // Find all orders that contain this product code
+//     const orders = await prodOrderData.find(query);
+//     console.log(`📊 Found ${orders.length} orders with product ${prodCode}`);
 
-    // Extract all booked dates for this product from other orders
-    const bookedDates = [];
-    orders.forEach((order) => {
-      order.products.forEach((product) => {
-        if (product.prodCode === prodCode && product.bookedDates) {
-          // Convert dates to ISO string format for consistency
-          product.bookedDates.forEach((date) => {
-            // const dateObj = new Date(date);
-            // bookedDates.push(dateObj.toISOString().split('T')[0]);
+//     // Extract all booked dates for this product from other orders
+//     const bookedDates = [];
+//     orders.forEach((order) => {
+//       order.products.forEach((product) => {
+//         if (product.prodCode === prodCode && product.bookedDates) {
+//           // Convert dates to ISO string format for consistency
+//           product.bookedDates.forEach((date) => {
+//             // const dateObj = new Date(date);
+//             // bookedDates.push(dateObj.toISOString().split('T')[0]);
 
-            try {
-              const dateObj = new Date(date);
-              if (!isNaN(dateObj.getTime())) {
-                // Normalize to UTC midnight for consistent comparison
-                const utcDate = new Date(
-                  Date.UTC(
-                    dateObj.getUTCFullYear(),
-                    dateObj.getUTCMonth(),
-                    dateObj.getUTCDate()
-                  )
-                );
-                bookedDates.push(utcDate.toISOString().split("T")[0]);
-              }
-            } catch (e) {
-              console.warn("Invalid date format:", date);
-            }
-          });
-        }
-      });
-    });
+//             try {
+//               const dateObj = new Date(date);
+//               if (!isNaN(dateObj.getTime())) {
+//                 // Normalize to UTC midnight for consistent comparison
+//                 const utcDate = new Date(
+//                   Date.UTC(
+//                     dateObj.getUTCFullYear(),
+//                     dateObj.getUTCMonth(),
+//                     dateObj.getUTCDate()
+//                   )
+//                 );
+//                 bookedDates.push(utcDate.toISOString().split("T")[0]);
+//               }
+//             } catch (e) {
+//               console.warn("Invalid date format:", date);
+//             }
+//           });
+//         }
+//       });
+//     });
 
-    // Remove duplicates and return
-    const uniqueDates = [...new Set(bookedDates)];
-    console.log(`📅 Final booked dates for ${prodCode}:`, uniqueDates);
+//     // Remove duplicates and return
+//     const uniqueDates = [...new Set(bookedDates)];
+//     console.log(`📅 Final booked dates for ${prodCode}:`, uniqueDates);
 
-    res.json(uniqueDates);
-  } catch (error) {
-    console.error("Error fetching booked dates:", error);
-    res.status(500).json({ error: "Failed to fetch booked dates" });
-  }
-});
+//     res.json(uniqueDates);
+//   } catch (error) {
+//     console.error("Error fetching booked dates:", error);
+//     res.status(500).json({ error: "Failed to fetch booked dates" });
+//   }
+// });
+
+
 
 //FOR  USER SITE ORDER
 // GET orders for specific user
@@ -913,38 +1975,383 @@ app.post("/prodOrders", async (req, res) => {
 });
 
 /* delete product for particular order -SK */
-app.get("/deleteProductOrder/:orderId/:productId", async (req, res) => {
-  try {
-    const { orderId, productId } = req.params;
+// app.get("/deleteProductOrder/:orderId/:productId", async (req, res) => {
+//   try {
+//     const { orderId, productId } = req.params;
 
-    const order = await prodOrderData.findOne({ orderId });
+//     const order = await prodOrderData.findOne({ orderId });
+//     if (!order) {
+//       return res.status(404).json({ message: "Order not found" });
+//     }
+
+//     /* ---------- HARD NORMALIZE paidAmount ---------- */
+
+//     let normalizedPaid = [];
+
+//     if (Array.isArray(order.client.paidAmount)) {
+//       normalizedPaid = order.client.paidAmount
+//         .map((p) => {
+//           // already correct
+//           if (p && typeof p === "object" && typeof p.amount === "number") {
+//             return {
+//               amount: p.amount,
+//               paidAt: p.paidAt || order.createdAt || new Date(),
+//             };
+//           }
+
+//           // array of numbers case
+//           if (typeof p === "number") {
+//             return {
+//               amount: p,
+//               paidAt: order.createdAt || new Date(),
+//             };
+//           }
+
+//           return null;
+//         })
+//         .filter(Boolean);
+//     } else if (typeof order.client.paidAmount === "number") {
+//       normalizedPaid = [
+//         {
+//           amount: order.client.paidAmount,
+//           paidAt: order.createdAt || new Date(),
+//         },
+//       ];
+//     }
+
+//     order.client.paidAmount = normalizedPaid;
+
+//     /* ---------- REMOVE PRODUCT ---------- */
+
+//     order.products = order.products.filter((p) => p.id !== productId);
+
+//     /* ---------- RECALCULATE TOTAL ---------- */
+
+//     const totalAmount = order.products.reduce(
+//       (sum, p) => sum + (p.booking?.totalPrice || 0),
+//       0
+//     );
+
+//     /* ---------- RECALCULATE PAID & BALANCE ---------- */
+
+//     const totalPaid = order.client.paidAmount.reduce(
+//       (sum, p) => sum + p.amount,
+//       0
+//     );
+
+//     const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+//     /* ---------- REQUIRED FIELDS ---------- */
+
+//     order.client.totalAmount = totalAmount;
+//     order.client.balanceAmount = balanceAmount;
+//     order.last_edited = new Date();
+
+//     await order.save();
+
+//     res.json({
+//       status: true,
+//       message: "Product removed successfully",
+//       total: totalAmount,
+//       totalPaid: totalPaid,
+//       balanceAmount: balanceAmount,
+//       updatedOrder: order,
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({
+//       status: false,
+//       message: "Server Error",
+//       error: error.message,
+//     });
+//   }
+// });
+
+// app.get("/deleteProductOrder/:orderIdentifier/:productId", async (req, res) => {
+//   try {
+//     const { orderIdentifier, productId } = req.params;
+//     const { deletedBy } = req.query;
+
+//     // Determine if orderIdentifier is MongoDB _id or orderId
+//     let query = {};
+//     if (mongoose.Types.ObjectId.isValid(orderIdentifier)) {
+//       // It's a MongoDB _id
+//       query = { _id: orderIdentifier };
+//     } else {
+//       // It's an orderId like AD0001
+//       query = { orderId: orderIdentifier };
+//     }
+
+//     const order = await prodOrderData.findOne(query);
+//     if (!order) {
+//       return res.status(404).json({ message: "Order not found" });
+//     }
+
+//     /* ---------- HARD NORMALIZE paidAmount ---------- */
+//     let normalizedPaid = [];
+
+//     if (Array.isArray(order.client.paidAmount)) {
+//       normalizedPaid = order.client.paidAmount
+//         .map((p) => {
+//           if (p && typeof p === "object" && typeof p.amount === "number") {
+//             return {
+//               amount: p.amount,
+//               paidAt: p.paidAt || order.createdAt || new Date(),
+//             };
+//           }
+//           if (typeof p === "number") {
+//             return {
+//               amount: p,
+//               paidAt: order.createdAt || new Date(),
+//             };
+//           }
+//           return null;
+//         })
+//         .filter(Boolean);
+//     } else if (typeof order.client.paidAmount === "number") {
+//       normalizedPaid = [
+//         {
+//           amount: order.client.paidAmount,
+//           paidAt: order.createdAt || new Date(),
+//         },
+//       ];
+//     }
+
+//     order.client.paidAmount = normalizedPaid;
+
+//     /* ---------- SOFT DELETE PRODUCT ---------- */
+//     const productIndex = order.products.findIndex(
+//       (p) => p._id.toString() === productId
+//     );
+
+//     if (productIndex === -1) {
+//       return res.status(404).json({ message: "Product not found in order" });
+//     }
+
+//     // Check if already deleted
+//     const isAlreadyDeleted = order.products[productIndex].deleted;
+
+//     if (isAlreadyDeleted) {
+//       // RESTORE product
+//       order.products[productIndex].deleted = false;
+//       order.products[productIndex].deletedAt = null;
+//       order.products[productIndex].deletedBy = null;
+//     } else {
+//       // DELETE product
+//       order.products[productIndex].deleted = true;
+//       order.products[productIndex].deletedAt = new Date();
+//       order.products[productIndex].deletedBy = deletedBy || "System";
+//     }
+
+//     /* ---------- RECALCULATE TOTAL ---------- */
+//     const totalAmount = order.products.reduce((sum, p) => {
+//       if (p.deleted) {
+//         return sum; // Skip deleted products
+//       }
+//       return sum + (p.booking?.totalPrice || 0);
+//     }, 0);
+
+//     /* ---------- RECALCULATE PAID & BALANCE ---------- */
+//     const totalPaid = order.client.paidAmount.reduce(
+//       (sum, p) => sum + p.amount,
+//       0
+//     );
+
+//     const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+//     /* ---------- UPDATE FIELDS ---------- */
+//     order.client.totalAmount = totalAmount;
+//     order.client.balanceAmount = balanceAmount;
+//     order.last_edited = new Date();
+
+//     await order.save();
+
+//     res.json({
+//       status: true,
+//       message: isAlreadyDeleted 
+//         ? "Product restored successfully" 
+//         : "Product marked as deleted successfully",
+//       totalAmount,
+//       totalPaid,
+//       balanceAmount,
+//       updatedOrder: order,
+//       productStatus: isAlreadyDeleted ? "active" : "deleted",
+//       action: isAlreadyDeleted ? "restore" : "delete"
+//     });
+//   } catch (error) {
+//     console.error("Delete/Restore error:", error);
+//     res.status(500).json({
+//       status: false,
+//       message: "Server Error",
+//       error: error.message,
+//     });
+//   }
+// });
+
+
+
+
+
+
+const updateBookedDatesOnDelete = async (product, orderId) => {
+  try {
+    // When a product is deleted, we need to free up its booked dates
+    // so they become available for other orders
+    console.log(`📅 Freeing booked dates for deleted product: ${product.prodCode}`);
+    
+    // Nothing special to do here - when product is marked as deleted,
+    // the booked dates won't be included in /booked-dates endpoint
+    // because we filter out deleted products in the query
+    return true;
+  } catch (error) {
+    console.error('Error updating booked dates on delete:', error);
+    return false;
+  }
+};
+
+const updateBookedDatesOnRestore = async (product, orderId) => {
+  try {
+    // When a product is restored, we need to check for date conflicts
+    console.log(`📅 Restoring booked dates for product: ${product.prodCode}`);
+    
+    // The booked dates will automatically be included in future
+    // /booked-dates endpoint queries
+    return true;
+  } catch (error) {
+    console.error('Error updating booked dates on restore:', error);
+    return false;
+  }
+};
+
+
+// Update the /booked-dates/:prodCode endpoint to exclude deleted products
+app.get("/booked-dates/:prodCode", async (req, res) => {
+  try {
+    const { prodCode } = req.params;
+    const excludeOrderId = req.query.excludeOrderId;
+
+    console.log(
+      `Fetching booked dates for product: ${prodCode}, excluding order: ${excludeOrderId}`
+    );
+
+    // Build query to find orders with this product code
+    let query = {
+      "products.prodCode": prodCode,
+    };
+
+    // Exclude current order if specified
+    if (
+      excludeOrderId &&
+      excludeOrderId !== "null" &&
+      excludeOrderId !== "undefined"
+    ) {
+      query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
+    }
+
+    // Find all orders that contain this product code
+    const orders = await prodOrderData.find(query);
+    console.log(`📊 Found ${orders.length} orders with product ${prodCode}`);
+
+    // Extract all booked dates for this product from other orders
+    // EXCLUDE dates from deleted products
+    const bookedDates = [];
+    orders.forEach((order) => {
+      order.products.forEach((product) => {
+        if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
+          // Convert dates to ISO string format for consistency
+          product.bookedDates.forEach((date) => {
+            try {
+              const dateObj = new Date(date);
+              if (!isNaN(dateObj.getTime())) {
+                // Normalize to UTC midnight for consistent comparison
+                const utcDate = new Date(
+                  Date.UTC(
+                    dateObj.getUTCFullYear(),
+                    dateObj.getUTCMonth(),
+                    dateObj.getUTCDate()
+                  )
+                );
+                bookedDates.push(utcDate.toISOString().split("T")[0]);
+              }
+            } catch (e) {
+              console.warn("Invalid date format:", date);
+            }
+          });
+        }
+      });
+    });
+
+    // Remove duplicates and return
+    const uniqueDates = [...new Set(bookedDates)];
+    console.log(`📅 Final booked dates for ${prodCode}:`, uniqueDates);
+
+    res.json(uniqueDates);
+  } catch (error) {
+    console.error("Error fetching booked dates:", error);
+    res.status(500).json({ error: "Failed to fetch booked dates" });
+  }
+});
+
+
+
+
+// Update the delete/restore endpoint to handle date availability
+app.get("/deleteProductOrder/:orderIdentifier/:productId", async (req, res) => {
+  try {
+    const { orderIdentifier, productId } = req.params;
+    const { deletedBy } = req.query;
+
+    // Determine if orderIdentifier is MongoDB _id or orderId
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(orderIdentifier)) {
+      query = { _id: orderIdentifier };
+    } else {
+      query = { orderId: orderIdentifier };
+    }
+
+    const order = await prodOrderData.findOne(query);
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    /* ---------- HARD NORMALIZE paidAmount ---------- */
+    /* ---------- FIND PRODUCT ---------- */
+    const productIndex = order.products.findIndex(
+      (p) => p._id.toString() === productId
+    );
 
+    if (productIndex === -1) {
+      return res.status(404).json({ message: "Product not found in order" });
+    }
+
+    const product = order.products[productIndex];
+    const isCurrentlyDeleted = product.deleted;
+
+    /* ---------- HANDLE DATE AVAILABILITY ---------- */
+    if (isCurrentlyDeleted) {
+      // Restoring product - check if dates are available
+      await updateBookedDatesOnRestore(product, order._id);
+    } else {
+      // Deleting product - free up the dates
+      await updateBookedDatesOnDelete(product, order._id);
+    }
+
+    /* ---------- NORMALIZE paidAmount ---------- */
     let normalizedPaid = [];
-
     if (Array.isArray(order.client.paidAmount)) {
       normalizedPaid = order.client.paidAmount
         .map((p) => {
-          // already correct
           if (p && typeof p === "object" && typeof p.amount === "number") {
             return {
               amount: p.amount,
               paidAt: p.paidAt || order.createdAt || new Date(),
             };
           }
-
-          // array of numbers case
           if (typeof p === "number") {
             return {
               amount: p,
               paidAt: order.createdAt || new Date(),
             };
           }
-
           return null;
         })
         .filter(Boolean);
@@ -959,28 +2366,36 @@ app.get("/deleteProductOrder/:orderId/:productId", async (req, res) => {
 
     order.client.paidAmount = normalizedPaid;
 
-    /* ---------- REMOVE PRODUCT ---------- */
+    /* ---------- TOGGLE DELETE STATUS ---------- */
+    if (isCurrentlyDeleted) {
+      // RESTORE product
+      order.products[productIndex].deleted = false;
+      order.products[productIndex].deletedAt = null;
+      order.products[productIndex].deletedBy = null;
+    } else {
+      // DELETE product
+      order.products[productIndex].deleted = true;
+      order.products[productIndex].deletedAt = new Date();
+      order.products[productIndex].deletedBy = deletedBy || "System";
+    }
 
-    order.products = order.products.filter((p) => p.id !== productId);
-
-    /* ---------- RECALCULATE TOTAL ---------- */
-
-    const totalAmount = order.products.reduce(
-      (sum, p) => sum + (p.booking?.totalPrice || 0),
-      0
-    );
+    /* ---------- RECALCULATE TOTALS ---------- */
+    const totalAmount = order.products.reduce((sum, p) => {
+      if (p.deleted) {
+        return sum; // Skip deleted products
+      }
+      return sum + (p.booking?.totalPrice || 0);
+    }, 0);
 
     /* ---------- RECALCULATE PAID & BALANCE ---------- */
-
-    const totalPaid = order.client.paidAmount.reduce(
+    const totalPaid = normalizedPaid.reduce(
       (sum, p) => sum + p.amount,
       0
     );
 
     const balanceAmount = Math.max(totalAmount - totalPaid, 0);
 
-    /* ---------- REQUIRED FIELDS ---------- */
-
+    /* ---------- UPDATE FIELDS ---------- */
     order.client.totalAmount = totalAmount;
     order.client.balanceAmount = balanceAmount;
     order.last_edited = new Date();
@@ -989,10 +2404,129 @@ app.get("/deleteProductOrder/:orderId/:productId", async (req, res) => {
 
     res.json({
       status: true,
-      message: "Product removed successfully",
-      total: totalAmount,
-      totalPaid: totalPaid,
-      balanceAmount: balanceAmount,
+      message: isCurrentlyDeleted 
+        ? "Product restored successfully" 
+        : "Product marked as deleted successfully",
+      totalAmount,
+      totalPaid,
+      balanceAmount,
+      updatedOrder: order,
+      productStatus: isCurrentlyDeleted ? "active" : "deleted",
+      action: isCurrentlyDeleted ? "restore" : "delete",
+      // Send product details for email notification
+      productDetails: {
+        name: product.name,
+        prodCode: product.prodCode,
+        image: product.image,
+        price: product.price,
+        booking: product.booking,
+        bookedDates: product.bookedDates
+      }
+    });
+  } catch (error) {
+    console.error("Delete/Restore error:", error);
+    res.status(500).json({
+      status: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+
+/* restore product for particular order */
+app.get("/restoreProductOrder/:orderIdentifier/:productId", async (req, res) => {
+  try {
+    const { orderIdentifier, productId } = req.params;
+
+    // Determine if orderIdentifier is MongoDB _id or orderId
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(orderIdentifier)) {
+      // It's a MongoDB _id
+      query = { _id: orderIdentifier };
+    } else {
+      // It's an orderId like AD0001
+      query = { orderId: orderIdentifier };
+    }
+
+    const order = await prodOrderData.findOne(query);
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Find the product and restore it
+    const productIndex = order.products.findIndex(
+      (p) => p._id.toString() === productId
+    );
+
+    if (productIndex === -1) {
+      return res.status(404).json({ message: "Product not found in order" });
+    }
+
+    // Restore product
+    order.products[productIndex].deleted = false;
+    order.products[productIndex].deletedAt = null;
+    order.products[productIndex].deletedBy = null;
+
+    // Recalculate totals considering only active products
+    const totalAmount = order.products.reduce((sum, p) => {
+      if (p.deleted) {
+        return sum; // Skip deleted products
+      }
+      return sum + (p.booking?.totalPrice || 0);
+    }, 0);
+
+    // Normalize paidAmount array if needed
+    let normalizedPaid = [];
+    if (Array.isArray(order.client.paidAmount)) {
+      normalizedPaid = order.client.paidAmount
+        .map((p) => {
+          if (p && typeof p === "object" && typeof p.amount === "number") {
+            return {
+              amount: p.amount,
+              paidAt: p.paidAt || order.createdAt || new Date(),
+            };
+          }
+          if (typeof p === "number") {
+            return {
+              amount: p,
+              paidAt: order.createdAt || new Date(),
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+    } else if (typeof order.client.paidAmount === "number") {
+      normalizedPaid = [
+        {
+          amount: order.client.paidAmount,
+          paidAt: order.createdAt || new Date(),
+        },
+      ];
+    }
+
+    order.client.paidAmount = normalizedPaid;
+
+    const totalPaid = normalizedPaid.reduce(
+      (sum, p) => sum + p.amount,
+      0
+    );
+
+    const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+    // Update order totals
+    order.client.totalAmount = totalAmount;
+    order.client.balanceAmount = balanceAmount;
+    order.last_edited = new Date();
+
+    await order.save();
+
+    res.json({
+      status: true,
+      message: "Product restored successfully",
+      totalAmount,
+      totalPaid,
+      balanceAmount,
       updatedOrder: order,
     });
   } catch (error) {
@@ -1004,6 +2538,175 @@ app.get("/deleteProductOrder/:orderId/:productId", async (req, res) => {
     });
   }
 });
+
+
+
+app.get("/softDeleteProductOrder/:orderId/:productId", async (req, res) => {
+  try {
+    const { orderId, productId } = req.params;
+    const { action } = req.query; // 'delete' or 'restore'
+
+    const order = await prodOrderData.findOne({ orderId });
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Find the product
+    const productIndex = order.products.findIndex(
+      (p) => p._id.toString() === productId
+    );
+
+    if (productIndex === -1) {
+      return res.status(404).json({ message: "Product not found in order" });
+    }
+
+    const product = order.products[productIndex];
+
+    // Toggle deleted status
+    if (action === "restore") {
+      // Restore product
+      product.deleted = false;
+      product.deletedAt = null;
+      product.deletedBy = null;
+    } else {
+      // Soft delete product
+      product.deleted = true;
+      product.deletedAt = new Date();
+      product.deletedBy = req.query.deletedBy || "System";
+    }
+
+    // Calculate totals considering deleted products
+    let totalAmount = 0;
+    let totalPaid = 0;
+
+    order.products.forEach((p) => {
+      if (!p.deleted) {
+        totalAmount += p.booking?.totalPrice || 0;
+      }
+    });
+
+    // Calculate paid amount
+    if (Array.isArray(order.client.paidAmount)) {
+      totalPaid = order.client.paidAmount.reduce(
+        (sum, p) => sum + (p.amount || 0),
+        0
+      );
+    } else if (typeof order.client.paidAmount === "number") {
+      totalPaid = order.client.paidAmount;
+    }
+
+    const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+    // Update order totals
+    order.client.totalAmount = totalAmount;
+    order.client.balanceAmount = balanceAmount;
+    order.last_edited = new Date();
+
+    await order.save();
+
+    res.json({
+      status: true,
+      message:
+        action === "restore"
+          ? "Product restored successfully"
+          : "Product marked as deleted",
+      totalAmount,
+      totalPaid,
+      balanceAmount,
+      updatedOrder: order,
+      productStatus: product.deleted ? "deleted" : "active",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: false,
+      message: "Server Error",
+      error: error.message,
+    });
+  }
+});
+
+
+// Helper function to check if dates are available after product deletion
+app.get("/check-date-availability/:prodCode", async (req, res) => {
+  try {
+    const { prodCode } = req.params;
+    const { startDate, endDate, excludeOrderId } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "Start and end dates are required" });
+    }
+
+    // Get all booked dates for this product (excluding deleted products)
+    const bookedDates = await getBookedDatesForProduct(prodCode, excludeOrderId);
+
+    // Check if requested dates are available
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const current = new Date(start);
+    
+    const conflictingDates = [];
+    
+    while (current <= end) {
+      const dateStr = current.toISOString().split('T')[0];
+      if (bookedDates.includes(dateStr)) {
+        conflictingDates.push(dateStr);
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    const isAvailable = conflictingDates.length === 0;
+
+    res.json({
+      isAvailable,
+      conflictingDates,
+      totalRequestedDays: Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1,
+      availableDays: isAvailable ? 
+        Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1 : 
+        Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1 - conflictingDates.length
+    });
+  } catch (error) {
+    console.error("Error checking date availability:", error);
+    res.status(500).json({ error: "Failed to check date availability" });
+  }
+});
+
+// Helper function to get booked dates
+async function getBookedDatesForProduct(prodCode, excludeOrderId = null) {
+  const query = {
+    "products.prodCode": prodCode,
+    "products.deleted": { $ne: true } // Exclude deleted products
+  };
+
+  if (excludeOrderId) {
+    query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
+  }
+
+  const orders = await prodOrderData.find(query);
+  
+  const bookedDates = [];
+  orders.forEach(order => {
+    order.products.forEach(product => {
+      if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
+        product.bookedDates.forEach(date => {
+          const dateObj = new Date(date);
+          if (!isNaN(dateObj.getTime())) {
+            const utcDate = new Date(
+              Date.UTC(
+                dateObj.getUTCFullYear(),
+                dateObj.getUTCMonth(),
+                dateObj.getUTCDate()
+              )
+            );
+            bookedDates.push(utcDate.toISOString().split('T')[0]);
+          }
+        });
+      }
+    });
+  });
+
+  return [...new Set(bookedDates)];
+}
 
 /* delete product for particular order -SK */
 
@@ -1372,7 +3075,7 @@ function generateDateRange(startDate, endDate) {
 //     }
 // });
 
-// UPDATED: Check for date conflicts (only for same product)
+// Check for date conflicts (only for same product)
 app.put("/prodOrders/:id", async (req, res) => {
   try {
     const orderId = req.params.id;
@@ -1558,6 +3261,15 @@ app.put("/prodOrders/:id/handled-by", async (req, res) => {
   }
 });
 // NEWLY ADDED Handled by admin
+
+
+
+
+
+
+
+
+
 
 //CART ITEMS ROUTE
 // GET cart items for user

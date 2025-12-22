@@ -70,6 +70,21 @@ const productOrderSchema = new mongoose.Schema({
         required: true,
         default: [],
       },
+
+
+      // DELETE SCHEMA 
+       deleted: {
+        type: Boolean,
+        default: false 
+      },
+      deletedAt: {
+        type: Date,
+        default: null
+      },
+      deletedBy: {
+        type: String,
+        default: null
+      }, 
     },
   ],
 
