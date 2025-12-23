@@ -1182,8 +1182,187 @@ const generateNextOrderId = async (prefix = "AD") => {
   }
 };
 
+// app.post("/prodOrders", async (req, res) => {
+//   try {
+//     if (!req.body.products || !Array.isArray(req.body.products)) {
+//       return res.status(400).json({
+//         message: "Products array is required",
+//         error: true,
+//       });
+//     }
+
+//     // Validate client information
+//     if (!req.body.client || !req.body.client.userId) {
+//       return res.status(400).json({
+//         message: "Client information is required",
+//         error: true,
+//       });
+//     }
+
+//     const prefix = req.body.status === "UserSideOrder" ? "US" : "AD";
+//     const orderId = await generateNextOrderId(prefix);
+
+//     // Process each product
+//     const products = req.body.products.map((product) => {
+//       if (!product) {
+//         throw new Error("Invalid product data");
+//       }
+
+//       // Calculate booked dates if booking info exists
+//       let bookedDates = [];
+//       if (
+//         product.booking &&
+//         product.booking.startDate &&
+//         product.booking.endDate
+//       ) {
+//         const start = new Date(product.booking.startDate);
+//         const end = new Date(product.booking.endDate);
+//         const current = new Date(start);
+
+//         while (current <= end) {
+//           bookedDates.push(new Date(current));
+//           current.setDate(current.getDate() + 1);
+//         }
+//       }
+
+//       return {
+//         ...product,
+//         bookedDates,
+//         booking: product.booking
+//           ? {
+//               ...product.booking,
+//               startDate: new Date(product.booking.startDate),
+//               endDate: new Date(product.booking.endDate),
+//               totalDays: bookedDates.length,
+//               totalPrice: (product.price || 0) * bookedDates.length,
+//             }
+//           : null,
+//       };
+//     });
+
+//     const newOrder = new prodOrderData({
+//       ...req.body,
+//       orderId: orderId,
+//       products: products,
+//       createdAt: new Date(),
+//     });
+
+//     const savedOrder = await newOrder.save();
+//     res.status(201).json(savedOrder);
+//   } catch (err) {
+//     console.error("Error creating order:", err);
+//     res.status(500).json({
+//       message: err.message || "Failed to create order",
+//       error: true,
+//     });
+//   }
+// });
+
+// app.put("/prodOrders/:id", async (req, res) => {
+//   try {
+//     const orderId = req.params.id;
+//     const { products } = req.body;
+
+//     // Validate products array
+//     if (!products || !Array.isArray(products)) {
+//       return res.status(400).json({ message: "Products array is required" });
+//     }
+
+//     // Check for date conflicts for EACH PRODUCT individually
+//     for (const product of products) {
+//       const allDates = (product.bookedDates || []).map(
+//         (d) => new Date(d).toISOString().split("T")[0]
+//       );
+
+//       if (allDates.length > 0) {
+//         const conflict = await prodOrderData.findOne({
+//           _id: { $ne: orderId },
+//           "products.prodCode": product.prodCode, // Only check same product code
+//           "products.bookedDates": {
+//             $in: allDates.map((d) => new Date(d)),
+//           },
+//         });
+
+//         if (conflict) {
+//           return res.status(409).json({
+//             message: `Date conflict with existing bookings for product ${product.prodCode}`,
+//             conflictOrderId: conflict._id,
+//             productCode: product.prodCode,
+//           });
+//         }
+//       }
+//     }
+
+//     // Prepare updated products with proper date calculations
+//     const updatedProducts = products.map((p) => {
+//       let bookedDates = [];
+//       if (p.booking && p.booking.startDate && p.booking.endDate) {
+//         bookedDates = generateDateRange(
+//           new Date(p.booking.startDate),
+//           new Date(p.booking.endDate)
+//         );
+//       }
+
+//       return {
+//         ...p,
+//         bookedDates,
+//         booking: p.booking
+//           ? {
+//               ...p.booking,
+//               startDate: new Date(p.booking.startDate),
+//               endDate: new Date(p.booking.endDate),
+//               totalDays: bookedDates.length,
+//               totalPrice: (p.price || 0) * bookedDates.length,
+//             }
+//           : null,
+//       };
+//     });
+
+//     // Update the order
+//     const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//       orderId,
+//       {
+//         $set: { products: updatedProducts },
+//         $currentDate: { updatedAt: true },
+//       },
+//       {
+//         new: true,
+//         runValidators: true,
+//         context: "query",
+//       }
+//     );
+
+//     if (!updatedOrder) {
+//       return res.status(404).json({ message: "Order not found" });
+//     }
+//     /* update last edited */
+//     const updateData = {
+//       ...req.body,
+//       last_edited: new Date(), // default null if not provided
+//     };
+
+//     // Perform update
+//     await prodOrderData.findByIdAndUpdate(orderId, updateData, { new: true });
+//     /* updated last edited */
+//     res.json({
+//       success: true,
+//       message: "Order updated successfully",
+//       order: updatedOrder,
+//     });
+//   } catch (err) {
+//     console.error("Error updating order:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Server error while updating order",
+//       error: err.message,
+//     });
+//   }
+// });
+
 app.post("/prodOrders", async (req, res) => {
   try {
+    console.log("Received order data:", req.body);
+
     if (!req.body.products || !Array.isArray(req.body.products)) {
       return res.status(400).json({
         message: "Products array is required",
@@ -1199,7 +1378,9 @@ app.post("/prodOrders", async (req, res) => {
       });
     }
 
-    const prefix = req.body.status === "UserSideOrder" ? "US" : "AD";
+    // Determine prefix based on status
+    const status = req.body.status || "Added Manually";
+    const prefix = status === "UserSideOrder" ? "US" : "AD";
     const orderId = await generateNextOrderId(prefix);
 
     // Process each product
@@ -1208,47 +1389,103 @@ app.post("/prodOrders", async (req, res) => {
         throw new Error("Invalid product data");
       }
 
-      // Calculate booked dates if booking info exists
-      let bookedDates = [];
-      if (
-        product.booking &&
-        product.booking.startDate &&
-        product.booking.endDate
-      ) {
-        const start = new Date(product.booking.startDate);
-        const end = new Date(product.booking.endDate);
-        const current = new Date(start);
-
-        while (current <= end) {
-          bookedDates.push(new Date(current));
-          current.setDate(current.getDate() + 1);
-        }
+      // Validate booking dates
+      if (!product.booking || !product.booking.startDate || !product.booking.endDate) {
+        throw new Error("Booking dates are required");
       }
 
+      // Parse dates
+      const start = new Date(product.booking.startDate);
+      const end = new Date(product.booking.endDate);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        throw new Error("Invalid booking dates");
+      }
+
+      // Calculate booked dates
+      let bookedDates = [];
+      const current = new Date(start);
+      
+      while (current <= end) {
+        const normalizedDate = new Date(Date.UTC(
+          current.getUTCFullYear(),
+          current.getUTCMonth(),
+          current.getUTCDate()
+        ));
+        bookedDates.push(normalizedDate);
+        current.setDate(current.getDate() + 1);
+      }
+
+      const totalDays = bookedDates.length;
+      
       return {
         ...product,
         bookedDates,
-        booking: product.booking
-          ? {
-              ...product.booking,
-              startDate: new Date(product.booking.startDate),
-              endDate: new Date(product.booking.endDate),
-              totalDays: bookedDates.length,
-              totalPrice: (product.price || 0) * bookedDates.length,
-            }
-          : null,
+        booking: {
+          ...product.booking,
+          startDate: new Date(product.booking.startDate),
+          endDate: new Date(product.booking.endDate),
+          totalDays: totalDays,
+          totalPrice: (product.price || 0) * totalDays,
+        },
+        deleted: false,
+        deletedAt: null,
+        deletedBy: null
       };
     });
 
+    // Normalize paidAmount array
+    let normalizedPaidAmount = [];
+    if (req.body.client.paidAmount) {
+      if (Array.isArray(req.body.client.paidAmount)) {
+        normalizedPaidAmount = req.body.client.paidAmount.map(payment => ({
+          amount: Number(payment.amount) || 0,
+          paidAt: payment.paidAt ? new Date(payment.paidAt) : new Date()
+        }));
+      } else if (typeof req.body.client.paidAmount === 'number') {
+        normalizedPaidAmount = [{
+          amount: req.body.client.paidAmount,
+          paidAt: new Date()
+        }];
+      }
+    }
+
+    // Calculate total amount from products
+    const totalAmount = products.reduce((sum, p) => {
+      if (p.deleted) return sum;
+      return sum + (p.booking?.totalPrice || 0);
+    }, 0);
+
+    // Calculate total paid
+    const totalPaid = normalizedPaidAmount.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+    // Create new order - FIXED: Set both status and order_status
     const newOrder = new prodOrderData({
       ...req.body,
       orderId: orderId,
       products: products,
+      client: {
+        ...req.body.client,
+        totalAmount: totalAmount,
+        paidAmount: normalizedPaidAmount,
+        balanceAmount: balanceAmount
+      },
+      status: status, // This is "Added Manually" for admin orders
+      order_status: req.body.order_status || "Added Manually", // This shows in table
       createdAt: new Date(),
+      last_edited: new Date()
     });
 
     const savedOrder = await newOrder.save();
-    res.status(201).json(savedOrder);
+    console.log("Order saved successfully:", savedOrder.orderId);
+    
+    res.status(201).json({
+      success: true,
+      orderId: savedOrder.orderId,
+      _id: savedOrder._id,
+      message: "Order created successfully"
+    });
   } catch (err) {
     console.error("Error creating order:", err);
     res.status(500).json({
@@ -1257,6 +1494,162 @@ app.post("/prodOrders", async (req, res) => {
     });
   }
 });
+
+
+app.put("/prodOrders/:id", async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const updateData = req.body;
+
+    console.log("Updating order:", orderId, "with data:", updateData);
+
+    // Find existing order
+    const existingOrder = await prodOrderData.findById(orderId);
+    if (!existingOrder) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Process products if provided
+    if (updateData.products && Array.isArray(updateData.products)) {
+      const updatedProducts = updateData.products.map((product) => {
+        if (!product.booking || !product.booking.startDate || !product.booking.endDate) {
+          throw new Error("Booking dates are required");
+        }
+
+        // Parse dates
+        const start = new Date(product.booking.startDate);
+        const end = new Date(product.booking.endDate);
+        
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          throw new Error("Invalid booking dates");
+        }
+
+        // Calculate booked dates
+        let bookedDates = [];
+        const current = new Date(start);
+        
+        while (current <= end) {
+          const normalizedDate = new Date(Date.UTC(
+            current.getUTCFullYear(),
+            current.getUTCMonth(),
+            current.getUTCDate()
+          ));
+          bookedDates.push(normalizedDate);
+          current.setDate(current.getDate() + 1);
+        }
+
+        const totalDays = bookedDates.length;
+        
+        return {
+          ...product,
+          bookedDates,
+          booking: {
+            ...product.booking,
+            startDate: new Date(product.booking.startDate),
+            endDate: new Date(product.booking.endDate),
+            totalDays: totalDays,
+            totalPrice: (product.price || 0) * totalDays,
+          },
+          deleted: product.deleted !== undefined ? product.deleted : false,
+          deletedAt: product.deletedAt || null,
+          deletedBy: product.deletedBy || null
+        };
+      });
+
+      updateData.products = updatedProducts;
+    }
+
+    // Handle paidAmount normalization
+    if (updateData.client && updateData.client.paidAmount) {
+      if (Array.isArray(updateData.client.paidAmount)) {
+        updateData.client.paidAmount = updateData.client.paidAmount.map(payment => ({
+          amount: Number(payment.amount) || 0,
+          paidAt: payment.paidAt ? new Date(payment.paidAt) : new Date()
+        }));
+      } else if (typeof updateData.client.paidAmount === 'number') {
+        updateData.client.paidAmount = [{
+          amount: updateData.client.paidAmount,
+          paidAt: new Date()
+        }];
+      }
+    }
+
+    // Calculate totals
+    if (updateData.products) {
+      const totalAmount = updateData.products.reduce((sum, p) => {
+        if (p.deleted) return sum;
+        return sum + (p.booking?.totalPrice || 0);
+      }, 0);
+
+      const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+      
+      const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+      if (updateData.client) {
+        updateData.client.totalAmount = totalAmount;
+        updateData.client.balanceAmount = balanceAmount;
+      }
+    }
+
+    // Add last_edited timestamp
+    updateData.last_edited = new Date();
+
+    // FIX: Preserve status if not provided in update
+    if (!updateData.status) {
+      updateData.status = existingOrder.status;
+    }
+    if (!updateData.order_status) {
+      updateData.order_status = existingOrder.order_status;
+    }
+
+    // Update the order
+    const updatedOrder = await prodOrderData.findByIdAndUpdate(
+      orderId,
+      { $set: updateData },
+      {
+        new: true,
+        runValidators: true,
+        context: 'query'
+      }
+    );
+
+    if (!updatedOrder) {
+      return res.status(404).json({ message: 'Order not found after update' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Order updated successfully',
+      order: updatedOrder,
+      orderId: updatedOrder.orderId,
+      _id: updatedOrder._id
+    });
+  } catch (err) {
+    console.error('Error updating order:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating order',
+      error: err.message
+    });
+  }
+});
+
+
+
+// DELETE THE ORDER
+app.delete("/prodOrders/:id", async (req, res) => {
+  try {
+    const deletedOrder = await prodOrderData.findByIdAndDelete(req.params.id);
+    if (!deletedOrder) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    res.status(200).json({ message: "Order deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 
 /* delete product for particular order -SK */
 
@@ -2141,119 +2534,6 @@ function generateDateRange(startDate, endDate) {
 // });
 
 // Check for date conflicts (only for same product)
-app.put("/prodOrders/:id", async (req, res) => {
-  try {
-    const orderId = req.params.id;
-    const { products } = req.body;
-
-    // Validate products array
-    if (!products || !Array.isArray(products)) {
-      return res.status(400).json({ message: "Products array is required" });
-    }
-
-    // Check for date conflicts for EACH PRODUCT individually
-    for (const product of products) {
-      const allDates = (product.bookedDates || []).map(
-        (d) => new Date(d).toISOString().split("T")[0]
-      );
-
-      if (allDates.length > 0) {
-        const conflict = await prodOrderData.findOne({
-          _id: { $ne: orderId },
-          "products.prodCode": product.prodCode, // Only check same product code
-          "products.bookedDates": {
-            $in: allDates.map((d) => new Date(d)),
-          },
-        });
-
-        if (conflict) {
-          return res.status(409).json({
-            message: `Date conflict with existing bookings for product ${product.prodCode}`,
-            conflictOrderId: conflict._id,
-            productCode: product.prodCode,
-          });
-        }
-      }
-    }
-
-    // Prepare updated products with proper date calculations
-    const updatedProducts = products.map((p) => {
-      let bookedDates = [];
-      if (p.booking && p.booking.startDate && p.booking.endDate) {
-        bookedDates = generateDateRange(
-          new Date(p.booking.startDate),
-          new Date(p.booking.endDate)
-        );
-      }
-
-      return {
-        ...p,
-        bookedDates,
-        booking: p.booking
-          ? {
-              ...p.booking,
-              startDate: new Date(p.booking.startDate),
-              endDate: new Date(p.booking.endDate),
-              totalDays: bookedDates.length,
-              totalPrice: (p.price || 0) * bookedDates.length,
-            }
-          : null,
-      };
-    });
-
-    // Update the order
-    const updatedOrder = await prodOrderData.findByIdAndUpdate(
-      orderId,
-      {
-        $set: { products: updatedProducts },
-        $currentDate: { updatedAt: true },
-      },
-      {
-        new: true,
-        runValidators: true,
-        context: "query",
-      }
-    );
-
-    if (!updatedOrder) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-    /* update last edited */
-    const updateData = {
-      ...req.body,
-      last_edited: new Date(), // default null if not provided
-    };
-
-    // Perform update
-    await prodOrderData.findByIdAndUpdate(orderId, updateData, { new: true });
-    /* updated last edited */
-    res.json({
-      success: true,
-      message: "Order updated successfully",
-      order: updatedOrder,
-    });
-  } catch (err) {
-    console.error("Error updating order:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while updating order",
-      error: err.message,
-    });
-  }
-});
-
-//DELETE THE ORDER
-app.delete("/prodOrders/:id", async (req, res) => {
-  try {
-    const deletedOrder = await prodOrderData.findByIdAndDelete(req.params.id);
-    if (!deletedOrder) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-    res.status(200).json({ message: "Order deleted successfully" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
 
 // NEWLY ADDED Handled by admin
 // UPDATE HANDLED_BY AND LAST_EDITED
