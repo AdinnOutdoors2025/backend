@@ -1472,7 +1472,7 @@ app.post("/prodOrders", async (req, res) => {
         balanceAmount: balanceAmount
       },
       status: status, // This is "Added Manually" for admin orders
-      order_status: req.body.order_status || "Added Manually", // This shows in table
+      order_status: req.body.order_status || " ", // This shows in table
       createdAt: new Date(),
       last_edited: new Date()
     });
