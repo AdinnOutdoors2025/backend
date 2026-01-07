@@ -16,7 +16,7 @@ const crypto = require("crypto"); //inbuilt function to embed the data in this w
 const app = express();
 const PORT = 3001;
 const nodemailer = require("nodemailer");
-const transporter = require("./mailer");
+// const transporter = require("./mailer");
 const axios = require("axios");
 
 //Middlewares
@@ -401,26 +401,106 @@ app.get("/products/:id", async (req, res) => {
   }
 });
 
+
+// app.get("/products/similar/:prodCode", async (req, res) => {
+//   try {
+//     // First find the current product
+//     const currentProduct = await productData.findOne({
+//       prodCode: req.params.prodCode,
+//     });
+//     if (
+//       !currentProduct ||
+//       !currentProduct.similarProducts ||
+//       currentProduct.similarProducts.length === 0
+//     ) {
+//       return res.status(404).json({ message: "No similar products found" });
+//     }
+//     // Extract similar products' ProdCodes
+//     const prodCodes = currentProduct.similarProducts.map((p) => p.ProdCode);
+//     // Fetch details of all similar products (excluding the current one)
+//     const similarProducts = await productData.find({
+//       prodCode: { $in: prodCodes },
+//       _id: { $ne: currentProduct._id }, // Exclude current product by ID instead of prodCode
+//     });
+//     // Map the results to match the frontend expectation
+//     const mappedResults = similarProducts.map((product) => ({
+//       _id: product._id,
+//       name: product.name,
+//       location: `${product.location.district}, ${product.location.state}`,
+//       dimensions: `${product.width} x ${product.height}`,
+//       price: product.price,
+//       rating: product.rating,
+//       image: product.image,
+//       category: product.mediaType,
+//       sizeHeight: product.height,
+//       sizeWidth: product.width,
+//       sizeSide: product.side,
+//       district: product.location.district,
+//       state: product.location.state,
+//       printingCost: product.printingCost,
+//       mountingCost: product.mountingCost,
+//       prodCode: product.prodCode,
+//       prodLighting: product.lighting,
+//       productFrom: product.from,
+//       productTo: product.to,
+//       productFixedAmount: product.fixedAmount,
+//       productFixedOffer: product.fixedOffer,
+//     }));
+//     res.json(mappedResults);
+//   } catch (err) {
+//     console.error("Error fetching similar products:", err);
+//     res.status(500).json({ message: "Error fetching similar products" });
+//   }
+// });
+
+
+
+
+
+
+// Update the similar products endpoint in your Express app
 app.get("/products/similar/:prodCode", async (req, res) => {
   try {
-    // First find the current product
+    // Decode and clean the product code
+    const prodCode = decodeURIComponent(req.params.prodCode).trim();
+    const cleanedProdCode = prodCode.replace(/^#/, '').trim();
+    
+    console.log(`Fetching similar products for code: "${cleanedProdCode}"`);
+
+    // First find the current product using regex for flexibility
     const currentProduct = await productData.findOne({
-      prodCode: req.params.prodCode,
+      prodCode: { $regex: new RegExp(`^${cleanedProdCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
     });
-    if (
-      !currentProduct ||
-      !currentProduct.similarProducts ||
-      currentProduct.similarProducts.length === 0
-    ) {
-      return res.status(404).json({ message: "No similar products found" });
+
+    if (!currentProduct) {
+      console.log(`Current product not found with code: ${cleanedProdCode}`);
+      return res.status(404).json({ message: "Product not found" });
     }
+
+    // Check if similarProducts exists and is not empty
+    if (!currentProduct.similarProducts || currentProduct.similarProducts.length === 0) {
+      console.log(`No similar products defined for: ${cleanedProdCode}`);
+      return res.status(200).json([]); // Return empty array instead of 404
+    }
+
     // Extract similar products' ProdCodes
-    const prodCodes = currentProduct.similarProducts.map((p) => p.ProdCode);
-    // Fetch details of all similar products (excluding the current one)
+    const prodCodes = currentProduct.similarProducts.map((p) => {
+      // Clean each product code
+      return p.ProdCode ? p.ProdCode.replace(/^#/, '').trim() : '';
+    }).filter(code => code !== '');
+
+    if (prodCodes.length === 0) {
+      console.log(`No valid similar product codes found for: ${cleanedProdCode}`);
+      return res.status(200).json([]);
+    }
+
+    // Fetch details of all similar products
     const similarProducts = await productData.find({
-      prodCode: { $in: prodCodes },
-      _id: { $ne: currentProduct._id }, // Exclude current product by ID instead of prodCode
+      $or: prodCodes.map(code => ({
+        prodCode: { $regex: new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+      }))
     });
+
     // Map the results to match the frontend expectation
     const mappedResults = similarProducts.map((product) => ({
       _id: product._id,
@@ -445,12 +525,16 @@ app.get("/products/similar/:prodCode", async (req, res) => {
       productFixedAmount: product.fixedAmount,
       productFixedOffer: product.fixedOffer,
     }));
+
+    console.log(`Found ${mappedResults.length} similar products for ${cleanedProdCode}`);
     res.json(mappedResults);
   } catch (err) {
     console.error("Error fetching similar products:", err);
-    res.status(500).json({ message: "Error fetching similar products" });
+    res.status(500).json({ message: "Error fetching similar products", error: err.message });
   }
 });
+
+
 
 app.post("/products", async (req, res) => {
   try {
@@ -1073,80 +1157,7 @@ app.get("/booked-dates", async (req, res) => {
   }
 });
 
-// Updated booked dates endpoint with exclusion
-// app.get("/booked-dates/:prodCode", async (req, res) => {
-//   try {
-//     const { prodCode } = req.params;
-//     const excludeOrderId = req.query.excludeOrderId;
 
-//     console.log(
-//       `Fetching booked dates for product: ${prodCode}, excluding order: ${excludeOrderId}`
-//     );
-
-//     // Build query to find orders with this product code
-//     let query = {
-//       "products.prodCode": prodCode,
-//     };
-
-//     // Exclude current order if specified
-//     if (
-//       excludeOrderId &&
-//       excludeOrderId !== "null" &&
-//       excludeOrderId !== "undefined"
-//     ) {
-//       query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
-//     }
-
-//     // Find all orders that contain this product code
-//     const orders = await prodOrderData.find(query);
-//     console.log(`📊 Found ${orders.length} orders with product ${prodCode}`);
-
-//     // Extract all booked dates for this product from other orders
-//     const bookedDates = [];
-//     orders.forEach((order) => {
-//       order.products.forEach((product) => {
-//         if (product.prodCode === prodCode && product.bookedDates) {
-//           // Convert dates to ISO string format for consistency
-//           product.bookedDates.forEach((date) => {
-//             // const dateObj = new Date(date);
-//             // bookedDates.push(dateObj.toISOString().split('T')[0]);
-
-//             try {
-//               const dateObj = new Date(date);
-//               if (!isNaN(dateObj.getTime())) {
-//                 // Normalize to UTC midnight for consistent comparison
-//                 const utcDate = new Date(
-//                   Date.UTC(
-//                     dateObj.getUTCFullYear(),
-//                     dateObj.getUTCMonth(),
-//                     dateObj.getUTCDate()
-//                   )
-//                 );
-//                 bookedDates.push(utcDate.toISOString().split("T")[0]);
-//               }
-//             } catch (e) {
-//               console.warn("Invalid date format:", date);
-//             }
-//           });
-//         }
-//       });
-//     });
-
-//     // Remove duplicates and return
-//     const uniqueDates = [...new Set(bookedDates)];
-//     console.log(`📅 Final booked dates for ${prodCode}:`, uniqueDates);
-
-//     res.json(uniqueDates);
-//   } catch (error) {
-//     console.error("Error fetching booked dates:", error);
-//     res.status(500).json({ error: "Failed to fetch booked dates" });
-//   }
-// });
-
-
-
-//FOR  USER SITE ORDER
-// GET orders for specific user
 app.get("/prodOrders/user/:userId", async (req, res) => {
   try {
     const orders = await prodOrderData.find({
@@ -1258,110 +1269,181 @@ const generateNextOrderId = async (prefix = "AD") => {
 //   }
 // });
 
-// app.put("/prodOrders/:id", async (req, res) => {
+
+// // Update the prodOrders POST endpoint
+// app.post("/prodOrders", async (req, res) => {
 //   try {
-//     const orderId = req.params.id;
-//     const { products } = req.body;
+//     console.log("📦 Received order creation request:", {
+//       client: req.body.client?.email,
+//       productsCount: req.body.products?.length || 0,
+//       order_status: req.body.order_status,
+//       status: req.body.status
+//     });
 
-//     // Validate products array
-//     if (!products || !Array.isArray(products)) {
-//       return res.status(400).json({ message: "Products array is required" });
+//     if (!req.body.products || !Array.isArray(req.body.products)) {
+//       return res.status(400).json({
+//         message: "Products array is required",
+//         error: true,
+//       });
 //     }
 
-//     // Check for date conflicts for EACH PRODUCT individually
-//     for (const product of products) {
-//       const allDates = (product.bookedDates || []).map(
-//         (d) => new Date(d).toISOString().split("T")[0]
-//       );
+//     // Validate client information
+//     if (!req.body.client || !req.body.client.userId) {
+//       return res.status(400).json({
+//         message: "Client information is required",
+//         error: true,
+//       });
+//     }
 
-//       if (allDates.length > 0) {
-//         const conflict = await prodOrderData.findOne({
-//           _id: { $ne: orderId },
-//           "products.prodCode": product.prodCode, // Only check same product code
-//           "products.bookedDates": {
-//             $in: allDates.map((d) => new Date(d)),
-//           },
-//         });
+//     // Determine prefix based on status
+//     const status = req.body.status || "UserSideOrder";
+//     const prefix = status === "UserSideOrder" ? "US" : "AD";
+//     const orderId = await generateNextOrderId(prefix);
 
-//         if (conflict) {
-//           return res.status(409).json({
-//             message: `Date conflict with existing bookings for product ${product.prodCode}`,
-//             conflictOrderId: conflict._id,
-//             productCode: product.prodCode,
-//           });
-//         }
+//     // Validate and set order_status
+//     let order_status = req.body.order_status;
+//     if (!order_status || order_status.trim() === "") {
+//       // Default to "pending" for user-side orders
+//       order_status = "pending";
+//     }
+    
+//     // Ensure order_status is valid
+//     const validOrderStatuses = ["pending", "confirmed", "cancelled", "completed"];
+//     if (!validOrderStatuses.includes(order_status)) {
+//       order_status = "pending"; // Default to pending
+//     }
+
+//     // Process each product
+//     const products = req.body.products.map((product) => {
+//       if (!product) {
+//         throw new Error("Invalid product data");
 //       }
-//     }
 
-//     // Prepare updated products with proper date calculations
-//     const updatedProducts = products.map((p) => {
+//       // Validate booking dates
+//       if (!product.booking || !product.booking.startDate || !product.booking.endDate) {
+//         throw new Error("Booking dates are required");
+//       }
+
+//       // Parse dates
+//       const start = new Date(product.booking.startDate);
+//       const end = new Date(product.booking.endDate);
+      
+//       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//         throw new Error("Invalid booking dates");
+//       }
+
+//       // Calculate booked dates
 //       let bookedDates = [];
-//       if (p.booking && p.booking.startDate && p.booking.endDate) {
-//         bookedDates = generateDateRange(
-//           new Date(p.booking.startDate),
-//           new Date(p.booking.endDate)
-//         );
+//       const current = new Date(start);
+      
+//       while (current <= end) {
+//         const normalizedDate = new Date(Date.UTC(
+//           current.getUTCFullYear(),
+//           current.getUTCMonth(),
+//           current.getUTCDate()
+//         ));
+//         bookedDates.push(normalizedDate);
+//         current.setDate(current.getDate() + 1);
 //       }
 
+//       const totalDays = bookedDates.length;
+      
 //       return {
-//         ...p,
+//         ...product,
 //         bookedDates,
-//         booking: p.booking
-//           ? {
-//               ...p.booking,
-//               startDate: new Date(p.booking.startDate),
-//               endDate: new Date(p.booking.endDate),
-//               totalDays: bookedDates.length,
-//               totalPrice: (p.price || 0) * bookedDates.length,
-//             }
-//           : null,
+//         booking: {
+//           ...product.booking,
+//           startDate: new Date(product.booking.startDate),
+//           endDate: new Date(product.booking.endDate),
+//           totalDays: totalDays,
+//           totalPrice: (product.price || 0) * totalDays,
+//         },
+//         deleted: false,
+//         deletedAt: null,
+//         deletedBy: null
 //       };
 //     });
 
-//     // Update the order
-//     const updatedOrder = await prodOrderData.findByIdAndUpdate(
-//       orderId,
-//       {
-//         $set: { products: updatedProducts },
-//         $currentDate: { updatedAt: true },
-//       },
-//       {
-//         new: true,
-//         runValidators: true,
-//         context: "query",
+//     // Normalize paidAmount array
+//     let normalizedPaidAmount = [];
+//     if (req.body.client.paidAmount) {
+//       if (Array.isArray(req.body.client.paidAmount)) {
+//         normalizedPaidAmount = req.body.client.paidAmount.map(payment => ({
+//           amount: Number(payment.amount) || 0,
+//           paidAt: payment.paidAt ? new Date(payment.paidAt) : new Date()
+//         }));
+//       } else if (typeof req.body.client.paidAmount === 'number') {
+//         normalizedPaidAmount = [{
+//           amount: req.body.client.paidAmount,
+//           paidAt: new Date()
+//         }];
 //       }
-//     );
-
-//     if (!updatedOrder) {
-//       return res.status(404).json({ message: "Order not found" });
 //     }
-//     /* update last edited */
-//     const updateData = {
-//       ...req.body,
-//       last_edited: new Date(), // default null if not provided
-//     };
 
-//     // Perform update
-//     await prodOrderData.findByIdAndUpdate(orderId, updateData, { new: true });
-//     /* updated last edited */
-//     res.json({
+//     // Calculate total amount from products
+//     const totalAmount = products.reduce((sum, p) => {
+//       if (p.deleted) return sum;
+//       return sum + (p.booking?.totalPrice || 0);
+//     }, 0);
+
+//     // Calculate total paid
+//     const totalPaid = normalizedPaidAmount.reduce((sum, p) => sum + (p.amount || 0), 0);
+//     const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+//     // Create new order
+//     const newOrder = new prodOrderData({
+//       ...req.body,
+//       orderId: orderId,
+//       products: products,
+//       client: {
+//         ...req.body.client,
+//         totalAmount: totalAmount,
+//         paidAmount: normalizedPaidAmount,
+//         balanceAmount: balanceAmount
+//       },
+//       status: status,
+//       order_status: order_status, // Make sure this is set
+//       createdAt: new Date(),
+//       last_edited: new Date()
+//     });
+
+//     const savedOrder = await newOrder.save();
+//     console.log("✅ Order saved successfully:", {
+//       orderId: savedOrder.orderId,
+//       status: savedOrder.status,
+//       order_status: savedOrder.order_status,
+//       totalAmount: savedOrder.client.totalAmount
+//     });
+    
+//     res.status(201).json({
 //       success: true,
-//       message: "Order updated successfully",
-//       order: updatedOrder,
+//       orderId: savedOrder.orderId,
+//       _id: savedOrder._id,
+//       order_status: savedOrder.order_status,
+//       message: "Order created successfully"
 //     });
 //   } catch (err) {
-//     console.error("Error updating order:", err);
+//     console.error("❌ Error creating order:", err);
 //     res.status(500).json({
-//       success: false,
-//       message: "Server error while updating order",
-//       error: err.message,
+//       message: err.message || "Failed to create order",
+//       error: true,
+//       details: err.errors
 //     });
 //   }
 // });
 
+
+
+// In your server.js, update the /prodOrders POST endpoint:
+
 app.post("/prodOrders", async (req, res) => {
   try {
-    console.log("Received order data:", req.body);
+    console.log("📦 Received order creation request:", {
+      client: req.body.client?.email,
+      productsCount: req.body.products?.length || 0,
+      status: req.body.status,
+      order_status: req.body.order_status
+    });
 
     if (!req.body.products || !Array.isArray(req.body.products)) {
       return res.status(400).json({
@@ -1378,10 +1460,19 @@ app.post("/prodOrders", async (req, res) => {
       });
     }
 
-    // Determine prefix based on status
-    const status = req.body.status || "Added Manually";
-    const prefix = status === "UserSideOrder" ? "US" : "AD";
+    // Determine prefix and status based on request
+    const status = req.body.status || "UserSideOrder";
+    const prefix = status === "Added Manually" ? "AD" : "US";
     const orderId = await generateNextOrderId(prefix);
+
+    // Set order_status based on status
+    let order_status = req.body.order_status;
+    if (!order_status || order_status.trim() === "") {
+      // Default order_status based on status
+      order_status = status === "Added Manually" 
+        ? "Pending Client Confirmation" 
+        : "pending";
+    }
 
     // Process each product
     const products = req.body.products.map((product) => {
@@ -1460,7 +1551,7 @@ app.post("/prodOrders", async (req, res) => {
     const totalPaid = normalizedPaidAmount.reduce((sum, p) => sum + (p.amount || 0), 0);
     const balanceAmount = Math.max(totalAmount - totalPaid, 0);
 
-    // Create new order - FIXED: Set both status and order_status
+    // Create new order
     const newOrder = new prodOrderData({
       ...req.body,
       orderId: orderId,
@@ -1471,26 +1562,34 @@ app.post("/prodOrders", async (req, res) => {
         paidAmount: normalizedPaidAmount,
         balanceAmount: balanceAmount
       },
-      status: status, // This is "Added Manually" for admin orders
-      order_status: req.body.order_status || " ", // This shows in table
+      status: status, // "Added Manually" or "UserSideOrder"
+      order_status: order_status, // "Pending Client Confirmation" or "pending"
       createdAt: new Date(),
       last_edited: new Date()
     });
 
     const savedOrder = await newOrder.save();
-    console.log("Order saved successfully:", savedOrder.orderId);
+    console.log("✅ Order saved successfully:", {
+      orderId: savedOrder.orderId,
+      status: savedOrder.status,
+      order_status: savedOrder.order_status,
+      totalAmount: savedOrder.client.totalAmount
+    });
     
     res.status(201).json({
       success: true,
       orderId: savedOrder.orderId,
       _id: savedOrder._id,
+      order_status: savedOrder.order_status,
+      status: savedOrder.status,
       message: "Order created successfully"
     });
   } catch (err) {
-    console.error("Error creating order:", err);
+    console.error("❌ Error creating order:", err);
     res.status(500).json({
       message: err.message || "Failed to create order",
       error: true,
+      details: err.errors
     });
   }
 });
@@ -1655,13 +1754,7 @@ app.delete("/prodOrders/:id", async (req, res) => {
 
 const updateBookedDatesOnDelete = async (product, orderId) => {
   try {
-    // When a product is deleted, we need to free up its booked dates
-    // so they become available for other orders
     console.log(`📅 Freeing booked dates for deleted product: ${product.prodCode}`);
-    
-    // Nothing special to do here - when product is marked as deleted,
-    // the booked dates won't be included in /booked-dates endpoint
-    // because we filter out deleted products in the query
     return true;
   } catch (error) {
     console.error('Error updating booked dates on delete:', error);
@@ -1684,27 +1777,89 @@ const updateBookedDatesOnRestore = async (product, orderId) => {
 };
 
 
-// Update the /booked-dates/:prodCode endpoint to exclude deleted products
+// // Update the /booked-dates/:prodCode endpoint to exclude deleted products
+// app.get("/booked-dates/:prodCode", async (req, res) => {
+//   try {
+//     const { prodCode } = req.params;
+//     const excludeOrderId = req.query.excludeOrderId;
+
+//     console.log(
+//       `Fetching booked dates for product: ${prodCode}, excluding order: ${excludeOrderId}`
+//     );
+
+//     // Build query to find orders with this product code
+//     let query = {
+//       "products.prodCode": prodCode,
+//     };
+
+//     // Exclude current order if specified
+//     if (
+//       excludeOrderId &&
+//       excludeOrderId !== "null" &&
+//       excludeOrderId !== "undefined"
+//     ) {
+//       query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
+//     }
+
+//     // Find all orders that contain this product code
+//     const orders = await prodOrderData.find(query);
+//     console.log(`📊 Found ${orders.length} orders with product ${prodCode}`);
+
+//     // Extract all booked dates for this product from other orders
+//     // EXCLUDE dates from deleted products
+//     const bookedDates = [];
+//     orders.forEach((order) => {
+//       order.products.forEach((product) => {
+//         if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
+//           // Convert dates to ISO string format for consistency
+//           product.bookedDates.forEach((date) => {
+//             try {
+//               const dateObj = new Date(date);
+//               if (!isNaN(dateObj.getTime())) {
+//                 // Normalize to UTC midnight for consistent comparison
+//                 const utcDate = new Date(
+//                   Date.UTC(
+//                     dateObj.getUTCFullYear(),
+//                     dateObj.getUTCMonth(),
+//                     dateObj.getUTCDate()
+//                   )
+//                 );
+//                 bookedDates.push(utcDate.toISOString().split("T")[0]);
+//               }
+//             } catch (e) {
+//               console.warn("Invalid date format:", date);
+//             }
+//           });
+//         }
+//       });
+//     });
+
+//     // Remove duplicates and return
+//     const uniqueDates = [...new Set(bookedDates)];
+//     console.log(`📅 Final booked dates for ${prodCode}:`, uniqueDates);
+
+//     res.json(uniqueDates);
+//   } catch (error) {
+//     console.error("Error fetching booked dates:", error);
+//     res.status(500).json({ error: "Failed to fetch booked dates" });
+//   }
+// });
+
 app.get("/booked-dates/:prodCode", async (req, res) => {
   try {
     const { prodCode } = req.params;
     const excludeOrderId = req.query.excludeOrderId;
 
-    console.log(
-      `Fetching booked dates for product: ${prodCode}, excluding order: ${excludeOrderId}`
-    );
+    console.log(`Fetching dates for product: ${prodCode}, excluding order: ${excludeOrderId}`);
 
     // Build query to find orders with this product code
     let query = {
       "products.prodCode": prodCode,
+      "products.deleted": { $ne: true }
     };
 
     // Exclude current order if specified
-    if (
-      excludeOrderId &&
-      excludeOrderId !== "null" &&
-      excludeOrderId !== "undefined"
-    ) {
+    if (excludeOrderId && excludeOrderId !== "null" && excludeOrderId !== "undefined") {
       query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
     }
 
@@ -1712,46 +1867,93 @@ app.get("/booked-dates/:prodCode", async (req, res) => {
     const orders = await prodOrderData.find(query);
     console.log(`📊 Found ${orders.length} orders with product ${prodCode}`);
 
-    // Extract all booked dates for this product from other orders
-    // EXCLUDE dates from deleted products
-    const bookedDates = [];
+    // Separate dates based on order_status
+    const cancelledDates = [];  // Green - available
+    const pendingDates = [];    // Orange - pending confirmation
+    const confirmedDates = [];  // Red - confirmed/booked
+
     orders.forEach((order) => {
       order.products.forEach((product) => {
         if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
-          // Convert dates to ISO string format for consistency
+          const orderStatus = order.order_status || 'Pending Client Confirmation';
+          
+          // Categorize based on order_status
           product.bookedDates.forEach((date) => {
             try {
+              if (!date) return;
+              
               const dateObj = new Date(date);
-              if (!isNaN(dateObj.getTime())) {
-                // Normalize to UTC midnight for consistent comparison
-                const utcDate = new Date(
-                  Date.UTC(
-                    dateObj.getUTCFullYear(),
-                    dateObj.getUTCMonth(),
-                    dateObj.getUTCDate()
-                  )
-                );
-                bookedDates.push(utcDate.toISOString().split("T")[0]);
+              if (isNaN(dateObj.getTime())) {
+                console.warn("Invalid date in bookedDates:", date);
+                return;
+              }
+
+              // Normalize to UTC midnight for consistent comparison
+              const utcDate = new Date(
+                Date.UTC(
+                  dateObj.getUTCFullYear(),
+                  dateObj.getUTCMonth(),
+                  dateObj.getUTCDate()
+                )
+              );
+              
+              const dateString = utcDate.toISOString().split("T")[0];
+              
+              // CATEGORIZE BASED ON ORDER_STATUS
+              if (orderStatus === "Cancelled" || orderStatus === "cancelled") {
+                // Cancelled orders - green (available)
+                cancelledDates.push(dateString);
+              } else if (orderStatus === "Pending Client Confirmation" || 
+                         orderStatus === "pending" || 
+                         orderStatus === "Pending") {
+                // Pending orders - orange
+                pendingDates.push({
+                  date: dateString,
+                  orderId: order.orderId,
+                  orderDate: order.createdAt,
+                  orderStatus: orderStatus
+                });
+              } else {
+                // All other statuses (Order Confirmed, Design in Progress, etc.) - red (confirmed/booked)
+                confirmedDates.push(dateString);
               }
             } catch (e) {
-              console.warn("Invalid date format:", date);
+              console.warn("Error processing date:", date, e);
             }
           });
         }
       });
     });
 
-    // Remove duplicates and return
-    const uniqueDates = [...new Set(bookedDates)];
-    console.log(`📅 Final booked dates for ${prodCode}:`, uniqueDates);
+    // Remove duplicates and maintain backward compatibility
+    const uniqueCancelledDates = [...new Set(cancelledDates)];
+    const uniqueConfirmedDates = [...new Set(confirmedDates)];
+    
+    // For pending dates, keep the structure but deduplicate
+    const uniquePendingDates = pendingDates.filter((value, index, self) => 
+      index === self.findIndex((p) => p.date === value.date)
+    );
 
-    res.json(uniqueDates);
+    console.log(`📅 Date categories for ${prodCode}:`);
+    console.log(`  - Cancelled (green/available): ${uniqueCancelledDates.length}`);
+    console.log(`  - Pending (orange): ${uniquePendingDates.length}`);
+    console.log(`  - Confirmed (red/booked): ${uniqueConfirmedDates.length}`);
+
+    res.json({
+      cancelled: uniqueCancelledDates,
+      pending: uniquePendingDates,
+      confirmed: uniqueConfirmedDates
+    });
   } catch (error) {
     console.error("Error fetching booked dates:", error);
-    res.status(500).json({ error: "Failed to fetch booked dates" });
+    res.status(500).json({ 
+      error: "Failed to fetch booked dates",
+      cancelled: [],
+      pending: [],
+      confirmed: []
+    });
   }
 });
-
 
 // Update the delete/restore endpoint to handle date availability
 app.get("/deleteProductOrder/:orderIdentifier/:productId", async (req, res) => {
@@ -2224,10 +2426,114 @@ app.get("/getOrderStatuses", async (req, res) => {
 });
 /* get order statuses */
 /* update order status */
+// app.put("/updateOrderStatus/:orderId", async (req, res) => {
+//   try {
+//     const { orderId } = req.params;
+//     const { status, cancel, reason, isConfirmation } = req.body;
+
+//     if (!status && cancel == false) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Status is required",
+//       });
+//     }
+
+//     // Validate ObjectId
+//     if (!mongoose.Types.ObjectId.isValid(orderId)) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Invalid Order ID",
+//       });
+//     }
+
+//     // Find and update
+//     if (cancel == false) {
+//       let updateData = {};
+      
+//       // Special handling for order confirmation
+//       if (isConfirmation && status === "Order Confirmed") {
+//         updateData = {
+//           order_status: "confirmed", // Set to confirmed for filtering
+//           status: "Confirmed", // Set to Confirmed (capital C for consistency)
+//           confirmed_at: new Date(),
+//           confirmed_by: req.body.confirmedBy || "Admin"
+//         };
+//       } else {
+//         // Normal status update
+//         updateData = { order_status: status };
+        
+//         // Map status to proper values
+//         if (status.toLowerCase().includes("pending")) {
+//           updateData.order_status = "pending";
+//         } else if (status.toLowerCase().includes("cancelled")) {
+//           updateData.order_status = "cancelled";
+//           updateData.status = "Cancelled";
+//         } else if (status.toLowerCase().includes("completed")) {
+//           updateData.order_status = "completed";
+//         }
+//       }
+
+//       const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//         orderId,
+//         { $set: updateData },
+//         { new: true }
+//       );
+
+//       if (!updatedOrder) {
+//         return res.status(404).json({
+//           status: false,
+//           message: "Order not found",
+//         });
+//       }
+
+//       return res.status(200).json({
+//         status: true,
+//         message: isConfirmation ? "Order confirmed successfully" : "Order status updated successfully",
+//         data: updatedOrder,
+//       });
+//     }
+    
+//     if (cancel == true) {
+//       const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//         orderId,
+//         {
+//           $set: {
+//             order_cancel_reason: reason,
+//             order_status: "cancelled",
+//             status: "Cancelled",
+//           },
+//         },
+//         { new: true }
+//       );
+
+//       if (!updatedOrder) {
+//         return res.status(404).json({
+//           status: false,
+//           message: "Order not found",
+//         });
+//       }
+
+//       return res.status(200).json({
+//         status: true,
+//         message: "Reason updated successfully",
+//         data: updatedOrder,
+//       });
+//     }
+//   } catch (error) {
+//     console.error("Error updating order status:", error);
+//     res.status(500).json({
+//       status: false,
+//       message: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// });
+
+
 app.put("/updateOrderStatus/:orderId", async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status, cancel, reason } = req.body;
+    const { status, cancel, reason, isConfirmation } = req.body;
 
     if (!status && cancel == false) {
       return res.status(400).json({
@@ -2243,11 +2549,32 @@ app.put("/updateOrderStatus/:orderId", async (req, res) => {
         message: "Invalid Order ID",
       });
     }
-    // Find and update
+
+    // Find the order first
+    const existingOrder = await prodOrderData.findById(orderId);
+    if (!existingOrder) {
+      return res.status(404).json({
+        status: false,
+        message: "Order not found",
+      });
+    }
+
     if (cancel == false) {
+      let updateData = {};
+      
+      // DO NOT CHANGE THE 'status' FIELD (it should remain "Added Manually" or "UserSideOrder")
+      // Only update 'order_status' field
+      updateData.order_status = status;
+      
+      // Special handling for order confirmation
+      if (isConfirmation && status === "Order Confirmed") {
+        updateData.confirmed_at = new Date();
+        updateData.confirmed_by = req.body.confirmedBy || "Admin";
+      }
+
       const updatedOrder = await prodOrderData.findByIdAndUpdate(
         orderId,
-        { $set: { order_status: status } },
+        { $set: updateData },
         { new: true }
       );
 
@@ -2260,17 +2587,20 @@ app.put("/updateOrderStatus/:orderId", async (req, res) => {
 
       return res.status(200).json({
         status: true,
-        message: "Order status updated successfully",
+        message: isConfirmation ? "Order confirmed successfully" : "Order status updated successfully",
         data: updatedOrder,
       });
     }
+    
     if (cancel == true) {
+      // For cancellation, only update order_status, NOT the main status field
       const updatedOrder = await prodOrderData.findByIdAndUpdate(
         orderId,
         {
           $set: {
             order_cancel_reason: reason,
-            order_status: status, // overwrites if already exists
+            order_status: "Cancelled", // Only update order_status
+            // DO NOT update the main 'status' field
           },
         },
         { new: true }
@@ -2285,7 +2615,7 @@ app.put("/updateOrderStatus/:orderId", async (req, res) => {
 
       return res.status(200).json({
         status: true,
-        message: "Reason updated successfully",
+        message: "Order cancelled successfully",
         data: updatedOrder,
       });
     }
@@ -2298,6 +2628,7 @@ app.put("/updateOrderStatus/:orderId", async (req, res) => {
     });
   }
 });
+
 /* update order status */
 
 /* add new order status -SK */
@@ -2606,7 +2937,509 @@ app.put("/prodOrders/:id/handled-by", async (req, res) => {
   }
 });
 // NEWLY ADDED Handled by admin
+// RAC CONCEPTS 
 
+app.get("/pending-reservations/:prodCode", async (req, res) => {
+  try {
+    const { prodCode } = req.params;
+    
+    // Find all pending orders for this product
+    const pendingOrders = await prodOrderData.find({
+      "products.prodCode": prodCode,
+      $or: [
+        { order_status: "pending" },
+        { order_status: "Pending" },
+        { status: "pending" },
+        { status: "Pending" }
+      ],
+      "products.deleted": { $ne: true }
+    }).sort({ createdAt: 1 }); // Sort by creation time (queue order)
+
+    // Extract detailed reservation info
+    const reservations = [];
+    pendingOrders.forEach((order) => {
+      order.products.forEach((product) => {
+        if (product.prodCode === prodCode && !product.deleted) {
+          const dates = [];
+          product.bookedDates.forEach(date => {
+            const dateObj = new Date(date);
+            dates.push(dateObj.toISOString().split('T')[0]);
+          });
+          
+          reservations.push({
+            orderId: order.orderId,
+            userId: order.client?.userId,
+            userName: order.client?.name,
+            userEmail: order.client?.email,
+            productName: product.name,
+            dates: dates,
+            createdAt: order.createdAt,
+            totalDays: product.booking?.totalDays || 0,
+            totalAmount: product.booking?.totalPrice || 0
+          });
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      count: reservations.length,
+      reservations: reservations
+    });
+  } catch (error) {
+    console.error("Error fetching pending reservations:", error);
+    res.status(500).json({ error: "Failed to fetch pending reservations" });
+  }
+});
+
+// NEW: Confirm order endpoint (admin action)
+app.put("/orders/:orderId/confirm", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { confirmedBy, notes } = req.body;
+
+    console.log(`Confirming order ${orderId} by ${confirmedBy}`);
+
+    // Find order by orderId or _id
+    let order;
+    if (mongoose.Types.ObjectId.isValid(orderId)) {
+      order = await prodOrderData.findById(orderId);
+    } else {
+      order = await prodOrderData.findOne({ orderId: orderId });
+    }
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found"
+      });
+    }
+
+    // Check if already confirmed
+    if (order.order_status === "confirmed" || order.status === "Confirmed") {
+      return res.status(400).json({
+        success: false,
+        message: "Order is already confirmed"
+      });
+    }
+
+    // Check if order is cancelled
+    if (order.order_status === "cancelled" || order.status === "Cancelled") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot confirm a cancelled order"
+      });
+    }
+
+    // Update order status
+    const previousStatus = order.order_status || order.status;
+    order.order_status = "confirmed";
+    order.status = "Confirmed";
+    order.handled_by = confirmedBy || order.handled_by;
+    order.confirmed_at = new Date();
+    order.confirmed_by = confirmedBy;
+    order.confirmation_notes = notes;
+    order.last_edited = new Date();
+
+    await order.save();
+
+    console.log(`Order ${orderId} confirmed successfully`);
+
+    // Send confirmation email
+    try {
+      const mailOptions = {
+        from: process.env.EMAIL_USER || "adinn@example.com",
+        to: order.client.email,
+        subject: `Order Confirmed - ${order.orderId}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #4CAF50; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+              .content { background: #f9f9f9; padding: 20px; border-radius: 0 0 5px 5px; }
+              .order-details { background: white; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #4CAF50; }
+              .footer { text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+              .status-badge { display: inline-block; padding: 5px 10px; background: #4CAF50; color: white; border-radius: 3px; font-weight: bold; }
+              .product-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+              .dates { color: #e53935; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🎉 Order Confirmed!</h1>
+                <p>Your booking has been confirmed</p>
+              </div>
+              <div class="content">
+                <p>Dear ${order.client.name},</p>
+                <p>We are pleased to inform you that your order has been confirmed by our team.</p>
+                
+                <div class="order-details">
+                  <h3>Order Details</h3>
+                  <p><strong>Order ID:</strong> ${order.orderId}</p>
+                  <p><strong>Status:</strong> <span class="status-badge">CONFIRMED ✅</span></p>
+                  <p><strong>Confirmed by:</strong> ${confirmedBy}</p>
+                  <p><strong>Confirmed on:</strong> ${new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                  <p><strong>Total Amount:</strong> ₹${order.client.totalAmount?.toLocaleString('en-IN') || '0'}</p>
+                </div>
+                
+                <h3>Product Details:</h3>
+                ${order.products.map((product, index) => `
+                  <div class="product-item">
+                    <p><strong>${index + 1}. ${product.name}</strong></p>
+                    <p>Product Code: ${product.prodCode}</p>
+                    <p>Booking Dates: <span class="dates">
+                      ${new Date(product.booking.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} 
+                      to 
+                      ${new Date(product.booking.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      (${product.booking.totalDays} days)
+                    </span></p>
+                    <p>Amount: ₹${product.booking.totalPrice?.toLocaleString('en-IN') || '0'}</p>
+                  </div>
+                `).join('')}
+                
+                <p><strong>Note:</strong> Your booking dates are now locked and unavailable for others.</p>
+                
+                <p>If you have any questions, please contact our support team.</p>
+                
+                <p>Best regards,<br>
+                The Adinn Team</p>
+              </div>
+              <div class="footer">
+                <p>This is an automated email. Please do not reply to this message.</p>
+                <p>© ${new Date().getFullYear()} Adinn Advertising. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`Confirmation email sent to ${order.client.email}`);
+    } catch (emailError) {
+      console.error("Failed to send confirmation email:", emailError);
+      // Don't fail the whole operation if email fails
+    }
+
+    res.json({
+      success: true,
+      message: "Order confirmed successfully",
+      order: {
+        orderId: order.orderId,
+        status: order.order_status,
+        confirmed_at: order.confirmed_at,
+        confirmed_by: order.confirmed_by,
+        previousStatus: previousStatus
+      }
+    });
+  } catch (error) {
+    console.error("Error confirming order:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      error: error.toString()
+    });
+  }
+});
+
+// NEW: Get date availability suggestions
+app.get("/date-suggestions/:prodCode", async (req, res) => {
+  try {
+    const { prodCode } = req.params;
+    const { requiredDays = 7, startFrom } = req.query;
+
+    const daysRequired = parseInt(requiredDays) || 7;
+    const startDate = startFrom ? new Date(startFrom) : new Date();
+    
+    // Get confirmed dates
+    const dateResponse = await fetch(`${req.protocol}://${req.get('host')}/booked-dates/${prodCode}`);
+    const dateData = await dateResponse.json();
+    
+    const confirmedDates = dateData.confirmed || [];
+    const pendingDates = dateData.pending || [];
+
+    // Combine both confirmed and pending for conflict checking
+    const allBlockedDates = [...new Set([...confirmedDates])]; // Only confirmed dates block
+    
+    const suggestions = [];
+    const maxDaysToCheck = 90; // Check next 90 days
+    
+    for (let dayOffset = 0; dayOffset < maxDaysToCheck; dayOffset++) {
+      const currentStart = new Date(startDate);
+      currentStart.setDate(currentStart.getDate() + dayOffset);
+      
+      // Skip past dates
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (currentStart < today) continue;
+      
+      let consecutiveDays = 0;
+      let currentDay = new Date(currentStart);
+      let availableDays = [];
+      let conflictDays = [];
+      
+      while (consecutiveDays < daysRequired) {
+        const dateStr = currentDay.toISOString().split('T')[0];
+        
+        // Check if date is confirmed booked
+        if (allBlockedDates.includes(dateStr)) {
+          conflictDays.push({
+            date: dateStr,
+            type: 'confirmed'
+          });
+          break;
+        }
+        
+        // Check if date is pending (still available)
+        const isPending = pendingDates.some(p => p.date === dateStr);
+        
+        availableDays.push({
+          date: dateStr,
+          status: isPending ? 'pending' : 'available'
+        });
+        
+        consecutiveDays++;
+        currentDay.setDate(currentDay.getDate() + 1);
+      }
+      
+      if (consecutiveDays >= daysRequired) {
+        const endDate = new Date(currentStart);
+        endDate.setDate(endDate.getDate() + daysRequired - 1);
+        
+        const pendingCount = availableDays.filter(d => d.status === 'pending').length;
+        
+        suggestions.push({
+          startDate: currentStart.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0],
+          totalDays: daysRequired,
+          availableDays: daysRequired,
+          pendingInRange: pendingCount,
+          hasPending: pendingCount > 0,
+          suggestionText: `${currentStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`,
+          note: pendingCount > 0 ? `(${pendingCount} pending dates in queue)` : 'All dates available'
+        });
+        
+        if (suggestions.length >= 3) break; // Limit to 3 suggestions
+      }
+    }
+    
+    res.json({
+      success: true,
+      suggestions: suggestions,
+      totalBlockedDates: allBlockedDates.length,
+      totalPendingDates: pendingDates.length
+    });
+  } catch (error) {
+    console.error("Error generating date suggestions:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+
+app.get("/check-date-conflicts/:prodCode", async (req, res) => {
+  try {
+    const { prodCode } = req.params;
+    const { startDate, endDate, excludeOrderId } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Start and end dates are required"
+      });
+    }
+
+    console.log(`Checking date conflicts for ${prodCode}: ${startDate} to ${endDate}`);
+
+    // Parse dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date format"
+      });
+    }
+
+    // Get all booked dates (both confirmed and pending)
+    const dateResponse = await fetch(`${req.protocol}://${req.get('host')}/booked-dates/${prodCode}${excludeOrderId ? `?excludeOrderId=${excludeOrderId}` : ''}`);
+    const dateData = await dateResponse.json();
+    
+    const confirmedDates = dateData.confirmed || [];
+    const pendingDates = dateData.pending || [];
+
+    // Generate all dates in requested range
+    const requestedDates = [];
+    const current = new Date(start);
+    const endDateObj = new Date(end);
+    
+    while (current <= endDateObj) {
+      const dateStr = current.toISOString().split('T')[0];
+      requestedDates.push(dateStr);
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Check for conflicts
+    const confirmedConflicts = [];
+    const pendingConflicts = [];
+    const availableDates = [];
+
+    requestedDates.forEach(dateStr => {
+      if (confirmedDates.includes(dateStr)) {
+        confirmedConflicts.push({
+          date: dateStr,
+          type: 'confirmed',
+          status: 'blocked'
+        });
+      } else if (pendingDates.some(p => p.date === dateStr)) {
+        pendingConflicts.push({
+          date: dateStr,
+          type: 'pending',
+          status: 'queue'
+        });
+      } else {
+        availableDates.push({
+          date: dateStr,
+          type: 'available',
+          status: 'free'
+        });
+      }
+    });
+
+    const totalRequestedDays = requestedDates.length;
+    const confirmedConflictCount = confirmedConflicts.length;
+    const pendingConflictCount = pendingConflicts.length;
+    const availableCount = availableDates.length;
+
+    // Generate suggestions if there are confirmed conflicts
+    const suggestions = [];
+    if (confirmedConflictCount > 0 && availableCount < totalRequestedDays) {
+      // Try to find alternative date ranges
+      const alternativeRanges = await generateAlternativeDateRanges(
+        prodCode, 
+        start, 
+        end, 
+        totalRequestedDays, 
+        confirmedDates,
+        pendingDates
+      );
+      
+      if (alternativeRanges.length > 0) {
+        suggestions.push(...alternativeRanges);
+      }
+    }
+
+    res.json({
+      success: true,
+      hasConflicts: confirmedConflictCount > 0,
+      hasQueueDates: pendingConflictCount > 0,
+      totalRequestedDays,
+      confirmedConflicts,
+      pendingConflicts,
+      availableDates,
+      confirmedConflictCount,
+      pendingConflictCount,
+      availableCount,
+      canBook: confirmedConflictCount === 0,
+      suggestions: suggestions.length > 0 ? suggestions.slice(0, 3) : [],
+      message: confirmedConflictCount > 0 
+        ? `${confirmedConflictCount} date(s) are already confirmed booked. ${pendingConflictCount > 0 ? `${pendingConflictCount} date(s) are in queue.` : ''}`
+        : pendingConflictCount > 0
+          ? `All dates available. ${pendingConflictCount} date(s) are in queue (can be booked).`
+          : 'All dates are available for immediate booking.'
+    });
+  } catch (error) {
+    console.error("Error checking date conflicts:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// Helper function to generate alternative date ranges
+async function generateAlternativeDateRanges(prodCode, originalStart, originalEnd, requiredDays, confirmedDates, pendingDates) {
+  const suggestions = [];
+  const maxAttempts = 30;
+  
+  // Try different starting points
+  for (let attempt = 0; attempt < maxAttempts && suggestions.length < 3; attempt++) {
+    // Start from original start date + attempt days
+    const startDate = new Date(originalStart);
+    startDate.setDate(startDate.getDate() + attempt);
+    
+    // Skip past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (startDate < today) continue;
+    
+    let consecutiveAvailable = 0;
+    let currentDate = new Date(startDate);
+    let potentialStart = new Date(startDate);
+    let potentialEnd = null;
+    
+    // Try to find required consecutive days
+    while (consecutiveAvailable < requiredDays) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      
+      // Check if date is available (not confirmed)
+      if (!confirmedDates.includes(dateStr)) {
+        consecutiveAvailable++;
+        if (consecutiveAvailable === 1) {
+          potentialStart = new Date(currentDate);
+        }
+        if (consecutiveAvailable === requiredDays) {
+          potentialEnd = new Date(currentDate);
+          break;
+        }
+      } else {
+        consecutiveAvailable = 0;
+        potentialStart = new Date(currentDate);
+        potentialStart.setDate(potentialStart.getDate() + 1);
+      }
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+      
+      // Don't search too far into the future
+      if (currentDate > new Date(originalEnd.getTime() + (90 * 24 * 60 * 60 * 1000))) {
+        break;
+      }
+    }
+    
+    if (potentialEnd) {
+      // Count pending dates in this range
+      let pendingCount = 0;
+      let checkDate = new Date(potentialStart);
+      while (checkDate <= potentialEnd) {
+        const dateStr = checkDate.toISOString().split('T')[0];
+        if (pendingDates.some(p => p.date === dateStr)) {
+          pendingCount++;
+        }
+        checkDate.setDate(checkDate.getDate() + 1);
+      }
+      
+      suggestions.push({
+        startDate: potentialStart.toISOString().split('T')[0],
+        endDate: potentialEnd.toISOString().split('T')[0],
+        totalDays: requiredDays,
+        pendingInRange: pendingCount,
+        hasPending: pendingCount > 0,
+        suggestionText: `${potentialStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${potentialEnd.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`,
+        note: pendingCount > 0 ? `(${pendingCount} pending dates in queue)` : 'All dates available'
+      });
+    }
+  }
+  
+  return suggestions;
+}
+// RAC CONCEPTS 
 
 
 //CART ITEMS ROUTE
