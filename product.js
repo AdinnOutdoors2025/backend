@@ -2287,48 +2287,139 @@ app.get("/softDeleteProductOrder/:orderId/:productId", async (req, res) => {
 });
 
 
-// Helper function to check if dates are available after product deletion
+// // Helper function to check if dates are available after product deletion
+// app.get("/check-date-availability/:prodCode", async (req, res) => {
+//   try {
+//     const { prodCode } = req.params;
+//     const { startDate, endDate, excludeOrderId } = req.query;
+
+//     if (!startDate || !endDate) {
+//       return res.status(400).json({ error: "Start and end dates are required" });
+//     }
+
+//     // Get all booked dates for this product (excluding deleted products)
+//     const bookedDates = await getBookedDatesForProduct(prodCode, excludeOrderId);
+
+//     // Check if requested dates are available
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+//     const current = new Date(start);
+    
+//     const conflictingDates = [];
+    
+//     while (current <= end) {
+//       const dateStr = current.toISOString().split('T')[0];
+//       if (bookedDates.includes(dateStr)) {
+//         conflictingDates.push(dateStr);
+//       }
+//       current.setDate(current.getDate() + 1);
+//     }
+
+//     const isAvailable = conflictingDates.length === 0;
+
+//     res.json({
+//       isAvailable,
+//       conflictingDates,
+//       totalRequestedDays: Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1,
+//       availableDays: isAvailable ? 
+//         Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1 : 
+//         Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1 - conflictingDates.length
+//     });
+//   } catch (error) {
+//     console.error("Error checking date availability:", error);
+//     res.status(500).json({ error: "Failed to check date availability" });
+//   }
+// });
+
 app.get("/check-date-availability/:prodCode", async (req, res) => {
-  try {
-    const { prodCode } = req.params;
-    const { startDate, endDate, excludeOrderId } = req.query;
+    try {
+        const { prodCode } = req.params;
+        const { startDate, endDate, excludeOrderId } = req.query;
 
-    if (!startDate || !endDate) {
-      return res.status(400).json({ error: "Start and end dates are required" });
+        if (!startDate || !endDate) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Start and end dates are required" 
+            });
+        }
+
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Invalid date format" 
+            });
+        }
+
+        // Get all booked dates for this product
+        const dateResponse = await fetch(`${req.protocol}://${req.get('host')}/booked-dates/${prodCode}${excludeOrderId ? `?excludeOrderId=${excludeOrderId}` : ''}`);
+        const dateData = await dateResponse.json();
+        
+        const confirmedDates = dateData.confirmed || [];
+        const pendingDates = dateData.pending || [];
+
+        // Generate all dates in requested range
+        const requestedDates = [];
+        const current = new Date(start);
+        const endDateObj = new Date(end);
+        
+        while (current <= endDateObj) {
+            const dateStr = current.toISOString().split('T')[0];
+            requestedDates.push(dateStr);
+            current.setDate(current.getDate() + 1);
+        }
+
+        // Check for conflicts
+        const confirmedConflicts = [];
+        const pendingConflicts = [];
+        const availableDates = [];
+
+        requestedDates.forEach(dateStr => {
+            if (confirmedDates.includes(dateStr)) {
+                confirmedConflicts.push(dateStr);
+            } else if (pendingDates.some(p => p.date === dateStr)) {
+                pendingConflicts.push({
+                    date: dateStr,
+                    type: 'pending'
+                });
+            } else {
+                availableDates.push(dateStr);
+            }
+        });
+
+        const totalRequestedDays = requestedDates.length;
+        const confirmedConflictCount = confirmedConflicts.length;
+        const pendingConflictCount = pendingConflicts.length;
+        const availableCount = availableDates.length;
+        const isAvailable = confirmedConflictCount === 0;
+
+        res.json({
+            success: true,
+            isAvailable,
+            hasConflicts: confirmedConflictCount > 0,
+            hasQueueDates: pendingConflictCount > 0,
+            totalRequestedDays,
+            confirmedConflicts,
+            pendingConflicts,
+            availableDates,
+            confirmedConflictCount,
+            pendingConflictCount,
+            availableCount,
+            message: confirmedConflictCount > 0 
+                ? `${confirmedConflictCount} date(s) are already confirmed booked. ${pendingConflictCount > 0 ? `${pendingConflictCount} date(s) are in queue.` : ''}`
+                : pendingConflictCount > 0
+                ? `All dates available. ${pendingConflictCount} date(s) are in queue (can be booked).`
+                : 'All dates are available for immediate booking.'
+        });
+    } catch (error) {
+        console.error("Error checking date availability:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
-
-    // Get all booked dates for this product (excluding deleted products)
-    const bookedDates = await getBookedDatesForProduct(prodCode, excludeOrderId);
-
-    // Check if requested dates are available
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const current = new Date(start);
-    
-    const conflictingDates = [];
-    
-    while (current <= end) {
-      const dateStr = current.toISOString().split('T')[0];
-      if (bookedDates.includes(dateStr)) {
-        conflictingDates.push(dateStr);
-      }
-      current.setDate(current.getDate() + 1);
-    }
-
-    const isAvailable = conflictingDates.length === 0;
-
-    res.json({
-      isAvailable,
-      conflictingDates,
-      totalRequestedDays: Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1,
-      availableDays: isAvailable ? 
-        Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1 : 
-        Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1 - conflictingDates.length
-    });
-  } catch (error) {
-    console.error("Error checking date availability:", error);
-    res.status(500).json({ error: "Failed to check date availability" });
-  }
 });
 
 // Helper function to get booked dates
@@ -2764,19 +2855,6 @@ app.post("/updateOrderAmounts", async (req, res) => {
 });
 
 /* Update advance and remaining amount in particular order */
-
-function generateDateRange(startDate, endDate) {
-  const dates = [];
-  const current = new Date(startDate);
-  const end = new Date(endDate);
-
-  while (current <= end) {
-    dates.push(new Date(current));
-    current.setDate(current.getDate() + 1);
-  }
-
-  return dates;
-}
 
 // //PUT FOR EDIT THE BOOKED DATES
 // app.put('/prodOrders/:id', async (req, res) => {

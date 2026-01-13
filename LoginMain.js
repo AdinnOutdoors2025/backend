@@ -237,6 +237,7 @@ else {
         res.json({
             success: true,
             user: {
+                 _id: newUser._id,
                 userName: newUser.userName,
                 userEmail: newUser.userEmail,
                 userPhone: newUser.userPhone
@@ -417,7 +418,48 @@ router.post('/send-otp', async (req, res) => {
     }
 });
 
-// Verify OTP endpoint - FIXED user retrieval
+// // Verify OTP endpoint - FIXED user retrieval
+// router.post('/verify-otp', async (req, res) => {
+//     const { email, phone, otp } = req.body;
+//     const otpKey = email || phone;
+
+//     if (!otpKey || !otp) {
+//         return res.status(400).json({ success: false, message: "Email/phone and OTP required" });
+//     }
+
+//     const storedData = otpStore[otpKey];
+
+//     if (!storedData || Date.now() > storedData.expiresAt) {
+//         return res.status(400).json({ success: false, message: "OTP expired or invalid" });
+//     }
+
+//     if (otp.toString() !== storedData.otp.toString()) {
+//         return res.status(400).json({ success: false, message: "Invalid OTP" });
+//     }
+//     delete otpStore[otpKey]; // Clear OTP after verification
+
+//     try {
+//         // Find user by email OR phone (whichever was used for OTP)
+//         let user;
+//         if (email) {
+//             user = await User.findOne({ userEmail: email });
+//         } else if (phone) {
+//             user = await User.findOne({ userPhone: phone });
+//         }
+
+//         res.json({
+//             success: true,
+//             verified: true,
+//             user: user || null
+//         });
+
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).json({ error: 'Server error' });
+//     }
+// });
+
+// Verify OTP endpoint - UPDATED
 router.post('/verify-otp', async (req, res) => {
     const { email, phone, otp } = req.body;
     const otpKey = email || phone;
@@ -446,10 +488,24 @@ router.post('/verify-otp', async (req, res) => {
             user = await User.findOne({ userPhone: phone });
         }
 
+        if (!user) {
+            return res.json({
+                success: true,
+                verified: true,
+                user: null
+            });
+        }
+
+        // FIXED: Return complete user object with _id
         res.json({
             success: true,
             verified: true,
-            user: user || null
+            user: {
+                _id: user._id,
+                userName: user.userName,
+                userEmail: user.userEmail,
+                userPhone: user.userPhone
+            }
         });
 
     } catch (err) {
