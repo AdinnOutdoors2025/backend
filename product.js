@@ -3818,6 +3818,197 @@ app.get("/testurl", async (req, res) => {
 })
 
 
+
+app.get("/checkOrderConflict/:orderId", async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const EXCLUDED_STATUSES = [
+      "Order Confirmed",
+      "Design in Progress",
+      "Awaiting Client side design Approval",
+      "Ready for Printing",
+      "Printing in Progress",
+      "Completed / Installed",
+      "Payment Pending",
+      "Payment Completed",
+      "Cancelled"
+    ];
+
+    // 1️⃣ Current Order
+    const currentOrder = await prodOrderData.findOne({ orderId });
+    if (!currentOrder) {
+      return res.status(404).json({ success: false });
+    }
+
+    const currentProduct = currentOrder.products?.[0];
+    if (!currentProduct || currentProduct.deleted) {
+      return res.json({ success: true, conflicts: [] });
+    }
+
+    const productId = currentProduct.id;
+    const currentBookedDates = currentProduct.bookedDates;
+
+    const currentUserColor = generateUserColor(currentOrder.client.userId);
+
+    // 2️⃣ Other orders with SAME product (no date filtering)
+    const conflicts = await prodOrderData.aggregate([
+      {
+        $match: {
+          orderId: { $ne: orderId },
+          order_status: { $nin: EXCLUDED_STATUSES }
+        }
+      },
+      { $unwind: "$products" },
+      {
+        $match: {
+          "products.deleted": false,
+          "products.id": productId
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          orderId: 1,
+          client: {
+            userId: "$client.userId",
+            name: "$client.name",
+            email: "$client.email",
+            contact: "$client.contact"
+          },
+          booking: "$products.booking",
+
+          // ✅ ALL booked dates of that product
+          bookedDates: "$products.bookedDates",
+
+          // ✅ Still calculate matched dates (optional but useful)
+          matchedDates: {
+            $setIntersection: ["$products.bookedDates", currentBookedDates]
+          }
+        }
+      }
+    ]);
+
+    // 3️⃣ Add color inside client
+    const conflictsWithColor = conflicts.map(conflict => ({
+      ...conflict,
+      client: {
+        ...conflict.client,
+        colorCode: generateUserColor(conflict.client.userId)
+      }
+    }));
+
+    return res.json({
+      success: true,
+
+      currentOrder: {
+        orderId: currentOrder.orderId,
+        client: {
+          userId: currentOrder.client.userId,
+          name: currentOrder.client.name,
+          colorCode: currentUserColor
+        },
+        productId,
+        booking: currentProduct.booking,
+        bookedDates: currentBookedDates
+      },
+
+      // ✅ SAME KEY NAME
+      conflicts: conflictsWithColor
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false });
+  }
+});
+
+
+
+
+
+// ================================
+// COLOR FAMILY DEFINITIONS
+// ================================
+const COLOR_FAMILIES = [
+  { name: "blue", hueRange: [200, 240] },
+  { name: "purple", hueRange: [260, 300] },
+  { name: "teal", hueRange: [160, 190] }
+];
+
+// Track used families (per page / request lifecycle)
+const usedColorFamilies = new Set();
+
+// Cache user → color mapping
+const userColorCache = new Map();
+
+// ================================
+// MAIN FUNCTION
+// ================================
+function generateUserColor(userKey) {
+  // Return cached color if exists
+  if (userColorCache.has(userKey)) {
+    return userColorCache.get(userKey);
+  }
+
+  // Create deterministic hash
+  let hash = 0;
+  for (let i = 0; i < userKey.length; i++) {
+    hash = userKey.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  // Pick unused family first
+  let family =
+    COLOR_FAMILIES.find(f => !usedColorFamilies.has(f.name)) ||
+    COLOR_FAMILIES[Math.abs(hash) % COLOR_FAMILIES.length];
+
+  usedColorFamilies.add(family.name);
+
+  // Pick hue inside allowed range
+  const [minHue, maxHue] = family.hueRange;
+  const hue = minHue + (Math.abs(hash) % (maxHue - minHue));
+
+  const saturation = 65;
+  const lightness = 55;
+
+  const color = hslToHex(hue, saturation, lightness);
+
+  // Cache result
+  userColorCache.set(userKey, color);
+
+  return color;
+}
+
+// ================================
+// HSL → HEX CONVERTER
+// ================================
+function hslToHex(h, s, l) {
+  s /= 100;
+  l /= 100;
+
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n =>
+    l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+
+  return (
+    "#" +
+    [f(0), f(8), f(4)]
+      .map(x =>
+        Math.round(255 * x)
+          .toString(16)
+          .padStart(2, "0")
+      )
+      .join("")
+  );
+}
+
+
+
+
+
+
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
