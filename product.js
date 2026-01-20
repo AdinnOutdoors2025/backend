@@ -3814,7 +3814,42 @@ app.post("/checkPost", (req, res) => {
     res.json({ firstName: firstName, lastName : lastName,email:email,message:message , test : "test"});
 });
 app.get("/testurl", async (req, res) => {
-  return res.json({message : 'hasi'})
+    try {
+      const transporter = nodemailer.createTransport({
+        host: "mail.adinnoutdoors.com",
+        port: 465,
+        secure: true, // true for 465, false for other ports
+        auth: {
+          user: "roadshows@adinnoutdoors.com",
+          pass: "Pie~(HOk7q5c",
+        },
+      });
+  
+      const mailOptions = {
+        from: `"Order Notification" <roadshows@adinnoutdoors.com>`,
+        to: "srbedev@adinn.co.in",
+        subject: "New Order Notification",
+        html: `
+          <h3>New Order Received</h3>
+          <p>This is a test email sent from Node.js</p>
+        `,
+      };
+  
+      await transporter.sendMail(mailOptions);
+  
+      res.json({
+        success: true,
+        message: "Email sent successfully",
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        success: false,
+        message: "Email sending failed",
+        error: error.message,
+      });
+    }
+  
 })
 
 
