@@ -3906,6 +3906,7 @@ app.get("/checkOrderConflict/:orderId", async (req, res) => {
         client: {
           userId: currentOrder.client.userId,
           name: currentOrder.client.name,
+          contact: currentOrder.client.contact || "--",
           colorCode: currentUserColor
         },
         productId,
