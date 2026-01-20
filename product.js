@@ -3818,11 +3818,14 @@ app.get("/testurl", async (req, res) => {
       const transporter = nodemailer.createTransport({
         host: "mail.adinnoutdoors.com",
         port: 465,
-        secure: true, // true for 465, false for other ports
+       secure: false,
         auth: {
           user: "roadshows@adinnoutdoors.com",
           pass: "Pie~(HOk7q5c",
         },
+        tls: {
+          rejectUnauthorized: false
+        }
       });
   
       const mailOptions = {
