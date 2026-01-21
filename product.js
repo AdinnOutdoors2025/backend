@@ -3830,7 +3830,7 @@ app.get("/testurl", async (req, res) => {
   
       const mailOptions = {
         from: `"Order Notification" <roadshows@adinnoutdoors.com>`,
-        to: "srbedev@adinn.co.in",
+        to: "webdeveloper1@adinn.co.in",
         subject: "New Order Notification",
         html: `
           <h3>New Order Received</h3>
