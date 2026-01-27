@@ -298,6 +298,93 @@ router.post('/verify-otp', async (req, res) => {
     }
 });
 
+
+router.post('/save-enquiry-without-otp', async (req, res) => {
+    try {
+        const { phone, productData, userId, userName, userEmail } = req.body;
+        
+        if (!phone || !productData) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Phone and product data are required" 
+            });
+        }
+
+        // Save enquiry to database
+        const enquiry = new Enquiry({
+            phone,
+            productId: productData.id,
+            prodCode: productData.prodCode,
+            printingCost: productData.printingCost,
+            mountingCost: productData.mountingCost,
+            prodLighting: productData.prodLighting,
+            productFrom: productData.productFrom,
+            productTo: productData.productTo,
+            productFixedAmount: productData.productFixedAmount,
+            productFixedOffer: productData.productFixedOffer,
+            category: productData.category,
+            rating: productData.rating,
+            imageUrl: productData.imageUrl,
+            prodName: productData.prodName,
+            location: productData.location,
+            price: productData.price,
+            size: `${productData.sizeHeight}x${productData.sizeWidth}`,
+            dimensions: `${productData.sizeHeight * productData.sizeWidth} Sq.ft`,
+            enquiryDate: new Date(),
+            userId: userId || null,
+            userName: userName || null,
+            userEmail: userEmail || null,
+            enquiryType: 'booked_dates_enquiry'
+        });
+
+        await enquiry.save();
+
+        // Send confirmation email to admin
+        try {
+            const mailOptions = {
+                from: emailID,
+                to: emailID,
+                subject: 'New Enquiry for Booked Dates',
+                html: `
+                    <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px; width:max-content;'>
+                        <h1>New Enquiry for Booked Dates:</h1>
+                        <div style="font-size:18px;"><strong>User Phone: </strong> <a href='tel:${phone}'>${phone}</a></div>
+                        ${userId ? `<div style="font-size:18px;"><strong>User ID: </strong> ${userId}</div>` : ''}
+                        ${userName ? `<div style="font-size:18px;"><strong>User Name: </strong> ${userName}</div>` : ''}
+                        ${userEmail ? `<div style="font-size:18px;"><strong>User Email: </strong> ${userEmail}</div>` : ''}
+                        <div style="font-size:18px;"><strong>Product ID: </strong> ${productData.prodCode}</div>
+                        <div style="font-size:18px;"><strong>Product Name: </strong> ${productData.prodName}</div>
+                        <div style="font-size:18px;"><strong>Date: </strong> ${new Date().toLocaleDateString()} <span> <strong> Time: </strong> ${new Date().toLocaleTimeString()} </span></div>
+                        <div style="font-size:18px;"><strong>Location:</strong> ${productData.location}</div>
+                        <div style="font-size:18px;"><strong>Size: </strong> ${productData.sizeHeight}x${productData.sizeWidth} ( ${productData.sizeHeight * productData.sizeWidth} Sq.ft )</div>
+                        <div style="font-size:18px;"><strong>Price: </strong> ₹${productData.price?.toLocaleString() || '0'}</div>
+                        <br />
+                        <p style="font-size:18px; color: #d35400;"><strong>Note:</strong> This enquiry was made because all initial booking dates are currently booked.</p>
+                        <p style="font-size:18px;">Please follow up with the customer at your earliest convenience.</p>
+                    </div>
+                `
+            };
+            await transporter.sendMail(mailOptions);
+        } catch (emailError) {
+            console.error("Error sending admin email:", emailError);
+            // Don't fail the request if email fails
+        }
+
+        res.status(200).json({ 
+            success: true, 
+            message: "Enquiry saved successfully" 
+        });
+
+    } catch (error) {
+        console.error("Error saving enquiry without OTP:", error);
+        res.status(500).json({ 
+            success: false, 
+            message: "Failed to save enquiry",
+            error: error.message 
+        });
+    }
+});
+
 // Function to send admin email
 async function sendAdminEmail(enquiry) {
     try {
