@@ -15,12 +15,20 @@ router.use(cors());
 
 const otpStore = {};
 // Email configuration
+// const transporter = nodemailer.createTransport({
+//     service: 'gmail',
+//     auth: {
+//         user: emailID,
+//         pass: emailPwd
+//     }
+// });
+
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: emailID,
-        pass: emailPwd
-    }
+  service: 'gmail',
+  auth: {
+    user: 'reactdeveloper@adinn.co.in',
+    pass: 'gxnn sezu klyp ifhn'
+  }
 });
 
 // NettyFish SMS Configuration
@@ -342,8 +350,8 @@ router.post('/save-enquiry-without-otp', async (req, res) => {
         // Send confirmation email to admin
         try {
             const mailOptions = {
-                from: emailID,
-                to: emailID,
+                from: "reactdeveloper@adinn.co.in",
+                to: "reactdeveloper@adinn.co.in",
                 subject: 'New Enquiry for Booked Dates',
                 html: `
                     <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px; width:max-content;'>
@@ -389,8 +397,8 @@ router.post('/save-enquiry-without-otp', async (req, res) => {
 async function sendAdminEmail(enquiry) {
     try {
         const mailOptions = {
-            from: emailID,
-            to: emailID,
+            from: "reactdeveloper@adinn.co.in",
+            to: "reactdeveloper@adinn.co.in",
             subject: 'New Product Enquiry Received',
             html: `
                    <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px; width:max-content;'>
