@@ -172,7 +172,7 @@ router.post('/send-sms', async (req, res) => {
 
 // // STOPS THE SMS FOR TESTING PURPOSE
 router.post('/send-order-confirmation', async (req, res) => {
-    return;
+    
     try {  
         const {
             orderId, userName, userEmail, userPhone, userAddress, company, products, orderDate, totalAmount
