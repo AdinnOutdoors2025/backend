@@ -653,9 +653,9 @@ router.post('/send-order-confirmation', async (req, res) => {
             
           
         };
-        // // Send both emails
-        // await transporter.sendMail(userMailOptions);
-        // await transporter.sendMail(adminMailOptions);
+        // Send both emails
+        await transporter.sendMail(userMailOptions);
+        await transporter.sendMail(adminMailOptions);
 
         
 // // STOPS THE SMS FOR TESTING PURPOSE 
@@ -663,7 +663,7 @@ router.post('/send-order-confirmation', async (req, res) => {
 if (IS_PRODUCTION) {
         // Send SMS to user
         try {
-            // await sendSMS(userPhone, "1007197121174928712", { orderId }); 
+            await sendSMS(userPhone, "1007197121174928712", { orderId }); 
             console.log("User SMS sent successfully");
         } catch (smsError) {
             console.error("Failed to send user SMS:", smsError);
