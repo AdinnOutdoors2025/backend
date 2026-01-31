@@ -34,6 +34,13 @@ mongoose
   .then(() => console.log("MongoDB connected successfully"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
+// mongoose
+//   .connect(
+//     "mongodb://127.0.0.1:27017/Outdoors_backup"
+//   )
+//   .then(() => console.log("MongoDB connected successfully"))
+//   .catch((err) => console.error("MongoDB connection error:", err));
+
 app.use("/verify", require("./VerifyMain"));
 app.use("/login", require("./LoginMain"));
 //ADMIN USER LOGIN
