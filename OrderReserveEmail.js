@@ -652,9 +652,9 @@ router.post('/send-order-confirmation', async (req, res) => {
             
           
         };
-        // Send both emails
-        await transporter.sendMail(userMailOptions);
-        await transporter.sendMail(adminMailOptions);
+        // // Send both emails
+        // await transporter.sendMail(userMailOptions);
+        // await transporter.sendMail(adminMailOptions);
 
         
 // // STOPS THE SMS FOR TESTING PURPOSE 
