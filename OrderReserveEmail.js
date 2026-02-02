@@ -75,7 +75,7 @@ const sendSMS = (phone, templateId, variables = {}) => {
 router.post('/send-sms', async (req, res) => {
     try {
         const { phone, orderId, customerName, amount } = req.body;
-        
+
         if (!phone || !orderId) {
             return res.status(400).json({ 
                 success: false, 
@@ -91,10 +91,10 @@ router.post('/send-sms', async (req, res) => {
 
         // User template ID - FIXED VALUE
         const USER_TEMPLATE_ID = "1007197121174928712";
-        
+
         // Prepare SMS text for user
         const smsText = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${orderId}.`;
-        
+
         const encodedText = encodeURIComponent(smsText);
         const url = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=aspv58uRbkqDbhCcCN87Mw&senderid=ADINAD&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${USER_TEMPLATE_ID}&text=${encodedText}&route=17`;
 
@@ -172,52 +172,63 @@ router.post('/send-sms', async (req, res) => {
 
 // // STOPS THE SMS FOR TESTING PURPOSE
 router.post('/send-order-confirmation', async (req, res) => {
-    
-    try {  
+
+    try {
         const {
-            orderId, userName, userEmail, userPhone, userAddress, company, products, orderDate, totalAmount
+            orderId, userName, userEmail, userPhone, userAddress, company, products, orderDate, totalAmount,
+            overAllTotalAmount, // Newly added..
+            printingCost, // Newly added..
+            mountingCost // Newly added..
         } = req.body;
-    
+
         if (!products || !Array.isArray(products)) {
             throw new Error("Invalid products data");
         }
 
-         // Parse totalAmount to ensure it's a number
-        const parsedTotalAmount = typeof totalAmount === 'number' ? 
-            totalAmount : 
+        // Parse totalAmount to ensure it's a number
+        const parsedTotalAmount = typeof totalAmount === 'number' ?
+            totalAmount :
             parseFloat(totalAmount) || 0;
+        //NEWLY ADDED
+        const parsedOverAllTotalAmount = typeof overAllTotalAmount === 'number' ?
+            overAllTotalAmount :
+            parseFloat(overAllTotalAmount) || 0;
 
-        console.log("Raw totalAmount:", totalAmount);
-        console.log("Parsed totalAmount:", parsedTotalAmount);
-        console.log("Type of totalAmount:", typeof totalAmount);
+        const parsedPrintingCost = typeof printingCost === 'number' ?
+            printingCost :
+            parseFloat(printingCost) || 0;
 
+        const parsedMountingCost = typeof mountingCost === 'number' ?
+            mountingCost :
+            parseFloat(mountingCost) || 0;
+
+        console.log("Received amounts:", {
+            totalAmount: parsedTotalAmount,
+            overAllTotalAmount: parsedOverAllTotalAmount,
+            printingCost: parsedPrintingCost,
+            mountingCost: parsedMountingCost
+        });
 
         // Generate product details HTML
-        const generateProductDetailsHTML = (products) => {
-            return products.map((product, index) => 
-          {
+        // const generateProductDetailsHTML = (products) => {
+        const generateProductDetailsHTML = (products, overAllTotalAmount, printingCost, mountingCost) => {
+            return products.map((product, index) => {
 
 
-             // Parse product amounts
-                const productPrice = typeof product.price === 'number' ? 
-                    product.price : 
-                    parseFloat(product.price) || 0;
-                
-                const bookingTotalPrice = product.booking?.totalPrice ? 
-                    (typeof product.booking.totalPrice === 'number' ? 
-                        product.booking.totalPrice : 
-                        parseFloat(product.booking.totalPrice) || 0) : 
-                    0;
+                const productImage = product.image;
+                const startDate = formatIndianDate(product.booking?.startDate);
+                const endDate = formatIndianDate(product.booking?.endDate);
+                const pricePerDay = formatIndianCurrency(product.price || 0);
+                const totalPrice = formatIndianCurrency(product.booking?.totalPrice || 0);
+                //  <tr><td>Total Price</td><td>:</td><td> ${totalPrice}</td></tr>
 
-        const productImage = product.image;
-        const startDate = formatIndianDate(product.booking?.startDate);
-        const endDate = formatIndianDate(product.booking?.endDate);
-        const pricePerDay = formatIndianCurrency(product.price || 0);
-        const totalPrice = formatIndianCurrency(product.booking?.totalPrice || 0);
+                const productTotalPrice = formatIndianCurrency(product.booking?.totalPrice || 0);
+                const productPrintingCost = formatIndianCurrency(product.printingCost || 0);
+                const productMountingCost = formatIndianCurrency(product.mountingCost || 0);
 
 
 
-            return `
+                return `
              
         <!-- Product 1 -->
         <table width="100%" cellpadding="0" cellspacing="0"
@@ -234,7 +245,11 @@ router.post('/send-order-confirmation', async (req, res) => {
                          <tr><td>Price Per Day</td><td>:</td><td> ${pricePerDay}</td></tr>
                         <tr><td>Booked Dates</td><td>:</td><td> ${startDate} - ${endDate}</td></tr>
                         <tr><td>Total Days</td><td>:</td><td> ${product.booking?.totalDays || 0}</td></tr>
-                        <tr><td>Total Price</td><td>:</td><td> ${totalPrice}</td></tr>
+                        <tr><td>Booking Amount</td><td>:</td><td>${productTotalPrice}</td></tr>
+                        <tr><td>Printing Cost</td><td>:</td><td>${productPrintingCost}</td></tr>
+                        <tr><td>Mounting Cost</td><td>:</td><td>${productMountingCost}</td></tr>
+                        <tr><td style="font-weight: bold; color: #E31F25;">Total Amount</td><td>:</td><td style="font-weight: bold; color: #E31F25;">${formatIndianCurrency(overAllTotalAmount)}</td></tr>
+
                     </table>
                 </td>
             </tr>
@@ -242,20 +257,24 @@ router.post('/send-order-confirmation', async (req, res) => {
 
        
             `
-          }
-        
-        ).join('');
+            }
+
+            ).join('');
         };
 
 
         console.log("Sending notifications for order:", orderId);
-        console.log("Client data:", { orderId, userName, userEmail, userPhone, userAddress, company, orderDate, totalAmount : parsedTotalAmount} );
+        console.log("Client data:", { orderId, userName, userEmail, userPhone, userAddress, company, orderDate, totalAmount: parsedTotalAmount });
 
         // Format total amount for display
         const formattedTotalAmount = formatIndianCurrency(parsedTotalAmount);
+        const formattedOverAllTotalAmount = formatIndianCurrency(parsedOverAllTotalAmount);
+
         const currentDate = getCurrentIndianDate();
-        
+
         console.log("FORMATTED TOTAL AMOUNT FROM USER SIDE:", formattedTotalAmount);
+        // userMailHtmlTemplate
+        // <td style="padding:12px; font-weight:600; color:#2ecc71;">${formattedTotalAmount}</td>
 
         const userMailHtmlTemplate = `
 <!DOCTYPE html>
@@ -305,14 +324,13 @@ router.post('/send-order-confirmation', async (req, res) => {
                         <td style="padding:12px;"> ${orderId}</td>
                         <td style="padding:12px;"> ${currentDate}</td>
                         <td style="padding:12px;"> ${products.length}</td>
-                        <td style="padding:12px; font-weight:600; color:#2ecc71;">${formattedTotalAmount}</td>
+                         <td style="padding:12px; font-weight:600; color:#2ecc71;">${formattedOverAllTotalAmount}</td>
                     </tr>
                 </tbody>
             </table>
         </div>
-
 <div>
- ${generateProductDetailsHTML(products)}
+         ${generateProductDetailsHTML(products, parsedOverAllTotalAmount, parsedPrintingCost, parsedMountingCost)}
 </div>
 
 
@@ -494,14 +512,19 @@ router.post('/send-order-confirmation', async (req, res) => {
                 <td style="padding:12px;"> ${orderId}</td>
                 <td style="padding:12px;"> ${currentDate}</td>
                 <td style="padding:12px;"> ${products.length}</td>
-                <td style="padding:12px; font-weight:600; color:#2ecc71;"> ${formattedTotalAmount}</td>
+                <td style="padding:12px; font-weight:600; color:#2ecc71;"> ${formattedOverAllTotalAmount}</td>
             </tr>
         </tbody>
         </table>
         </div>
 
+
+
+
+
+
         <div>
-        ${generateProductDetailsHTML(products)}
+         ${generateProductDetailsHTML(products, parsedOverAllTotalAmount, parsedPrintingCost, parsedMountingCost)}
         </div>
 
         <!-- Message -->
@@ -650,67 +673,67 @@ router.post('/send-order-confirmation', async (req, res) => {
             to: 'reactdeveloper@adinn.co.in',
             subject: `New Order Received - #${orderId} Action Required`,
             html: adminMailHtmlTemplate
-            
-          
+
+
         };
         // Send both emails
         await transporter.sendMail(userMailOptions);
         await transporter.sendMail(adminMailOptions);
 
-        
-// // STOPS THE SMS FOR TESTING PURPOSE 
 
-if (IS_PRODUCTION) {
-        // Send SMS to user
-        try {
-            await sendSMS(userPhone, "1007197121174928712", { orderId }); 
-            console.log("User SMS sent successfully");
-        } catch (smsError) {
-            console.error("Failed to send user SMS:", smsError);
-            // Don't fail the request if SMS fails
+        // // STOPS THE SMS FOR TESTING PURPOSE 
+
+        if (IS_PRODUCTION) {
+            // Send SMS to user
+            try {
+                await sendSMS(userPhone, "1007197121174928712", { orderId });
+                console.log("User SMS sent successfully");
+            } catch (smsError) {
+                console.error("Failed to send user SMS:", smsError);
+                // Don't fail the request if SMS fails
+            }
+
+            // // Send SMS to admin
+            // try {
+            //     await sendSMS('reactdeveloper@adinn.co.in', "1007478982147905431", {
+            //         orderId,
+            //         customerName: userName,
+            //         amount: parsedTotalAmount
+            //     });
+            //     console.log("Admin SMS sent successfully");
+            // } catch (smsError) {
+            //     console.error("Failed to send admin SMS:", smsError);
+            //     // Don't fail the request if SMS fails
+            // }
         }
+        // // STOPS THE SMS FOR TESTING PURPOSE 
 
-        // // Send SMS to admin
-        // try {
-        //     await sendSMS('reactdeveloper@adinn.co.in', "1007478982147905431", {
-        //         orderId,
-        //         customerName: userName,
-        //         amount: parsedTotalAmount
-        //     });
-        //     console.log("Admin SMS sent successfully");
-        // } catch (smsError) {
-        //     console.error("Failed to send admin SMS:", smsError);
-        //     // Don't fail the request if SMS fails
-        // }
-}
-// // STOPS THE SMS FOR TESTING PURPOSE 
+        // Log SMS information to console for testing
+        else {
+            console.log('=========================================');
+            console.log('OTP/SMS Testing Information (localhost):');
+            console.log('=========================================');
+            console.log(`Order ID: ${orderId}`);
+            console.log(`Client: ${userName}, Phone: ${userPhone}, Email: ${userEmail},Total Amount: ₹${totalAmount.toLocaleString()} `);
+            console.log('=========================================');
+            // Product details
+            if (products && products.length > 0) {
+                console.log('--- Product Details ---');
+                products.forEach((product, index) => {
+                    console.log(`Product ${index + 1}:`);
+                    console.log(`  - Name: ${product.name}`);
+                    console.log(`  - Product Code: ${product.prodCode}`);
+                    console.log(`  - Price per day: ₹${product.price.toLocaleString()}`);
+                    console.log(`  - Total Days: ${product.booking?.totalDays || 'N/A'}`);
+                    console.log(`  - Booking Dates: ${product.booking?.startDate ? new Date(product.booking.startDate).toLocaleDateString() : 'N/A'} - ${product.booking?.endDate ? new Date(product.booking.endDate).toLocaleDateString() : 'N/A'}`);
+                });
+            }
+            console.log('NOTE: SMS functionality is disabled for localhost testing');
+            console.log('Emails have been sent successfully');
+            console.log('=========================================');
 
-// Log SMS information to console for testing
-else{
-        console.log('=========================================');
-        console.log('OTP/SMS Testing Information (localhost):');
-        console.log('=========================================');
-        console.log(`Order ID: ${orderId}`);
-        console.log(`Client: ${userName}, Phone: ${userPhone}, Email: ${userEmail},Total Amount: ₹${totalAmount.toLocaleString()} `);
-        console.log('=========================================');
-        // Product details
-if (products && products.length > 0) {
-    console.log('--- Product Details ---');
-    products.forEach((product, index) => {
-        console.log(`Product ${index + 1}:`);
-        console.log(`  - Name: ${product.name}`);
-        console.log(`  - Product Code: ${product.prodCode}`);
-        console.log(`  - Price per day: ₹${product.price.toLocaleString()}`);
-        console.log(`  - Total Days: ${product.booking?.totalDays || 'N/A'}`);
-        console.log(`  - Booking Dates: ${product.booking?.startDate ? new Date(product.booking.startDate).toLocaleDateString() : 'N/A'} - ${product.booking?.endDate ? new Date(product.booking.endDate).toLocaleDateString() : 'N/A'}`);
-    });
-}
-        console.log('NOTE: SMS functionality is disabled for localhost testing');
-        console.log('Emails have been sent successfully');
-        console.log('=========================================');
-
-        res.json({ success: true });
-}
+            res.json({ success: true });
+        }
     }
     catch (error) {
         console.error("Error sending Emails:", error);

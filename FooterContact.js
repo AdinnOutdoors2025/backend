@@ -91,7 +91,7 @@ router.post('/footerContactInfo', async (req, res) => {
         <div style="font-size:17px;  margin-top: 8px;">Adinn Outdoors !</div> </div> `
         };
         // Send email
-        await transporter.sendMail(mailOptions);
+        // await transporter.sendMail(mailOptions);
         res.status(200).json({ success: true });
     } catch (error) {
         console.error('Error sending email:', error);
