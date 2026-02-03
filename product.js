@@ -1202,89 +1202,11 @@ const generateNextOrderId = async (prefix = "AD") => {
 
 // app.post("/prodOrders", async (req, res) => {
 //   try {
-//     if (!req.body.products || !Array.isArray(req.body.products)) {
-//       return res.status(400).json({
-//         message: "Products array is required",
-//         error: true,
-//       });
-//     }
-
-//     // Validate client information
-//     if (!req.body.client || !req.body.client.userId) {
-//       return res.status(400).json({
-//         message: "Client information is required",
-//         error: true,
-//       });
-//     }
-
-//     const prefix = req.body.status === "UserSideOrder" ? "US" : "AD";
-//     const orderId = await generateNextOrderId(prefix);
-
-//     // Process each product
-//     const products = req.body.products.map((product) => {
-//       if (!product) {
-//         throw new Error("Invalid product data");
-//       }
-
-//       // Calculate booked dates if booking info exists
-//       let bookedDates = [];
-//       if (
-//         product.booking &&
-//         product.booking.startDate &&
-//         product.booking.endDate
-//       ) {
-//         const start = new Date(product.booking.startDate);
-//         const end = new Date(product.booking.endDate);
-//         const current = new Date(start);
-
-//         while (current <= end) {
-//           bookedDates.push(new Date(current));
-//           current.setDate(current.getDate() + 1);
-//         }
-//       }
-
-//       return {
-//         ...product,
-//         bookedDates,
-//         booking: product.booking
-//           ? {
-//               ...product.booking,
-//               startDate: new Date(product.booking.startDate),
-//               endDate: new Date(product.booking.endDate),
-//               totalDays: bookedDates.length,
-//               totalPrice: (product.price || 0) * bookedDates.length,
-//             }
-//           : null,
-//       };
-//     });
-
-//     const newOrder = new prodOrderData({
-//       ...req.body,
-//       orderId: orderId,
-//       products: products,
-//       createdAt: new Date(),
-//     });
-
-//     const savedOrder = await newOrder.save();
-//     res.status(201).json(savedOrder);
-//   } catch (err) {
-//     console.error("Error creating order:", err);
-//     res.status(500).json({
-//       message: err.message || "Failed to create order",
-//       error: true,
-//     });
-//   }
-// });
-
-
-// // Update the prodOrders POST endpoint
-// app.post("/prodOrders", async (req, res) => {
-//   try {
 //     console.log("📦 Received order creation request:", {
 //       client: req.body.client?.email,
 //       productsCount: req.body.products?.length || 0,
-//       order_status: req.body.order_status,
-//       status: req.body.status
+//       status: req.body.status,
+//       order_status: req.body.order_status
 //     });
 
 //     if (!req.body.products || !Array.isArray(req.body.products)) {
@@ -1302,22 +1224,18 @@ const generateNextOrderId = async (prefix = "AD") => {
 //       });
 //     }
 
-//     // Determine prefix based on status
+//     // Determine prefix and status based on request
 //     const status = req.body.status || "UserSideOrder";
-//     const prefix = status === "UserSideOrder" ? "US" : "AD";
+//     const prefix = status === "Added Manually" ? "AD" : "US";
 //     const orderId = await generateNextOrderId(prefix);
 
-//     // Validate and set order_status
+//     // Set order_status based on status
 //     let order_status = req.body.order_status;
 //     if (!order_status || order_status.trim() === "") {
-//       // Default to "pending" for user-side orders
-//       order_status = "pending";
-//     }
-    
-//     // Ensure order_status is valid
-//     const validOrderStatuses = ["pending", "confirmed", "cancelled", "completed"];
-//     if (!validOrderStatuses.includes(order_status)) {
-//       order_status = "pending"; // Default to pending
+//       // Default order_status based on status
+//       order_status = status === "Added Manually" 
+//         ? "Pending Client Confirmation" 
+//         : "pending";
 //     }
 
 //     // Process each product
@@ -1408,8 +1326,8 @@ const generateNextOrderId = async (prefix = "AD") => {
 //         paidAmount: normalizedPaidAmount,
 //         balanceAmount: balanceAmount
 //       },
-//       status: status,
-//       order_status: order_status, // Make sure this is set
+//       status: status, // "Added Manually" or "UserSideOrder"
+//       order_status: order_status, // "Pending Client Confirmation" or "pending"
 //       createdAt: new Date(),
 //       last_edited: new Date()
 //     });
@@ -1427,6 +1345,7 @@ const generateNextOrderId = async (prefix = "AD") => {
 //       orderId: savedOrder.orderId,
 //       _id: savedOrder._id,
 //       order_status: savedOrder.order_status,
+//       status: savedOrder.status,
 //       message: "Order created successfully"
 //     });
 //   } catch (err) {
@@ -1440,8 +1359,148 @@ const generateNextOrderId = async (prefix = "AD") => {
 // });
 
 
+// app.put("/prodOrders/:id", async (req, res) => {
+//   try {
+//     const orderId = req.params.id;
+//     const updateData = req.body;
 
-// In your server.js, update the /prodOrders POST endpoint:
+//     console.log("Updating order:", orderId, "with data:", updateData);
+
+//     // Find existing order
+//     const existingOrder = await prodOrderData.findById(orderId);
+//     if (!existingOrder) {
+//       return res.status(404).json({ message: "Order not found" });
+//     }
+
+//     // Process products if provided
+//     if (updateData.products && Array.isArray(updateData.products)) {
+//       const updatedProducts = updateData.products.map((product) => {
+//         if (!product.booking || !product.booking.startDate || !product.booking.endDate) {
+//           throw new Error("Booking dates are required");
+//         }
+
+//         // Parse dates
+//         const start = new Date(product.booking.startDate);
+//         const end = new Date(product.booking.endDate);
+        
+//         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//           throw new Error("Invalid booking dates");
+//         }
+
+//         // Calculate booked dates
+//         let bookedDates = [];
+//         const current = new Date(start);
+        
+//         while (current <= end) {
+//           const normalizedDate = new Date(Date.UTC(
+//             current.getUTCFullYear(),
+//             current.getUTCMonth(),
+//             current.getUTCDate()
+//           ));
+//           bookedDates.push(normalizedDate);
+//           current.setDate(current.getDate() + 1);
+//         }
+
+//         const totalDays = bookedDates.length;
+        
+//         return {
+//           ...product,
+//           bookedDates,
+//           booking: {
+//             ...product.booking,
+//             startDate: new Date(product.booking.startDate),
+//             endDate: new Date(product.booking.endDate),
+//             totalDays: totalDays,
+//             totalPrice: (product.price || 0) * totalDays,
+//           },
+//           deleted: product.deleted !== undefined ? product.deleted : false,
+//           deletedAt: product.deletedAt || null,
+//           deletedBy: product.deletedBy || null
+//         };
+//       });
+
+//       updateData.products = updatedProducts;
+//     }
+
+//     // Handle paidAmount normalization
+//     if (updateData.client && updateData.client.paidAmount) {
+//       if (Array.isArray(updateData.client.paidAmount)) {
+//         updateData.client.paidAmount = updateData.client.paidAmount.map(payment => ({
+//           amount: Number(payment.amount) || 0,
+//           paidAt: payment.paidAt ? new Date(payment.paidAt) : new Date()
+//         }));
+//       } else if (typeof updateData.client.paidAmount === 'number') {
+//         updateData.client.paidAmount = [{
+//           amount: updateData.client.paidAmount,
+//           paidAt: new Date()
+//         }];
+//       }
+//     }
+
+//     // Calculate totals
+//     if (updateData.products) {
+//       const totalAmount = updateData.products.reduce((sum, p) => {
+//         if (p.deleted) return sum;
+//         return sum + (p.booking?.totalPrice || 0);
+//       }, 0);
+
+//       const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
+//         .reduce((sum, p) => sum + (p.amount || 0), 0);
+      
+//       const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+//       if (updateData.client) {
+//         updateData.client.totalAmount = totalAmount;
+//         updateData.client.balanceAmount = balanceAmount;
+//       }
+//     }
+
+//     // Add last_edited timestamp
+//     updateData.last_edited = new Date();
+
+//     // FIX: Preserve status if not provided in update
+//     if (!updateData.status) {
+//       updateData.status = existingOrder.status;
+//     }
+//     if (!updateData.order_status) {
+//       updateData.order_status = existingOrder.order_status;
+//     }
+
+//     // Update the order
+//     const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//       orderId,
+//       { $set: updateData },
+//       {
+//         new: true,
+//         runValidators: true,
+//         context: 'query'
+//       }
+//     );
+
+//     if (!updatedOrder) {
+//       return res.status(404).json({ message: 'Order not found after update' });
+//     }
+
+//     res.json({
+//       success: true,
+//       message: 'Order updated successfully',
+//       order: updatedOrder,
+//       orderId: updatedOrder.orderId,
+//       _id: updatedOrder._id
+//     });
+//   } catch (err) {
+//     console.error('Error updating order:', err);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Server error while updating order',
+//       error: err.message
+//     });
+//   }
+// });
+
+
+
+// DELETE THE ORDER
 
 app.post("/prodOrders", async (req, res) => {
   try {
@@ -1481,7 +1540,7 @@ app.post("/prodOrders", async (req, res) => {
         : "pending";
     }
 
-    // Process each product
+    // Process each product and calculate individual totals
     const products = req.body.products.map((product) => {
       if (!product) {
         throw new Error("Invalid product data");
@@ -1516,6 +1575,12 @@ app.post("/prodOrders", async (req, res) => {
 
       const totalDays = bookedDates.length;
       
+      // Get individual costs
+      const price = product.price || 0;
+      const printingCost = product.printingCost || 0;
+      const mountingCost = product.mountingCost || 0;
+      const totalPrice = price * totalDays;
+      
       return {
         ...product,
         bookedDates,
@@ -1524,13 +1589,41 @@ app.post("/prodOrders", async (req, res) => {
           startDate: new Date(product.booking.startDate),
           endDate: new Date(product.booking.endDate),
           totalDays: totalDays,
-          totalPrice: (product.price || 0) * totalDays,
+          totalPrice: totalPrice,
         },
+        // Store individual product calculations
+        price: price,
+        printingCost: printingCost,
+        mountingCost: mountingCost,
         deleted: false,
         deletedAt: null,
         deletedBy: null
       };
     });
+
+    // Calculate overall totals from all products
+    let totalAmount = 0;
+    let totalOverallAmount = 0; // Sum of (booking totalPrice + printingCost + mountingCost) for all products
+    let totalPrintingCost = 0;
+    let totalMountingCost = 0;
+
+    products.forEach(product => {
+      if (!product.deleted) {
+        const bookingTotal = product.booking?.totalPrice || 0;
+        const printing = product.printingCost || 0;
+        const mounting = product.mountingCost || 0;
+        
+        totalAmount += bookingTotal;
+        totalPrintingCost += printing;
+        totalMountingCost += mounting;
+        totalOverallAmount += (bookingTotal + printing + mounting);
+      }
+    });
+
+    // Get GST percentage from request or use default (18%)
+    const gstPercentage = req.body.client?.gstPercentage || 18;
+    const gstAmount = totalOverallAmount * (gstPercentage / 100);
+    const totalAmountWithGST = totalOverallAmount + gstAmount;
 
     // Normalize paidAmount array
     let normalizedPaidAmount = [];
@@ -1548,12 +1641,6 @@ app.post("/prodOrders", async (req, res) => {
       }
     }
 
-    // Calculate total amount from products
-    const totalAmount = products.reduce((sum, p) => {
-      if (p.deleted) return sum;
-      return sum + (p.booking?.totalPrice || 0);
-    }, 0);
-
     // Calculate total paid
     const totalPaid = normalizedPaidAmount.reduce((sum, p) => sum + (p.amount || 0), 0);
     const balanceAmount = Math.max(totalAmount - totalPaid, 0);
@@ -1566,9 +1653,20 @@ app.post("/prodOrders", async (req, res) => {
       client: {
         ...req.body.client,
         totalAmount: totalAmount,
+        overAllTotalAmount: totalOverallAmount, // Sum of all (booking total + printing + mounting)
+        gstPercentage: gstPercentage,
+        gstAmount: gstAmount,
+        totalAmountWithGST: totalAmountWithGST, // Total with GST
         paidAmount: normalizedPaidAmount,
-        balanceAmount: balanceAmount
+        balanceAmount: balanceAmount,
+        totalPrintingCost: totalPrintingCost, // Optional: store totals for reference
+        totalMountingCost: totalMountingCost   // Optional: store totals for reference
       },
+      // Store overall totals at order level too (optional)
+      overAllTotalAmount: totalOverallAmount,
+      gstPercentage: gstPercentage,
+      gstAmount: gstAmount,
+      totalAmountWithGST: totalAmountWithGST,
       status: status, // "Added Manually" or "UserSideOrder"
       order_status: order_status, // "Pending Client Confirmation" or "pending"
       createdAt: new Date(),
@@ -1580,7 +1678,10 @@ app.post("/prodOrders", async (req, res) => {
       orderId: savedOrder.orderId,
       status: savedOrder.status,
       order_status: savedOrder.order_status,
-      totalAmount: savedOrder.client.totalAmount
+      totalAmount: savedOrder.client.totalAmount,
+      overallTotal: savedOrder.client.overAllTotalAmount,
+      gstAmount: savedOrder.client.gstAmount,
+      totalWithGST: savedOrder.client.totalAmountWithGST
     });
     
     res.status(201).json({
@@ -1600,7 +1701,6 @@ app.post("/prodOrders", async (req, res) => {
     });
   }
 });
-
 
 app.put("/prodOrders/:id", async (req, res) => {
   try {
@@ -1646,6 +1746,12 @@ app.put("/prodOrders/:id", async (req, res) => {
 
         const totalDays = bookedDates.length;
         
+        // Get individual costs
+        const price = product.price || 0;
+        const printingCost = product.printingCost || 0;
+        const mountingCost = product.mountingCost || 0;
+        const totalPrice = price * totalDays;
+        
         return {
           ...product,
           bookedDates,
@@ -1654,8 +1760,11 @@ app.put("/prodOrders/:id", async (req, res) => {
             startDate: new Date(product.booking.startDate),
             endDate: new Date(product.booking.endDate),
             totalDays: totalDays,
-            totalPrice: (product.price || 0) * totalDays,
+            totalPrice: totalPrice,
           },
+          price: price,
+          printingCost: printingCost,
+          mountingCost: mountingCost,
           deleted: product.deleted !== undefined ? product.deleted : false,
           deletedAt: product.deletedAt || null,
           deletedBy: product.deletedBy || null
@@ -1663,6 +1772,38 @@ app.put("/prodOrders/:id", async (req, res) => {
       });
 
       updateData.products = updatedProducts;
+      
+      // Calculate overall totals from updated products
+      let totalAmount = 0;
+      let totalOverallAmount = 0;
+      let totalPrintingCost = 0;
+      let totalMountingCost = 0;
+
+      updatedProducts.forEach(product => {
+        if (!product.deleted) {
+          const bookingTotal = product.booking?.totalPrice || 0;
+          const printing = product.printingCost || 0;
+          const mounting = product.mountingCost || 0;
+          
+          totalAmount += bookingTotal;
+          totalPrintingCost += printing;
+          totalMountingCost += mounting;
+          totalOverallAmount += (bookingTotal + printing + mounting);
+        }
+      });
+
+      // Get GST percentage from update data or existing order
+      const gstPercentage = updateData.client?.gstPercentage || 
+                           existingOrder.client?.gstPercentage || 
+                           18;
+      const gstAmount = totalOverallAmount * (gstPercentage / 100);
+      const totalAmountWithGST = totalOverallAmount + gstAmount;
+
+      // Store calculations in updateData
+      updateData.overAllTotalAmount = totalOverallAmount;
+      updateData.gstPercentage = gstPercentage;
+      updateData.gstAmount = gstAmount;
+      updateData.totalAmountWithGST = totalAmountWithGST;
     }
 
     // Handle paidAmount normalization
@@ -1680,13 +1821,8 @@ app.put("/prodOrders/:id", async (req, res) => {
       }
     }
 
-    // Calculate totals
+    // Calculate totals if products were updated
     if (updateData.products) {
-      const totalAmount = updateData.products.reduce((sum, p) => {
-        if (p.deleted) return sum;
-        return sum + (p.booking?.totalPrice || 0);
-      }, 0);
-
       const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
         .reduce((sum, p) => sum + (p.amount || 0), 0);
       
@@ -1694,6 +1830,10 @@ app.put("/prodOrders/:id", async (req, res) => {
 
       if (updateData.client) {
         updateData.client.totalAmount = totalAmount;
+        updateData.client.overAllTotalAmount = totalOverallAmount;
+        updateData.client.gstPercentage = gstPercentage;
+        updateData.client.gstAmount = gstAmount;
+        updateData.client.totalAmountWithGST = totalAmountWithGST;
         updateData.client.balanceAmount = balanceAmount;
       }
     }
@@ -1743,7 +1883,6 @@ app.put("/prodOrders/:id", async (req, res) => {
 
 
 
-// DELETE THE ORDER
 app.delete("/prodOrders/:id", async (req, res) => {
   try {
     const deletedOrder = await prodOrderData.findByIdAndDelete(req.params.id);

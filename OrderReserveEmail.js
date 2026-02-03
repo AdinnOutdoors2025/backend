@@ -77,9 +77,9 @@ router.post('/send-sms', async (req, res) => {
         const { phone, orderId, customerName, amount } = req.body;
 
         if (!phone || !orderId) {
-            return res.status(400).json({ 
-                success: false, 
-                error: "Phone and Order ID are required" 
+            return res.status(400).json({
+                success: false,
+                error: "Phone and Order ID are required"
             });
         }
 
@@ -103,31 +103,31 @@ router.post('/send-sms', async (req, res) => {
             request.get(url, (error, response, body) => {
                 if (error) {
                     console.error("SMS API Error:", error);
-                    return res.status(500).json({ 
-                        success: false, 
-                        error: "SMS sending failed" 
+                    return res.status(500).json({
+                        success: false,
+                        error: "SMS sending failed"
                     });
                 } else {
                     try {
                         const result = JSON.parse(body);
                         if (result.ErrorCode === '000') {
                             console.log("SMS sent successfully:", result);
-                            return res.json({ 
-                                success: true, 
-                                message: "SMS sent successfully" 
+                            return res.json({
+                                success: true,
+                                message: "SMS sent successfully"
                             });
                         } else {
                             console.error("SMS API Error:", result.ErrorMessage);
-                            return res.status(400).json({ 
-                                success: false, 
-                                error: result.ErrorMessage 
+                            return res.status(400).json({
+                                success: false,
+                                error: result.ErrorMessage
                             });
                         }
                     } catch (parseError) {
                         console.error("SMS Parse Error:", parseError);
-                        return res.status(500).json({ 
-                            success: false, 
-                            error: "Failed to parse SMS response" 
+                        return res.status(500).json({
+                            success: false,
+                            error: "Failed to parse SMS response"
                         });
                     }
                 }
@@ -144,9 +144,9 @@ router.post('/send-sms', async (req, res) => {
             console.log(`Amount: ₹${amount || 0}`);
             console.log(`Message: ${smsText}`);
             console.log('=========================================');
-            
-            return res.json({ 
-                success: true, 
+
+            return res.json({
+                success: true,
                 message: "SMS would be sent in production",
                 debug: {
                     phone: formattedPhone,
@@ -159,12 +159,12 @@ router.post('/send-sms', async (req, res) => {
         }
     } catch (error) {
         console.error("Error in send-sms route:", error);
-        res.status(500).json({ 
-            success: false, 
-            error: "Internal server error" 
+        res.status(500).json({
+            success: false,
+            error: "Internal server error"
         });
     }
-}); 
+});
 
 
 
@@ -178,7 +178,8 @@ router.post('/send-order-confirmation', async (req, res) => {
             orderId, userName, userEmail, userPhone, userAddress, company, products, orderDate, totalAmount,
             overAllTotalAmount, // Newly added..
             printingCost, // Newly added..
-            mountingCost // Newly added..
+            mountingCost, // Newly added..
+            gstPercentage, gstAmount, totalAmountWithGST
         } = req.body;
 
         if (!products || !Array.isArray(products)) {
@@ -202,16 +203,30 @@ router.post('/send-order-confirmation', async (req, res) => {
             mountingCost :
             parseFloat(mountingCost) || 0;
 
+        const parsedGstPercentage = typeof gstPercentage === 'number' ?
+            gstPercentage :
+            parseFloat(gstPercentage) || 0;
+        const parsedGstAmount = typeof gstAmount === 'number' ?
+            gstAmount :
+            parseFloat(gstAmount) || 0;
+        const parsedTotalAmountWithGST = typeof totalAmountWithGST === 'number' ?
+            totalAmountWithGST :
+            parseFloat(totalAmountWithGST) || 0;
+
         console.log("Received amounts:", {
             totalAmount: parsedTotalAmount,
             overAllTotalAmount: parsedOverAllTotalAmount,
             printingCost: parsedPrintingCost,
-            mountingCost: parsedMountingCost
+            mountingCost: parsedMountingCost,
+            gstPercentage: parsedGstPercentage,
+            gstAmount: parsedGstAmount,
+            totalAmountWithGST: parsedTotalAmountWithGST,
+
         });
 
         // Generate product details HTML
         // const generateProductDetailsHTML = (products) => {
-        const generateProductDetailsHTML = (products, overAllTotalAmount, printingCost, mountingCost) => {
+        const generateProductDetailsHTML = (products, overAllTotalAmount, printingCost, mountingCost, gstPercentage, gstAmount, totalAmountWithGST) => {
             return products.map((product, index) => {
 
 
@@ -225,6 +240,10 @@ router.post('/send-order-confirmation', async (req, res) => {
                 const productTotalPrice = formatIndianCurrency(product.booking?.totalPrice || 0);
                 const productPrintingCost = formatIndianCurrency(product.printingCost || 0);
                 const productMountingCost = formatIndianCurrency(product.mountingCost || 0);
+                const productGstPercentage = formatIndianCurrency(gstPercentage || 0);
+                const productGstAmount = formatIndianCurrency(gstAmount || 0);
+                const productTotalAmountWithGST = formatIndianCurrency(totalAmountWithGST || 0);
+
 
 
 
@@ -243,12 +262,12 @@ router.post('/send-order-confirmation', async (req, res) => {
                         <tr><td>Product Name</td><td>:</td><td>${product.name}</td></tr>
                         <tr><td>Product Code</td><td>:</td><td> ${product.prodCode}</td></tr>
                          <tr><td>Price Per Day</td><td>:</td><td> ${pricePerDay}</td></tr>
-                        <tr><td>Booked Dates</td><td>:</td><td> ${startDate} - ${endDate}</td></tr>
-                        <tr><td>Total Days</td><td>:</td><td> ${product.booking?.totalDays || 0}</td></tr>
+                        <tr><td>Booked Dates</td><td>:</td><td> ${startDate} - ${endDate} (${product.booking?.totalDays || 0} Days) </td></tr>
                         <tr><td>Booking Amount</td><td>:</td><td>${productTotalPrice}</td></tr>
                         <tr><td>Printing Cost</td><td>:</td><td>${productPrintingCost}</td></tr>
                         <tr><td>Mounting Cost</td><td>:</td><td>${productMountingCost}</td></tr>
-                        <tr><td style="font-weight: bold; color: #E31F25;">Total Amount</td><td>:</td><td style="font-weight: bold; color: #E31F25;">${formatIndianCurrency(overAllTotalAmount)}</td></tr>
+                        <tr><td>GST @ ${productGstPercentage}% </td><td>:</td><td>${productGstAmount}</td></tr>
+                        <tr><td style="font-weight: bold; color: #E31F25;">Total Amount</td><td>:</td><td style="font-weight: bold; color: #E31F25;">${formatIndianCurrency(totalAmountWithGST)}</td></tr>
 
                     </table>
                 </td>
@@ -269,6 +288,10 @@ router.post('/send-order-confirmation', async (req, res) => {
         // Format total amount for display
         const formattedTotalAmount = formatIndianCurrency(parsedTotalAmount);
         const formattedOverAllTotalAmount = formatIndianCurrency(parsedOverAllTotalAmount);
+        const formattedGstPercentage = formatIndianCurrency(parsedGstPercentage);
+        const formattedGstAmount = formatIndianCurrency(parsedGstAmount);
+        const formattedTotalAmountWithGST = formatIndianCurrency(parsedTotalAmountWithGST);
+
 
         const currentDate = getCurrentIndianDate();
 
@@ -324,13 +347,13 @@ router.post('/send-order-confirmation', async (req, res) => {
                         <td style="padding:12px;"> ${orderId}</td>
                         <td style="padding:12px;"> ${currentDate}</td>
                         <td style="padding:12px;"> ${products.length}</td>
-                         <td style="padding:12px; font-weight:600; color:#2ecc71;">${formattedOverAllTotalAmount}</td>
+                         <td style="padding:12px; font-weight:600; color:#2ecc71;">${formattedTotalAmountWithGST}</td>
                     </tr>
                 </tbody>
             </table>
         </div>
 <div>
-         ${generateProductDetailsHTML(products, parsedOverAllTotalAmount, parsedPrintingCost, parsedMountingCost)}
+         ${generateProductDetailsHTML(products, parsedOverAllTotalAmount, parsedPrintingCost, parsedMountingCost, parsedGstPercentage, parsedGstAmount, parsedTotalAmountWithGST)}
 </div>
 
 
@@ -512,7 +535,7 @@ router.post('/send-order-confirmation', async (req, res) => {
                 <td style="padding:12px;"> ${orderId}</td>
                 <td style="padding:12px;"> ${currentDate}</td>
                 <td style="padding:12px;"> ${products.length}</td>
-                <td style="padding:12px; font-weight:600; color:#2ecc71;"> ${formattedOverAllTotalAmount}</td>
+                <td style="padding:12px; font-weight:600; color:#2ecc71;"> ${formattedTotalAmountWithGST}</td>
             </tr>
         </tbody>
         </table>
@@ -524,7 +547,7 @@ router.post('/send-order-confirmation', async (req, res) => {
 
 
         <div>
-         ${generateProductDetailsHTML(products, parsedOverAllTotalAmount, parsedPrintingCost, parsedMountingCost)}
+         ${generateProductDetailsHTML(products, parsedOverAllTotalAmount, parsedPrintingCost, parsedMountingCost, parsedGstPercentage, parsedGstAmount, parsedTotalAmountWithGST)}
         </div>
 
         <!-- Message -->

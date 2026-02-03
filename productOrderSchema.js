@@ -12,7 +12,12 @@ const productOrderSchema = new mongoose.Schema({
     pincode: { type: String },
     state: { type: String },
     city: { type: String },
-    totalAmount: { type: Number },
+    totalAmount: { type: Number },  // Sum of product booking totals
+    overAllTotalAmount: { type: Number }, // Sum of (booking + printing + mounting)
+    gstPercentage: { type: Number, default: 18 },
+    gstAmount: { type: Number },
+    totalAmountWithGST: { type: Number },
+    
     paidAmount: {
       type: [
         {
@@ -79,6 +84,11 @@ const productOrderSchema = new mongoose.Schema({
       },
     },
   ],
+        overAllTotalAmount: { type: Number },
+      gstPercentage: { type: Number },
+      totalAmountWithGST: { type: Number },
+      totalAmountWithGST: { type: Number },
+
 
   orderId: {
     type: String,
