@@ -15,11 +15,11 @@ const otpStore = {};
 
 // Email configuration
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: 'reactdeveloper@adinn.co.in',
-    pass: 'gxnn sezu klyp ifhn'
-  }
+    service: 'gmail',
+    auth: {
+        user: 'reactdeveloper@adinn.co.in',
+        pass: 'gxnn sezu klyp ifhn'
+    }
 });
 
 // NettyFish SMS Configuration
@@ -93,15 +93,47 @@ const sendConfirmationSMS = (phone) => {
         });
     });
 };
+// DUPLICATE USER ENTRY RESTRICT 
+// Helper function to get start of current day in IST (Indian Standard Time)
+function getStartOfDayIST() {
+    const now = new Date();
+    // Convert to IST (UTC+5:30)
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istTime = new Date(now.getTime() + istOffset);
+
+    // Set to start of day in IST (00:00:00)
+    const startOfDayIST = new Date(istTime);
+    startOfDayIST.setUTCHours(0, 0, 0, 0);
+
+    // Convert back to UTC
+    return new Date(startOfDayIST.getTime() - istOffset);
+}
+
+// Helper function to get end of current day in IST
+function getEndOfDayIST() {
+    const now = new Date();
+    // Convert to IST (UTC+5:30)
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istTime = new Date(now.getTime() + istOffset);
+
+    // Set to end of day in IST (23:59:59.999)
+    const endOfDayIST = new Date(istTime);
+    endOfDayIST.setUTCHours(23, 59, 59, 999);
+
+    // Convert back to UTC
+    return new Date(endOfDayIST.getTime() - istOffset);
+}
+
+// DUPLICATE USER ENTRY RESTRICT 
 
 // **Send OTP**
 router.post('/send-otp', async (req, res) => {
     const { phone, enquiryType } = req.body;
-    
+
     if (!phone || !phone.startsWith('+')) {
         return res.status(400).json({ success: false, message: "Enter a valid phone number in E.164 format" });
     }
-    
+
     if (!phone || !phone.startsWith('+91')) {
         return res.status(400).json({
             success: false,
@@ -115,10 +147,10 @@ router.post('/send-otp', async (req, res) => {
             message: "Invalid phone number format. Use +91 followed by 10 digits"
         });
     }
-    
+
     const otp = Math.floor(100000 + Math.random() * 900000);
-    otpStore[phone] = { 
-        otp, 
+    otpStore[phone] = {
+        otp,
         expiresAt: Date.now() + 5 * 60 * 1000,
         enquiryType: enquiryType || 'normal_enquiry'
     };
@@ -140,11 +172,11 @@ router.post('/send-otp', async (req, res) => {
             console.log('NOTE: SMS functionality is disabled for localhost testing');
             console.log('Use the OTP above to proceed with verification');
             console.log('=========================================');
-            
-            res.status(200).json({ 
-                success: true, 
+
+            res.status(200).json({
+                success: true,
                 message: "OTP sent successfully (check console for testing)",
-                testOtp: otp 
+                testOtp: otp
             });
         }
     } catch (error) {
@@ -165,19 +197,52 @@ router.post('/send-otp', async (req, res) => {
 router.post('/verify-otp', async (req, res) => {
     try {
         const { phone, otp, productData, enquiryType, isGuest } = req.body;
-        
+
         if (!phone || !otp) {
             return res.status(400).json({ success: false, message: "Phone and OTP are required" });
         }
-        
+
         const storedData = otpStore[phone];
         if (!storedData || Date.now() > storedData.expiresAt) {
             return res.status(400).json({ success: false, message: "OTP expired or not found" });
         }
-        
+
         if (otp.toString() === storedData.otp.toString()) {
             delete otpStore[phone]; // Remove OTP after verification
+            // DUPLICATE USER ENTRY RESTRICT 
+
+             
+            // Check for duplicate enquiry TODAY (per day check)
+            const startOfDayIST = getStartOfDayIST();
+            const endOfDayIST = getEndOfDayIST();
             
+            // For guest users - check by phone and product code for today
+            const duplicateEnquiryToday = await Enquiry.findOne({
+                phone: phone,
+                prodCode: productData.prodCode,
+                enquiryDate: { 
+                    $gte: startOfDayIST,
+                    $lte: endOfDayIST
+                }
+            });
+
+            if (duplicateEnquiryToday) {
+                console.log('Duplicate enquiry prevented for today - Guest User:', {
+                    phone: phone,
+                    product: productData.prodCode,
+                    date: new Date().toLocaleDateString('en-IN')
+                });
+                
+                return res.status(200).json({ 
+                    success: true, 
+                    message: "You have already submitted an enquiry for this product today. Please try again tomorrow.",
+                    duplicate: true,
+                    duplicateDate: new Date().toLocaleDateString('en-IN')
+                });
+            }
+
+            // DUPLICATE USER ENTRY RESTRICT 
+
             // Store enquiry in database if product data exists
             if (productData) {
                 try {
@@ -190,10 +255,10 @@ router.post('/verify-otp', async (req, res) => {
 
                     if (recentEnquiry) {
                         console.log('Duplicate enquiry detected and prevented for phone:', phone);
-                        return res.status(200).json({ 
-                            success: true, 
+                        return res.status(200).json({
+                            success: true,
                             message: "OTP verified successfully - enquiry already submitted recently",
-                            duplicate: true 
+                            duplicate: true
                         });
                     }
 
@@ -266,9 +331,9 @@ router.post('/verify-otp', async (req, res) => {
                     // Don't fail verification if DB save fails
                 }
             }
-            
-            return res.status(200).json({ 
-                success: true, 
+
+            return res.status(200).json({
+                success: true,
                 message: "OTP verified successfully",
                 userStatus: 'guest'
             });
@@ -288,11 +353,11 @@ router.post('/verify-otp', async (req, res) => {
 router.post('/save-enquiry-without-otp', async (req, res) => {
     try {
         const { phone, productData, userId, userName, userEmail, enquiryType } = req.body;
-        
+
         if (!phone || !productData) {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Phone and product data are required" 
+            return res.status(400).json({
+                success: false,
+                message: "Phone and product data are required"
             });
         }
 
@@ -303,23 +368,55 @@ router.post('/save-enquiry-without-otp', async (req, res) => {
                 message: "Phone number must start with +91"
             });
         }
+  // DUPLICATE USER ENTRY RESTRICT 
+        // // Check for duplicate enquiry in the last 5 minutes
+        // const recentEnquiry = await Enquiry.findOne({
+        //     phone: phone,
+        //     userId: userId,
+        //     prodCode: productData.prodCode,
+        //     enquiryDate: { $gte: new Date(Date.now() - 5 * 60 * 1000) } // Last 5 minutes
+        // });
 
-        // Check for duplicate enquiry in the last 5 minutes
-        const recentEnquiry = await Enquiry.findOne({
-            phone: phone,
+        // if (recentEnquiry) {
+        //     console.log('Duplicate enquiry detected and prevented for user:', userId);
+        //     return res.status(200).json({
+        //         success: true,
+        //         message: "Enquiry already submitted recently",
+        //         duplicate: true
+        //     });
+        // }
+
+
+
+        // Check for duplicate enquiry TODAY (per day check)
+        const startOfDayIST = getStartOfDayIST();
+        const endOfDayIST = getEndOfDayIST();
+        
+        // For logged-in users - check by userId and product code for today
+        const duplicateEnquiryToday = await Enquiry.findOne({
             userId: userId,
             prodCode: productData.prodCode,
-            enquiryDate: { $gte: new Date(Date.now() - 5 * 60 * 1000) } // Last 5 minutes
+            enquiryDate: { 
+                $gte: startOfDayIST,
+                $lte: endOfDayIST
+            }
         });
 
-        if (recentEnquiry) {
-            console.log('Duplicate enquiry detected and prevented for user:', userId);
+        if (duplicateEnquiryToday) {
+            console.log('Duplicate enquiry prevented for today - Logged-in User:', {
+                userId: userId,
+                product: productData.prodCode,
+                date: new Date().toLocaleDateString('en-IN')
+            });
+            
             return res.status(200).json({ 
                 success: true, 
-                message: "Enquiry already submitted recently",
-                duplicate: true 
+                message: "You have already submitted an enquiry for this product today. Please try again tomorrow.",
+                duplicate: true,
+                duplicateDate: new Date().toLocaleDateString('en-IN')
             });
         }
+            // DUPLICATE USER ENTRY RESTRICT 
 
         // Save enquiry to database
         const enquiry = new Enquiry({
@@ -373,10 +470,10 @@ router.post('/save-enquiry-without-otp', async (req, res) => {
                         <div style="font-size:18px;"><strong>Size: </strong> ${productData.sizeHeight || 0}x${productData.sizeWidth || 0} ( ${(productData.sizeHeight || 0) * (productData.sizeWidth || 0)} Sq.ft )</div>
                         <div style="font-size:18px;"><strong>Price: </strong> ₹${(productData.price || productData.displayPrice || 0).toLocaleString()}</div>
                         <br />
-                        ${enquiryType === 'booked_dates_enquiry' ? 
-                            '<p style="font-size:18px; color: #d35400;"><strong>Note:</strong> This enquiry was made because all initial booking dates are currently booked.</p>' : 
-                            ''
-                        }
+                        ${enquiryType === 'booked_dates_enquiry' ?
+                        '<p style="font-size:18px; color: #d35400;"><strong>Note:</strong> This enquiry was made because all initial booking dates are currently booked.</p>' :
+                        ''
+                    }
                         <p style="font-size:18px;">Please follow up with the customer at your earliest convenience.</p>
                     </div>
                 `
@@ -389,18 +486,18 @@ router.post('/save-enquiry-without-otp', async (req, res) => {
             console.error("Error sending admin email:", emailError);
         }
 
-        res.status(200).json({ 
-            success: true, 
+        res.status(200).json({
+            success: true,
             message: "Enquiry saved successfully",
             enquiryId: enquiry._id
         });
 
     } catch (error) {
         console.error("Error saving enquiry without OTP:", error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: "Failed to save enquiry",
-            error: error.message 
+            error: error.message
         });
     }
 });
