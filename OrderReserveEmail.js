@@ -5,47 +5,81 @@ const request = require('request');
 
 // Import formatters
 const { formatIndianCurrency, formatIndianDate, getCurrentIndianDate } = require('./FORMATTED.js');
+const { generateUserEmailTemplate, generateAdminEmailTemplate } = require('./Email_Template.js');
 
-const transporter = nodemailer.createTransport(
-    {
-        service: 'gmail',
-        auth: {
-            user: 'reactdeveloper@adinn.co.in',
-            pass: 'gxnn sezu klyp ifhn'
-        }
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'reactdeveloper@adinn.co.in',
+        pass: 'gxnn sezu klyp ifhn'
     }
-);
-// // STOPS THE SMS FOR TESTING PURPOSE 
+});
+
 // NettyFish SMS Configuration
 const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
 const NETTYFISH_SENDER_ID = process.env.NETTYFISH_SENDER_ID || 'ADINAD';
 const NETTYFISH_BASE_URL = 'https://retailsms.nettyfish.com/api/mt/SendSMS';
-const IS_PRODUCTION = process.env.NODE_ENV === 'production'; //NEWLY ADDED
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// Function to send SMS using NettyFish API
-const sendSMS = (phone, templateId, variables = {}) => {
+// ADMIN PHONE NUMBER - Should be set in environment variables
+const ADMIN_PHONE = process.env.ADMIN_PHONE; // Fallback phone number
+
+// SMS sending lock to prevent duplicates
+const smsSendLock = new Map();
+
+// Function to send SMS with deduplication
+const sendSMS = async (phone, templateId, variables = {}) => {
+    const lockKey = `${phone}-${templateId}-${variables.orderId || ''}`;
+    
+    // Check if SMS was already sent for this combination
+    if (smsSendLock.has(lockKey)) {
+        console.log(`SMS already sent for ${lockKey}`);
+        return { success: true, message: "SMS already sent" };
+    }
+    
+    // Set lock for 5 minutes
+    smsSendLock.set(lockKey, true);
+    setTimeout(() => smsSendLock.delete(lockKey), 5 * 60 * 1000);
+    
     return new Promise((resolve, reject) => {
-        // Format phone number (remove + and add 91 if not present)
-        let formattedPhone = phone.replace('+', '');
+        // Format phone number (ensure it starts with 91)
+        let formattedPhone = phone.replace('+', '').replace(/\s/g, '');
+        
+        // Remove any leading zeros
+        formattedPhone = formattedPhone.replace(/^0+/, '');
+        
         if (!formattedPhone.startsWith('91')) {
             formattedPhone = '91' + formattedPhone;
         }
 
-        // Prepare text with variables
+        // Validate phone number length
+        if (formattedPhone.length !== 12) { // 91 + 10 digits = 12
+            console.error(`Invalid phone number length: ${formattedPhone}`);
+            reject(new Error('Invalid phone number format'));
+            return;
+        }
+
         let text = "";
         switch (templateId) {
             case "1007197121174928712": // User template
                 text = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${variables.orderId}.`;
                 break;
-            // case "1007478982147905431": // Admin template
-            //     text = `New order received! Order ID: ${variables.orderId}. Customer: ${variables.customerName}.`;
-            //     break;
+            case "1007314947721730551": // Admin template
+                text = `Adinn Outdoors - New order received! Order ID: ${variables.orderId}. Please review the order details and take action in the admin panel.`;
+                break;
             default:
                 text = variables.text || "";
         }
 
         const encodedText = encodeURIComponent(text);
         const url = `${NETTYFISH_BASE_URL}?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${templateId}&text=${encodedText}&route=17`;
+
+        console.log(`[${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'}] SMS Request:`, {
+            to: formattedPhone,
+            templateId: templateId,
+            orderId: variables.orderId,
+            url: url.replace(NETTYFISH_API_KEY, '***') // Hide API key in logs
+        });
 
         request.get(url, (error, response, body) => {
             if (error) {
@@ -54,15 +88,17 @@ const sendSMS = (phone, templateId, variables = {}) => {
             } else {
                 try {
                     const result = JSON.parse(body);
+                    console.log(`SMS API Response:`, result);
                     if (result.ErrorCode === '000') {
-                        console.log("SMS sent successfully:", result);
+                        console.log(`✅ SMS sent successfully to ${formattedPhone}`);
                         resolve(result);
                     } else {
-                        console.error("SMS API Error:", result.ErrorMessage);
+                        console.error("❌ SMS API Error:", result.ErrorMessage);
                         reject(new Error(result.ErrorMessage || 'Failed to send SMS'));
                     }
                 } catch (parseError) {
                     console.error("SMS Parse Error:", parseError);
+                    console.error("Raw response:", body);
                     reject(parseError);
                 }
             }
@@ -70,11 +106,184 @@ const sendSMS = (phone, templateId, variables = {}) => {
     });
 };
 
+// Unified order confirmation endpoint
+router.post('/send-order-confirmation', async (req, res) => {
+    try {
+        const {
+            orderId, userName, userEmail, userPhone, userAddress, company, products, orderDate, totalAmount,
+            overAllTotalAmount, printingCost, mountingCost, gstPercentage, gstAmount, totalAmountWithGST
+        } = req.body;
 
+        console.log(`📦 Processing order confirmation for Order ID: ${orderId}`);
+        console.log(`🌍 Environment: ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'}`);
+
+        if (!products || !Array.isArray(products)) {
+            throw new Error("Invalid products data");
+        }
+
+        // Parse amounts
+        const parsedTotalAmount = typeof totalAmount === 'number' ? totalAmount : parseFloat(totalAmount) || 0;
+        const parsedOverAllTotalAmount = typeof overAllTotalAmount === 'number' ? overAllTotalAmount : parseFloat(overAllTotalAmount) || 0;
+        const parsedPrintingCost = typeof printingCost === 'number' ? printingCost : parseFloat(printingCost) || 0;
+        const parsedMountingCost = typeof mountingCost === 'number' ? mountingCost : parseFloat(mountingCost) || 0;
+        const parsedGstPercentage = typeof gstPercentage === 'number' ? gstPercentage : parseFloat(gstPercentage) || 0;
+        const parsedGstAmount = typeof gstAmount === 'number' ? gstAmount : parseFloat(gstAmount) || 0;
+        const parsedTotalAmountWithGST = typeof totalAmountWithGST === 'number' ? totalAmountWithGST : parseFloat(totalAmountWithGST) || 0;
+
+        // Create client object for email templates
+        const client = {
+            name: userName,
+            email: userEmail,
+            contact: userPhone,
+            company: company,
+            address: userAddress,
+            paidAmount: 0
+        };
+
+        // Format products for email templates with GST details
+        const formattedProducts = products.map(product => {
+            const bookingAmount = parseFloat(product.booking?.totalPrice) || 0;
+            const productPrintingCost = parseFloat(product.printingCost) || 0;
+            const productMountingCost = parseFloat(product.mountingCost) || 0;
+            const productBaseTotal = bookingAmount + productPrintingCost + productMountingCost;
+            
+            let productGST = 0;
+            if (parsedOverAllTotalAmount > 0) {
+                productGST = (productBaseTotal / parsedOverAllTotalAmount) * parsedGstAmount;
+            }
+            
+            return {
+                ...product,
+                prodCode: product.prodCode || '',
+                price: product.price || 0,
+                printingCost: productPrintingCost,
+                mountingCost: productMountingCost,
+                booking: {
+                    ...(product.booking || {}),
+                    totalPrice: bookingAmount,
+                    totalDays: product.booking?.totalDays || 0,
+                    startDate: product.booking?.startDate || product.startDate || new Date(),
+                    endDate: product.booking?.endDate || product.endDate || new Date()
+                },
+                gstPercentage: parsedGstPercentage,
+                gstAmount: productGST,
+                totalWithGST: productBaseTotal + productGST
+            };
+        });
+
+        const currentDate = getCurrentIndianDate();
+        const formattedTotalAmount = formatIndianCurrency(parsedTotalAmountWithGST);
+
+        // Generate email templates
+        const userMailHtmlTemplate = generateUserEmailTemplate(
+            orderId,
+            client,
+            formattedProducts,
+            currentDate,
+            formattedTotalAmount,
+            {
+                gstPercentage: parsedGstPercentage,
+                gstAmount: parsedGstAmount,
+                totalWithGST: parsedTotalAmountWithGST
+            }
+        );
+
+        const adminMailHtmlTemplate = generateAdminEmailTemplate(
+            orderId,
+            client,
+            formattedProducts,
+            currentDate,
+            formattedTotalAmount
+        );
+
+        // Send emails
+        try {
+            const userMailOptions = {
+                from: 'reactdeveloper@adinn.co.in',
+                to: userEmail,
+                subject: `Order Confirmation - ${orderId}`,
+                html: userMailHtmlTemplate
+            };
+
+            const adminMailOptions = {
+                from: 'reactdeveloper@adinn.co.in',
+                to: 'reactdeveloper@adinn.co.in',
+                subject: `New Order Received - #${orderId} Action Required`,
+                html: adminMailHtmlTemplate
+            };
+        //COMMENT TO STOP EMAIL 
+            // await transporter.sendMail(userMailOptions);
+            // await transporter.sendMail(adminMailOptions);
+            // console.log("✅ Emails sent successfully");
+        //COMMENT TO STOP EMAIL 
+
+        } catch (emailError) {
+            console.error("❌ Email sending error:", emailError);
+            // Don't fail the entire process if email fails
+        }
+
+        // Send SMS - ALWAYS try to send in production, log in development
+        try {
+            if (IS_PRODUCTION) {
+                // Send user SMS with template 1007197121174928712
+                await sendSMS(userPhone, "1007197121174928712", { 
+                    orderId, 
+                    customerName: userName, 
+                    amount: parsedTotalAmount 
+                });
+                
+                // Send admin SMS with template 1007314947721730551
+                if (ADMIN_PHONE) {
+                    await sendSMS(ADMIN_PHONE, "1007314947721730551", { 
+                        orderId, 
+                        customerName: userName, 
+                        amount: parsedTotalAmount 
+                    });
+                } else {
+                    console.error("❌ ADMIN_PHONE environment variable not set");
+                }
+            } else {
+                // Development logging
+                console.log('=========================================');
+                console.log('SMS TESTING MODE (Not Production):');
+                console.log('=========================================');
+                console.log(`📞 User SMS would be sent to: ${userPhone}`);
+                console.log(`📋 Template: 1007197121174928712`);
+                console.log(`📦 Order ID: ${orderId}`);
+                console.log(`👤 Customer: ${userName}`);
+                console.log(`💰 Amount: ₹${formatIndianCurrency(parsedTotalAmount)}`);
+                console.log('');
+                console.log(`📞 Admin SMS would be sent to: ${ADMIN_PHONE || 'ADMIN_PHONE_NOT_SET'}`);
+                console.log(`📋 Template: 1007314947721730551`);
+                console.log(`📦 Order ID: ${orderId}`);
+                console.log('=========================================');
+            }
+        } catch (smsError) {
+            console.error("❌ SMS sending error:", smsError);
+            // Don't fail the entire process if SMS fails
+        }
+
+        res.json({ 
+            success: true, 
+            message: "Order confirmation processed successfully",
+            emailSent: true,
+            smsSent: IS_PRODUCTION,
+            environment: IS_PRODUCTION ? 'production' : 'development'
+        });
+
+    } catch (error) {
+        console.error("❌ Error in send-order-confirmation route:", error);
+        res.status(500).json({ 
+            success: false, 
+            error: "Failed to process order confirmation",
+            details: error.message
+        });
+    }
+});
 
 router.post('/send-sms', async (req, res) => {
     try {
-        const { phone, orderId, customerName, amount } = req.body;
+        const { phone, orderId, customerName, amount, smsType = 'user' } = req.body;
 
         if (!phone || !orderId) {
             return res.status(400).json({
@@ -83,77 +292,39 @@ router.post('/send-sms', async (req, res) => {
             });
         }
 
-        // Format phone number (remove + and add 91 if not present)
-        let formattedPhone = phone.replace('+', '');
-        if (!formattedPhone.startsWith('91')) {
-            formattedPhone = '91' + formattedPhone;
+        let templateId;
+        let targetPhone = phone;
+        
+        if (smsType === 'admin') {
+            templateId = "1007314947721730551";
+            targetPhone = ADMIN_PHONE;
+        } else {
+            templateId = "1007197121174928712";
         }
 
-        // User template ID - FIXED VALUE
-        const USER_TEMPLATE_ID = "1007197121174928712";
-
-        // Prepare SMS text for user
-        const smsText = `Thank you for your order with Adinn Outdoors! We've received it successfully. Your order ID is ${orderId}.`;
-
-        const encodedText = encodeURIComponent(smsText);
-        const url = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=aspv58uRbkqDbhCcCN87Mw&senderid=ADINAD&channel=Trans&DCS=0&flashsms=0&number=${formattedPhone}&dlttemplateid=${USER_TEMPLATE_ID}&text=${encodedText}&route=17`;
-
-        // For production, uncomment the actual SMS sending
-        if (process.env.NODE_ENV === 'production') {
-            request.get(url, (error, response, body) => {
-                if (error) {
-                    console.error("SMS API Error:", error);
-                    return res.status(500).json({
-                        success: false,
-                        error: "SMS sending failed"
-                    });
-                } else {
-                    try {
-                        const result = JSON.parse(body);
-                        if (result.ErrorCode === '000') {
-                            console.log("SMS sent successfully:", result);
-                            return res.json({
-                                success: true,
-                                message: "SMS sent successfully"
-                            });
-                        } else {
-                            console.error("SMS API Error:", result.ErrorMessage);
-                            return res.status(400).json({
-                                success: false,
-                                error: result.ErrorMessage
-                            });
-                        }
-                    } catch (parseError) {
-                        console.error("SMS Parse Error:", parseError);
-                        return res.status(500).json({
-                            success: false,
-                            error: "Failed to parse SMS response"
-                        });
-                    }
-                }
+        if (IS_PRODUCTION) {
+            await sendSMS(targetPhone, templateId, { 
+                orderId, 
+                customerName, 
+                amount 
+            });
+            
+            return res.json({
+                success: true,
+                message: `${smsType === 'admin' ? 'Admin' : 'User'} SMS sent successfully`
             });
         } else {
-            // For development/local testing
-            console.log('=========================================');
-            console.log('SMS Testing Information (Development):');
-            console.log('=========================================');
-            console.log(`To: ${formattedPhone}`);
-            console.log(`Template ID: ${USER_TEMPLATE_ID}`);
-            console.log(`Order ID: ${orderId}`);
-            console.log(`Customer: ${customerName}`);
-            console.log(`Amount: ₹${amount || 0}`);
-            console.log(`Message: ${smsText}`);
-            console.log('=========================================');
-
+            console.log(`[DEV] SMS would be sent to: ${targetPhone}, Template: ${templateId}`);
             return res.json({
                 success: true,
                 message: "SMS would be sent in production",
                 debug: {
-                    phone: formattedPhone,
-                    templateId: USER_TEMPLATE_ID,
+                    phone: targetPhone,
+                    templateId,
                     orderId,
                     customerName,
-                    amount
+                    amount,
+                    smsType
                 }
             });
         }
@@ -161,606 +332,9 @@ router.post('/send-sms', async (req, res) => {
         console.error("Error in send-sms route:", error);
         res.status(500).json({
             success: false,
-            error: "Internal server error"
+            error: "Internal server error",
+            details: error.message
         });
-    }
-});
-
-
-
-
-
-// // STOPS THE SMS FOR TESTING PURPOSE
-router.post('/send-order-confirmation', async (req, res) => {
-
-    try {
-        const {
-            orderId, userName, userEmail, userPhone, userAddress, company, products, orderDate, totalAmount,
-            overAllTotalAmount, // Newly added..
-            printingCost, // Newly added..
-            mountingCost, // Newly added..
-            gstPercentage, gstAmount, totalAmountWithGST
-        } = req.body;
-
-        if (!products || !Array.isArray(products)) {
-            throw new Error("Invalid products data");
-        }
-
-        // Parse totalAmount to ensure it's a number
-        const parsedTotalAmount = typeof totalAmount === 'number' ?
-            totalAmount :
-            parseFloat(totalAmount) || 0;
-        //NEWLY ADDED
-        const parsedOverAllTotalAmount = typeof overAllTotalAmount === 'number' ?
-            overAllTotalAmount :
-            parseFloat(overAllTotalAmount) || 0;
-
-        const parsedPrintingCost = typeof printingCost === 'number' ?
-            printingCost :
-            parseFloat(printingCost) || 0;
-
-        const parsedMountingCost = typeof mountingCost === 'number' ?
-            mountingCost :
-            parseFloat(mountingCost) || 0;
-
-        const parsedGstPercentage = typeof gstPercentage === 'number' ?
-            gstPercentage :
-            parseFloat(gstPercentage) || 0;
-        const parsedGstAmount = typeof gstAmount === 'number' ?
-            gstAmount :
-            parseFloat(gstAmount) || 0;
-        const parsedTotalAmountWithGST = typeof totalAmountWithGST === 'number' ?
-            totalAmountWithGST :
-            parseFloat(totalAmountWithGST) || 0;
-
-        console.log("Received amounts:", {
-            totalAmount: parsedTotalAmount,
-            overAllTotalAmount: parsedOverAllTotalAmount,
-            printingCost: parsedPrintingCost,
-            mountingCost: parsedMountingCost,
-            gstPercentage: parsedGstPercentage,
-            gstAmount: parsedGstAmount,
-            totalAmountWithGST: parsedTotalAmountWithGST,
-
-        });
-
-        // Generate product details HTML
-        // const generateProductDetailsHTML = (products) => {
-        const generateProductDetailsHTML = (products, overAllTotalAmount, printingCost, mountingCost, gstPercentage, gstAmount, totalAmountWithGST) => {
-            return products.map((product, index) => {
-
-
-                const productImage = product.image;
-                const startDate = formatIndianDate(product.booking?.startDate);
-                const endDate = formatIndianDate(product.booking?.endDate);
-                const pricePerDay = formatIndianCurrency(product.price || 0);
-                const totalPrice = formatIndianCurrency(product.booking?.totalPrice || 0);
-                //  <tr><td>Total Price</td><td>:</td><td> ${totalPrice}</td></tr>
-
-                const productTotalPrice = formatIndianCurrency(product.booking?.totalPrice || 0);
-                const productPrintingCost = formatIndianCurrency(product.printingCost || 0);
-                const productMountingCost = formatIndianCurrency(product.mountingCost || 0);
-                const productGstPercentage = formatIndianCurrency(gstPercentage || 0);
-                const productGstAmount = formatIndianCurrency(gstAmount || 0);
-                const productTotalAmountWithGST = formatIndianCurrency(totalAmountWithGST || 0);
-
-
-
-
-                return `
-             
-        <!-- Product 1 -->
-        <table width="100%" cellpadding="0" cellspacing="0"
-            style="border-bottom:2px solid #C4C1C1; margin-bottom:20px; padding-bottom:20px;">
-            <tr>
-                <td width="120">
-                    <img src="${productImage}"
-                        style="height:90px;width:90px;border-radius:10px;">
-                </td>
-                <td>
-                    <table style="font-size:16px;">
-                        <tr><td>Product Name</td><td>:</td><td>${product.name}</td></tr>
-                        <tr><td>Product Code</td><td>:</td><td> ${product.prodCode}</td></tr>
-                         <tr><td>Price Per Day</td><td>:</td><td> ${pricePerDay}</td></tr>
-                        <tr><td>Booked Dates</td><td>:</td><td> ${startDate} - ${endDate} (${product.booking?.totalDays || 0} Days) </td></tr>
-                        <tr><td>Booking Amount</td><td>:</td><td>${productTotalPrice}</td></tr>
-                        <tr><td>Printing Cost</td><td>:</td><td>${productPrintingCost}</td></tr>
-                        <tr><td>Mounting Cost</td><td>:</td><td>${productMountingCost}</td></tr>
-                        <tr><td>GST @ ${productGstPercentage}% </td><td>:</td><td>${productGstAmount}</td></tr>
-                        <tr><td style="font-weight: bold; color: #E31F25;">Total Amount</td><td>:</td><td style="font-weight: bold; color: #E31F25;">${formatIndianCurrency(totalAmountWithGST)}</td></tr>
-
-                    </table>
-                </td>
-            </tr>
-        </table>
-
-       
-            `
-            }
-
-            ).join('');
-        };
-
-
-        console.log("Sending notifications for order:", orderId);
-        console.log("Client data:", { orderId, userName, userEmail, userPhone, userAddress, company, orderDate, totalAmount: parsedTotalAmount });
-
-        // Format total amount for display
-        const formattedTotalAmount = formatIndianCurrency(parsedTotalAmount);
-        const formattedOverAllTotalAmount = formatIndianCurrency(parsedOverAllTotalAmount);
-        const formattedGstPercentage = formatIndianCurrency(parsedGstPercentage);
-        const formattedGstAmount = formatIndianCurrency(parsedGstAmount);
-        const formattedTotalAmountWithGST = formatIndianCurrency(parsedTotalAmountWithGST);
-
-
-        const currentDate = getCurrentIndianDate();
-
-        console.log("FORMATTED TOTAL AMOUNT FROM USER SIDE:", formattedTotalAmount);
-        // userMailHtmlTemplate
-        // <td style="padding:12px; font-weight:600; color:#2ecc71;">${formattedTotalAmount}</td>
-
-        const userMailHtmlTemplate = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>User Email</title>
-</head>
-
-<body style="margin:0; padding:0; font-family: Arial, sans-serif;">
-
-    <div style="max-width:700px; margin:auto; font-family:'Montserrat', Arial, sans-serif;">
-
-        <!-- Logo -->
-        <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
-            alt="Adinn Logo" style="height:50px; margin-bottom:15px;">
-
-        <!-- Header -->
-        <div style="
-            text-align:center;
-            padding:20px 0;
-            background: linear-gradient(180deg,#00573F 0%,#12AC81 100%);
-            font-weight:700;
-            font-size:35px;
-            color:#FFFFFF;">
-            Order Confirmation – Thank You for Choosing Us
-        </div>
-
-        <!-- Intro -->
-        <div style="font-size:24px; font-weight:600; margin:30px 0;">Hi ${userName},</div>
-
-        <!-- Order Details Table -->
-        <div style="margin:30px 0;">
-            <table border="1" cellpadding="0" cellspacing="0"
-                style="border-collapse:collapse; width:100%; border:1px solid gray; text-align:center;">
-                <thead>
-                    <tr style="color:#E31F25; font-weight:600; font-size:20px;">
-                        <th style="padding:12px;">Order ID</th>
-                        <th style="padding:12px;">Order Date</th>
-                        <th style="padding:12px;">Total Items</th>
-                        <th style="padding:12px;">Total Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="padding:12px;"> ${orderId}</td>
-                        <td style="padding:12px;"> ${currentDate}</td>
-                        <td style="padding:12px;"> ${products.length}</td>
-                         <td style="padding:12px; font-weight:600; color:#2ecc71;">${formattedTotalAmountWithGST}</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-<div>
-         ${generateProductDetailsHTML(products, parsedOverAllTotalAmount, parsedPrintingCost, parsedMountingCost, parsedGstPercentage, parsedGstAmount, parsedTotalAmountWithGST)}
-</div>
-
-
-
-        <!-- Message -->
-        <div style="font-size:20px; margin:30px 0;">
-            We’ve received your request, and our team will reach out within the next 15 hours.  
-            If you need to update anything, contact us below:
-        </div>
-
-        <div style="font-size:20px;"><strong>Email :</strong> 
-          <a href="mailto:Vinothkumar@adinn.co.in" style="color:#2B3333; text-decoration:none;">
-                                        Vinothkumar@adinn.co.in
-                                    </a>
-        </div>
-        <div style="font-size:20px;"><strong>Phone :</strong> 
-
-                                    <a href="tel:7373785057" style="color:#2B3333; text-decoration:none;">7373785057</a> |
-                                    <a href="tel:9626987861" style="color:#2B3333; text-decoration:none;">9626987861</a>         
-        </div>
-
-        <div style="font-size:20px; margin:20px 0;">
-            <div>We’re here to help.</div>
-            <div>Thank you.</div>
-        </div>
-
-
-        <!-- FOOTER (Email-Safe Version) -->
-        <table width="100%" cellpadding="0" cellspacing="0" 
-            background="https://www.adinntechnologies.com/images/FooterBannerImgEmail.png"
-            style="
-            background-size:cover; 
-            background-repeat:no-repeat; 
-            text-align:center; 
-            padding:50px 0;
-            "
-            >
-
-            <tr>
-                <td align="center">
-
-                    <!-- Thank You Message -->
-                    <table align="center" width="65%" cellpadding="0" cellspacing="0"
-                     style="margin-left: 20%;"   >
-                        <tr>
-                            <td align="center" style="font-size:24px; font-weight:500; color:#2B3333; ">
-                                <img src="https://www.adinntechnologies.com/images/FooterThankIconEmail.png"
-                                    style="width:30px; vertical-align:middle;">
-                                <span style="color:#E31F25;font-weight:700;">Thank you</span> for choosing us - we’re
-                                here to keep you happy, steady and ready.
-                            </td>
-                        </tr>
-                    </table>
-
-                    <!-- Footer 3 columns -->
-                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:40px;">
-
-                        <tr>
-                            <!-- Column 1 -->
-                            <td width="33%" valign="top" style="padding:10px;">
-                                <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
-                                    style="height:40px;">
-
-                                <!-- Social -->
-                                <div style="margin:20px 0;">
-                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon1.png"
-                                        style="height:35px; margin:0 2px;">
-                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon2.png"
-                                        style="height:35px; margin:0 2px;">
-                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon3.png"
-                                        style="height:35px; margin:0 2px;">
-                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon4.png"
-                                        style="height:35px; margin:0 2px;">
-                                    <img src="https://www.adinntechnologies.com/images/FootSocIcon5.png"
-                                        style="height:35px; margin:0 2px;">
-                                </div>
-
-                                <div style="font-size:14px; color:#2B3333;">
-                                    <a href="tel:7373785057" style="color:#2B3333; text-decoration:none;">7373785057</a> |
-                                    <a href="tel:9626987861" style="color:#2B3333; text-decoration:none;">9626987861</a>
-                                </div>
-                                <div style="font-size:14px; margin-top:10px;">
-                                    <a href="mailto:ba@adinn.co.in" style="color:#2B3333; text-decoration:none;">
-                                        ba@adinn.co.in
-                                    </a>
-                                </div>
-                            </td>
-
-                            <!-- Column 2 -->
-                            <td width="33%" valign="top" style="padding:10px; padding-left: 50px; font-size:15px;">
-                                <div style="font-weight:700; margin-bottom:10px;">Services</div>
-                                <div style="margin: 10px 0px;">3D & Cutouts</div>
-                                <div style="margin: 10px 0px;">Dynamic Advertising</div>
-                                <div style="margin: 10px 0px;">Geo Targeting</div>
-                                <div style="margin: 10px 0px;">Innovation</div>
-                                <div style="margin: 10px 0px;">Traditional</div>
-                                <div style="margin: 10px 0px;">Wall Painting</div>
-                            </td>
-
-                            <!-- Column 3 -->
-                            <td width="33%" valign="top" style="padding:10px; font-size:15px;">
-                                <div style="font-weight:700; margin-bottom:10px;">Address</div>
-                                29, 1st Cross Street, Vanamamalai Nagar,<br>
-                                <span style="font-weight:700;">Madurai-625010</span><br><br>
-
-                                Door No.3, Vijayalakshmi Street,<br>
-                                Nungambakkam,<br>
-                                <span style="font-weight:700;">Chennai – 600034</span><br><br>
-
-                                Old No.76, New No.976,<br>
-                                Rajarajeswari Nagar,<br>
-                                <span style="font-weight:700;">Bangalore – 560038</span>
-                            </td>
-
-                        </tr>
-                    </table>
-
-                    <div style="color:#FFFFFF; font-size:14px; margin-top:30px;">
-                        Copyright © 2025 Adinn Outdoors. All Rights Reserved.
-                    </div>
-
-                </td>
-            </tr>
-
-        </table>
-
-    </div>
-
-</body>
-</html>
- `
-
-
-        const adminMailHtmlTemplate = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1.0">
-        <title>Admin Email</title>
-        </head>
-
-        <body style="margin:0; padding:0; font-family: Arial, sans-serif;">
-
-        <div style="max-width:700px; margin:auto; font-family:'Montserrat', Arial, sans-serif;">
-
-        <!-- Logo -->
-        <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
-        alt="Adinn Logo" style="height:50px; margin-bottom:15px;">
-
-        <!-- Header -->
-        <div style="
-        text-align:center;
-        padding:20px 0;
-        background: linear-gradient(180deg,#00573F 0%,#12AC81 100%);
-        font-weight:700;
-        font-size:35px;
-        color:#FFFFFF;">
-        A new order has been received from a customer
-        </div>
-
-        <!-- Intro -->
-        <div style="font-size:24px; font-weight:600; margin:30px 0;">Hi Admin,</div>
-
-        <!-- Order Details Table -->
-        <div style="margin:30px 0;">
-        <table border="1" cellpadding="0" cellspacing="0"
-        style="border-collapse:collapse; width:100%; border:1px solid gray; text-align:center;">
-        <thead>
-            <tr style="color:#E31F25; font-weight:600; font-size:20px;">
-                <th style="padding:12px;">Order ID</th>
-                <th style="padding:12px;">Order Date</th>
-                <th style="padding:12px;">Total Items</th>
-                <th style="padding:12px;">Total Amount</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td style="padding:12px;"> ${orderId}</td>
-                <td style="padding:12px;"> ${currentDate}</td>
-                <td style="padding:12px;"> ${products.length}</td>
-                <td style="padding:12px; font-weight:600; color:#2ecc71;"> ${formattedTotalAmountWithGST}</td>
-            </tr>
-        </tbody>
-        </table>
-        </div>
-
-
-
-
-
-
-        <div>
-         ${generateProductDetailsHTML(products, parsedOverAllTotalAmount, parsedPrintingCost, parsedMountingCost, parsedGstPercentage, parsedGstAmount, parsedTotalAmountWithGST)}
-        </div>
-
-        <!-- Message -->
-        <div style="font-size:20px; margin:30px 0;">
-        Please review the order and contact the customer within 15 hours. <br>
-        If any corrections or updates are needed, please reach out to the customer using the provided contact details.
-        </div>
-
-        <!-- CUSTOMER DETAILS -->
-        <div style="margin:30px 0;">
-        <h3>Customer Details : </h3>
-        <table border="1" cellpadding="0" cellspacing="0"
-        style="border-collapse:collapse; width:100%; border:1px solid gray; text-align:center;">
-        <thead>
-            <tr style="color:#E31F25; font-weight:600; font-size:20px;">
-                <th style="padding:12px;">Name</th>
-                <th style="padding:12px;">Email</th>
-                <th style="padding:12px;">Phone</th>
-                <th style="padding:12px;">Company</th>
-                <th style="padding:12px;">Address</th>
-
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td style="padding:12px;">${userName}</td>
-                <td style="padding:12px;">${userEmail}</td>
-                <td style="padding:12px;"><a href='tel:${userPhone}' style="text-decoration:none; color:black;"> ${userPhone} </a></td>
-                <td style="padding:12px;">${company}</td>
-                <td style="padding:12px;">${userAddress}</td>
-
-            </tr>
-        </tbody>
-        </table>
-        </div>
-
-
-        <div style="font-size:20px; margin:20px 0;">
-        <div>Thank you.</div>
-        <div>Adinn Outdoors</div>
-        </div>
-
-        <!-- FOOTER -->
-        <table width="100%" cellpadding="0" cellspacing="0"
-        background="https://www.adinntechnologies.com/images/FooterBannerImgEmail.png" style="
-        background-size:cover; 
-        background-repeat:no-repeat; 
-        text-align:center; 
-        padding:50px 0;
-        ">
-        <tr>
-        <td align="center">
-            <!-- Thank You Message -->
-            <table align="center" width="65%" cellpadding="0" cellspacing="0" style="margin-left: 20%;">
-                <tr>
-                    <td align="center" style="font-size:24px; font-weight:500; color:#2B3333; ">
-                        <img src="https://www.adinntechnologies.com/images/FooterThankIconEmail.png"
-                            style="width:30px; vertical-align:middle;">
-                        <span style="color:#E31F25;font-weight:700;">Thank you</span> for choosing us - we're
-                        here to keep you happy, steady and ready.
-                    </td>
-                </tr>
-            </table>
-
-            <!-- Footer 3 columns -->
-            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:40px;">
-                <tr>
-                    <!-- Column 1 -->
-                    <td width="33%" valign="top" style="padding:10px;">
-                        <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png"
-                            style="height:40px;">
-
-                        <!-- Social -->
-                        <div style="margin:20px 0;">
-                            <img src="https://www.adinntechnologies.com/images/FootSocIcon1.png"
-                                style="height:35px; margin:0 2px;">
-                            <img src="https://www.adinntechnologies.com/images/FootSocIcon2.png"
-                                style="height:35px; margin:0 2px;">
-                            <img src="https://www.adinntechnologies.com/images/FootSocIcon3.png"
-                                style="height:35px; margin:0 2px;">
-                            <img src="https://www.adinntechnologies.com/images/FootSocIcon4.png"
-                                style="height:35px; margin:0 2px;">
-                            <img src="https://www.adinntechnologies.com/images/FootSocIcon5.png"
-                                style="height:35px; margin:0 2px;">
-                        </div>
-
-                        <div style="font-size:14px; color:#2B3333;">
-                            <a href="tel:7373785057" style="color:#2B3333; text-decoration:none;">7373785057</a> |
-                            <a href="tel:9626987861" style="color:#2B3333; text-decoration:none;">9626987861</a>
-                        </div>
-                        <div style="font-size:14px; margin-top:10px;">
-                            <a href="mailto:ba@adinn.co.in" style="color:#2B3333; text-decoration:none;">
-                                ba@adinn.co.in
-                            </a>
-                        </div>
-                    </td>
-
-                    <!-- Column 2 -->
-                    <td width="33%" valign="top" style="padding:10px; padding-left: 50px; font-size:15px;">
-                        <div style="font-weight:700; margin-bottom:10px;">Services</div>
-                        <div style="margin: 10px 0px;">3D & Cutouts</div>
-                        <div style="margin: 10px 0px;">Dynamic Advertising</div>
-                        <div style="margin: 10px 0px;">Geo Targeting</div>
-                        <div style="margin: 10px 0px;">Innovation</div>
-                        <div style="margin: 10px 0px;">Traditional</div>
-                        <div style="margin: 10px 0px;">Wall Painting</div>
-                    </td>
-
-                    <!-- Column 3 -->
-                    <td width="33%" valign="top" style="padding:10px; font-size:15px;">
-                        <div style="font-weight:700; margin-bottom:10px;">Address</div>
-                        29, 1st Cross Street, Vanamamalai Nagar,<br>
-                        <span style="font-weight:700;">Madurai-625010</span><br><br>
-
-                        Door No.3, Vijayalakshmi Street,<br>
-                        Nungambakkam,<br>
-                        <span style="font-weight:700;">Chennai – 600034</span><br><br>
-
-                        Old No.76, New No.976,<br>
-                        Rajarajeswari Nagar,<br>
-                        <span style="font-weight:700;">Bangalore – 560038</span>
-                    </td>
-                </tr>
-            </table>
-
-            <div style="color:#FFFFFF; font-size:14px; margin-top:30px;">
-                Copyright © 2025 Adinn Outdoors. All Rights Reserved.
-            </div>
-        </td>
-        </tr>
-        </table>
-        </div>
-        </body>
-        </html> `;
-
-        //User Email
-        const userMailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
-            to: userEmail,
-            subject: `Order Confirmation - ${orderId}`,
-            html: userMailHtmlTemplate
-        }
-        // Admin email
-        const adminMailOptions = {
-            from: 'reactdeveloper@adinn.co.in',
-            to: 'reactdeveloper@adinn.co.in',
-            subject: `New Order Received - #${orderId} Action Required`,
-            html: adminMailHtmlTemplate
-
-
-        };
-        // Send both emails
-        await transporter.sendMail(userMailOptions);
-        await transporter.sendMail(adminMailOptions);
-
-
-        // // STOPS THE SMS FOR TESTING PURPOSE 
-
-        if (IS_PRODUCTION) {
-            // Send SMS to user
-            try {
-                await sendSMS(userPhone, "1007197121174928712", { orderId });
-                console.log("User SMS sent successfully");
-            } catch (smsError) {
-                console.error("Failed to send user SMS:", smsError);
-                // Don't fail the request if SMS fails
-            }
-
-            // // Send SMS to admin
-            // try {
-            //     await sendSMS('reactdeveloper@adinn.co.in', "1007478982147905431", {
-            //         orderId,
-            //         customerName: userName,
-            //         amount: parsedTotalAmount
-            //     });
-            //     console.log("Admin SMS sent successfully");
-            // } catch (smsError) {
-            //     console.error("Failed to send admin SMS:", smsError);
-            //     // Don't fail the request if SMS fails
-            // }
-        }
-        // // STOPS THE SMS FOR TESTING PURPOSE 
-
-        // Log SMS information to console for testing
-        else {
-            console.log('=========================================');
-            console.log('OTP/SMS Testing Information (localhost):');
-            console.log('=========================================');
-            console.log(`Order ID: ${orderId}`);
-            console.log(`Client: ${userName}, Phone: ${userPhone}, Email: ${userEmail},Total Amount: ₹${totalAmount.toLocaleString()} `);
-            console.log('=========================================');
-            // Product details
-            if (products && products.length > 0) {
-                console.log('--- Product Details ---');
-                products.forEach((product, index) => {
-                    console.log(`Product ${index + 1}:`);
-                    console.log(`  - Name: ${product.name}`);
-                    console.log(`  - Product Code: ${product.prodCode}`);
-                    console.log(`  - Price per day: ₹${product.price.toLocaleString()}`);
-                    console.log(`  - Total Days: ${product.booking?.totalDays || 'N/A'}`);
-                    console.log(`  - Booking Dates: ${product.booking?.startDate ? new Date(product.booking.startDate).toLocaleDateString() : 'N/A'} - ${product.booking?.endDate ? new Date(product.booking.endDate).toLocaleDateString() : 'N/A'}`);
-                });
-            }
-            console.log('NOTE: SMS functionality is disabled for localhost testing');
-            console.log('Emails have been sent successfully');
-            console.log('=========================================');
-
-            res.json({ success: true });
-        }
-    }
-    catch (error) {
-        console.error("Error sending Emails:", error);
-        res.status(500).json({ success: false, error: "Failed to send emails" });
     }
 });
 

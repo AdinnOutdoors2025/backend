@@ -1176,27 +1176,68 @@ app.get("/prodOrders/user/:userId", async (req, res) => {
   }
 });
 //CREATION OF ORDER ID FOR ADMIN SIDE
+// const generateNextOrderId = async (prefix = "AD") => {
+//   try {
+//     // Find the order with the highest orderId for the given prefix
+//     const lastOrder = await prodOrderData
+//       .findOne({ orderId: new RegExp(`^${prefix}`) })
+//       .sort("-orderId");
+
+//     if (!lastOrder) {
+//       return `${prefix}0001`; // First order for this prefix
+//     }
+
+//     // Extract the numeric part and increment
+//     const lastNumber = parseInt(lastOrder.orderId.substring(2));
+//     const nextNumber = lastNumber + 1;
+
+//     // Format with leading zeros
+//     return `${prefix}${nextNumber.toString().padStart(4, "0")}`;
+//   } catch (err) {
+//     console.error("Error generating order ID:", err);
+//     // Fallback - generate based on timestamp
+//     return `${prefix}${Date.now().toString().slice(-4)}`;
+//   }
+// };
+
+// UPDATED: Generate order ID with proper format
 const generateNextOrderId = async (prefix = "AD") => {
   try {
-    // Find the order with the highest orderId for the given prefix
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const dateStr = `${year}${month}${day}`;
+    
+    // Find orders with the same prefix and date
+    const regex = new RegExp(`^${prefix}${dateStr}`);
     const lastOrder = await prodOrderData
-      .findOne({ orderId: new RegExp(`^${prefix}`) })
-      .sort("-orderId");
+      .findOne({ orderId: regex })
+      .sort({ orderId: -1 });
 
+    let sequentialNumber;
+    
     if (!lastOrder) {
-      return `${prefix}0001`; // First order for this prefix
+      // First order of the day
+      sequentialNumber = '001';
+    } else {
+      // Extract the last 3 digits and increment
+      const lastOrderId = lastOrder.orderId;
+      const lastSeq = parseInt(lastOrderId.slice(-3)) || 0;
+      sequentialNumber = String(lastSeq + 1).padStart(3, '0');
     }
-
-    // Extract the numeric part and increment
-    const lastNumber = parseInt(lastOrder.orderId.substring(2));
-    const nextNumber = lastNumber + 1;
-
-    // Format with leading zeros
-    return `${prefix}${nextNumber.toString().padStart(4, "0")}`;
+    
+    return `${prefix}${dateStr}${sequentialNumber}`;
+    
   } catch (err) {
     console.error("Error generating order ID:", err);
     // Fallback - generate based on timestamp
-    return `${prefix}${Date.now().toString().slice(-4)}`;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const randomSeq = Math.floor(100 + Math.random() * 900);
+    return `${prefix}${year}${month}${day}${randomSeq}`;
   }
 };
 
