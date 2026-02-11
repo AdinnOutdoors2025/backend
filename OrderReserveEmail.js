@@ -10,7 +10,7 @@ const { generateUserEmailTemplate, generateAdminEmailTemplate } = require('./Ema
 // const transporter = nodemailer.createTransport({
 //     service: 'gmail',
 //     auth: {
-//         user: 'webdeveloper1@adinn.co.in',
+//         user: 'reactdeveloper@adinn.co.in',
 //         pass: 'gxnn sezu klyp ifhn'
 //     }
 // });
