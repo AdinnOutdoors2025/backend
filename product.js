@@ -4230,7 +4230,45 @@ function hslToHex(h, s, l) {
 }
 
 
+app.post("/sendBrevoSMTP", async (req, res) => {
+  try {
+    const { firstName, lastName, email, message } = req.body;
 
+    // Create Brevo SMTP transporter
+    const transporter = nodemailer.createTransport({
+      host: "smtp-relay.brevo.com",
+      port: 587,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: "a2182b001@smtp-brevo.com", // From Brevo SMTP settings
+        pass: "M1tw86SyVzRjpmUh" // From Brevo SMTP settings
+      }
+    });
+
+    const mailOptions = {
+      from: 'Adinn <reactdeveloper@adinn.co.in>',
+      to: email,
+      subject: "Welcome to Adinn Outdoors",
+      html: `<h1>Welcome email content here...</h1>`,
+      text: `Welcome ${firstName} ${lastName}! Thank you for contacting us.`
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    
+    res.json({
+      success: true,
+      messageId: info.messageId,
+      message: "Email sent via Brevo SMTP"
+    });
+
+  } catch (error) {
+    console.error("SMTP Error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 
 

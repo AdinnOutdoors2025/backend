@@ -7,11 +7,18 @@ const request = require('request');
 const { formatIndianCurrency, formatIndianDate, getCurrentIndianDate } = require('./FORMATTED.js');
 const { generateUserEmailTemplate, generateAdminEmailTemplate } = require('./Email_Template.js');
 
+// const transporter = nodemailer.createTransport({
+//     service: 'gmail',
+//     auth: {
+//         user: 'webdeveloper1@adinn.co.in',
+//         pass: 'gxnn sezu klyp ifhn'
+//     }
+// });
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'reactdeveloper@adinn.co.in',
-        pass: 'gxnn sezu klyp ifhn'
+        user: 'webdeveloper1@adinn.co.in',
+        pass: 'ppyd zthg xkxi dacz'
     }
 });
 
@@ -199,22 +206,22 @@ router.post('/send-order-confirmation', async (req, res) => {
         // Send emails
         try {
             const userMailOptions = {
-                from: 'reactdeveloper@adinn.co.in',
+                from: 'webdeveloper1@adinn.co.in',
                 to: userEmail,
                 subject: `Order Confirmation - ${orderId}`,
                 html: userMailHtmlTemplate
             };
 
             const adminMailOptions = {
-                from: 'reactdeveloper@adinn.co.in',
-                to: 'reactdeveloper@adinn.co.in',
+                from: 'webdeveloper1@adinn.co.in',
+                to: 'webdeveloper1@adinn.co.in',
                 subject: `New Order Received - #${orderId} Action Required`,
                 html: adminMailHtmlTemplate
             };
         //COMMENT TO STOP EMAIL 
-            // await transporter.sendMail(userMailOptions);
-            // await transporter.sendMail(adminMailOptions);
-            // console.log("✅ Emails sent successfully");
+            await transporter.sendMail(userMailOptions);
+            await transporter.sendMail(adminMailOptions);
+            console.log("✅ Emails sent successfully");
         //COMMENT TO STOP EMAIL 
 
         } catch (emailError) {
