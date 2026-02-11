@@ -4248,7 +4248,7 @@ app.post("/sendBrevoSMTP", async (req, res) => {
     const mailOptions = {
       from: 'Adinn <reactdeveloper@adinn.co.in>',
       to: email,
-      subject: "Welcome to Adinn Outdoors",
+      subject: `Welcome to Adinn Outdoors! Welcome ${firstName} ${lastName}! Thank you for contacting us.`,
       html: `<h1>Welcome email content here...</h1>`,
       text: `Welcome ${firstName} ${lastName}! Thank you for contacting us.`
     };
