@@ -14,13 +14,14 @@ const { generateUserEmailTemplate, generateAdminEmailTemplate } = require('./Ema
 //         pass: 'gxnn sezu klyp ifhn'
 //     }
 // });
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: 'webdeveloper1@adinn.co.in',
-        pass: 'ppyd zthg xkxi dacz'
-    }
-});
+
+// const transporter = nodemailer.createTransport({
+//     service: 'gmail',
+//     auth: {
+//         user: 'webdeveloper1@adinn.co.in',
+//         pass: 'ppyd zthg xkxi dacz'
+//     }
+// });
 
 // NettyFish SMS Configuration
 const NETTYFISH_API_KEY = process.env.NETTYFISH_API_KEY || 'aspv58uRbkqDbhCcCN87Mw';
@@ -206,22 +207,22 @@ router.post('/send-order-confirmation', async (req, res) => {
         // Send emails
         try {
             const userMailOptions = {
-                from: 'webdeveloper1@adinn.co.in',
+                from: 'reactdeveloper@adinn.co.in',
                 to: userEmail,
                 subject: `Order Confirmation - ${orderId}`,
                 html: userMailHtmlTemplate
             };
 
             const adminMailOptions = {
-                from: 'webdeveloper1@adinn.co.in',
-                to: 'webdeveloper1@adinn.co.in',
+                from: 'reactdeveloper@adinn.co.in',
+                to: 'reactdeveloper@adinn.co.in',
                 subject: `New Order Received - #${orderId} Action Required`,
                 html: adminMailHtmlTemplate
             };
         //COMMENT TO STOP EMAIL 
-            await transporter.sendMail(userMailOptions);
-            await transporter.sendMail(adminMailOptions);
-            console.log("✅ Emails sent successfully");
+            // await transporter.sendMail(userMailOptions);
+            // await transporter.sendMail(adminMailOptions);
+            // console.log("✅ Emails sent successfully");
         //COMMENT TO STOP EMAIL 
 
         } catch (emailError) {
