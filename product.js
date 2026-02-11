@@ -18,6 +18,7 @@ const PORT = 3001;
 const nodemailer = require("nodemailer");
 // const transporter = require("./mailer");
 const axios = require("axios");
+const postmark = require("postmark");
 
 //Middlewares
 app.use(cors());
@@ -4228,8 +4229,65 @@ function hslToHex(h, s, l) {
       .join("")
   );
 }
+//POST MARK EMAIL INTEGRATION 
+// Initialize the client once and reuse
+const client = new postmark.ServerClient(process.env.POSTMARK_SERVER_TOKEN);
 
+const sendEmail = async ({ to, subject, htmlBody, textBody, messageStream }) => {
+  try {
+    const response = await client.sendEmail({
+      From: process.env.POSTMARK_FROM_EMAIL,
+      To: to,
+      Subject: subject,
+      HtmlBody: htmlBody,
+      TextBody: textBody,
+      MessageStream: messageStream || process.env.POSTMARK_MESSAGE_STREAM,
+    });
+    console.log(`✅ Postmark email sent: ${response.MessageID}`);
+    return response;
+  } catch (error) {
+    console.error("❌ Postmark error:", error);
+    throw error;
+  }
+};
 
+app.post("/sendPostmarkEmail", async (req, res) => {
+  try {
+    const { to, subject, htmlBody, textBody, messageStream } = req.body;
+
+    // Validate required fields
+    if (!to || !subject || (!htmlBody && !textBody)) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: to, subject, and at least one body type"
+      });
+    }
+
+    // Send email via Postmark
+    const result = await sendEmail({
+      to,
+      subject,
+      htmlBody,
+      textBody,
+      messageStream
+    });
+
+    res.json({
+      success: true,
+      messageId: result.MessageID,
+      message: "Email sent via Postmark"
+    });
+
+  } catch (error) {
+    console.error("Postmark route error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Failed to send email"
+    });
+  }
+});
+//POST MARK EMAIL INTEGRATION 
+//BREVO EMAIL INTEGRATION
 app.post("/sendBrevoSMTP", async (req, res) => {
   try {
     const { firstName, lastName, email, message } = req.body;
@@ -4270,8 +4328,7 @@ app.post("/sendBrevoSMTP", async (req, res) => {
   }
 });
 
-
-
+//BREVO EMAIL INTEGRATION
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
