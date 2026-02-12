@@ -6,6 +6,9 @@ const productData = require("./productSchema");
 const categoryData = require("./categorySchema");
 const mediaTypeData = require("./mediaTypeSchema");
 const prodOrderData = require("./productOrderSchema");
+const productEnquiryData = require("./OtpVerificationEnquire");
+const OverallFooterContacts = require("./OverallFooterContacts");
+const OverallUsers = require("./OveallUsers");
 const OrderStatus = require("./orderstatusSchema");
 const cartData = require("./productCartSchema");
 const cors = require("cors");
@@ -18,7 +21,6 @@ const PORT = 3001;
 const nodemailer = require("nodemailer");
 // const transporter = require("./mailer");
 const axios = require("axios");
-const postmark = require("postmark");
 
 //Middlewares
 app.use(cors());
@@ -4229,64 +4231,119 @@ function hslToHex(h, s, l) {
       .join("")
   );
 }
-//POST MARK EMAIL INTEGRATION 
-// Initialize the client once and reuse
-const client = new postmark.ServerClient(process.env.POSTMARK_SERVER_TOKEN);
 
-const sendEmail = async ({ to, subject, htmlBody, textBody, messageStream }) => {
+app.get("/getDashboardCount", async (req, res) => {
   try {
-    const response = await client.sendEmail({
-      From: process.env.POSTMARK_FROM_EMAIL,
-      To: to,
-      Subject: subject,
-      HtmlBody: htmlBody,
-      TextBody: textBody,
-      MessageStream: messageStream || process.env.POSTMARK_MESSAGE_STREAM,
-    });
-    console.log(`✅ Postmark email sent: ${response.MessageID}`);
-    return response;
-  } catch (error) {
-    console.error("❌ Postmark error:", error);
-    throw error;
-  }
-};
 
-app.post("/sendPostmarkEmail", async (req, res) => {
-  try {
-    const { to, subject, htmlBody, textBody, messageStream } = req.body;
 
-    // Validate required fields
-    if (!to || !subject || (!htmlBody && !textBody)) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing required fields: to, subject, and at least one body type"
-      });
-    }
 
-    // Send email via Postmark
-    const result = await sendEmail({
-      to,
-      subject,
-      htmlBody,
-      textBody,
-      messageStream
-    });
+
+    const [
+      totalOrders,
+      activeOrders,
+      cancelledOrders,
+      visibleProducts,
+      bookedProductsAgg,
+      revenueAgg,
+      totalEnquiries,
+      contantCount,
+      usersCount,
+    ] = await Promise.all([
+
+      // 1️⃣ Total orders
+      prodOrderData.countDocuments({
+        order_status: { $exists: true }
+      }),
+
+      // 2️⃣ Active orders
+      prodOrderData.countDocuments({
+        order_status: { $ne: "Cancelled" }
+      }),
+
+      // 3️⃣ Cancelled orders
+      prodOrderData.countDocuments({
+        order_status: "Cancelled"
+      }),
+
+      // 4️⃣ Visible products
+      productData.countDocuments({
+        visible: { $ne: false }
+      }),
+
+      // 5️⃣ Booked products count
+      prodOrderData.aggregate([
+        {
+          $match: {
+            order_status: { $ne: "Cancelled" }
+          }
+        },
+        {
+          $unwind: "$products"
+        },
+        {
+          $count: "count"
+        }
+      ]),
+
+      // 6️⃣ Total revenue (with GST)
+      prodOrderData.aggregate([
+        {
+          $match: {
+            order_status: { $ne: "Cancelled" }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: {
+              $sum: "$totalAmountWithGST"
+            }
+          }
+        }
+      ]),
+       // 7️⃣ Overall product enquiries count
+      productEnquiryData.countDocuments({}),
+
+      // 8️⃣ Contact us enquiries count
+      OverallFooterContacts.countDocuments({}),
+
+      // 9️⃣ Total users count
+      OverallUsers.countDocuments({})
+
+
+
+    ]);
 
     res.json({
       success: true,
-      messageId: result.MessageID,
-      message: "Email sent via Postmark"
+      data: {
+        orders: {
+          total: totalOrders,
+          active: activeOrders,
+          cancelled: cancelledOrders
+        },
+        bookedProducts: bookedProductsAgg[0]?.count || 0,
+        visibleProducts,
+        revenue: revenueAgg[0]?.totalRevenue || 0,
+        productEnquiries: totalEnquiries,
+        contactEnquiries: contantCount,
+        users: usersCount
+      }
     });
 
   } catch (error) {
-    console.error("Postmark route error:", error);
+    console.error("Dashboard count error:", error);
     res.status(500).json({
       success: false,
-      error: error.message || "Failed to send email"
+      message: "Failed to fetch dashboard counts",
+      error: error.message
     });
   }
 });
-//POST MARK EMAIL INTEGRATION 
+
+
+
+
 //BREVO EMAIL INTEGRATION
 app.post("/sendBrevoSMTP", async (req, res) => {
   try {
