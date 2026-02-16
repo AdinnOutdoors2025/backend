@@ -4398,26 +4398,24 @@ app.post("/sendBrevoSMTP", async (req, res) => {
 
     // Force IPv4 DNS lookup (avoids IPv6 timeouts)
     const dns = require('dns');
-    const transporter = nodemailer.createTransport({
-      host: "smtpout.secureserver.net",
-      // port: 465,
-      // secure: true, // true for 465, false for 587
-      port: 587,
-      secure: false,
-      // requireTLS: true,
-      auth: {
-        user: "noreply@adinndigital.com",
-        pass: "Adinn@321@"  // ⚠️ Move to environment variable!
-      },
-      // Increase timeouts for slower networks
-      connectionTimeout: 15000,   // 15 seconds
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
-      // Prefer IPv4
-      lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { ...options, family: 4 }, callback);
-      }
-    });
+   const transporter = nodemailer.createTransport({
+  host: "smtpout.secureserver.net",
+  port: 2525,              // Alternative port that works on free tier
+  secure: false,           // false for ports other than 465
+  requireTLS: true,        // Use TLS
+  auth: {
+    user: "noreply@adinndigital.com",
+    pass: "Adinn@321@"     // ⚠️ Move to environment variable!
+  },
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 20000,
+  // Force IPv4
+  lookup: (hostname, options, callback) => {
+    const dns = require('dns');
+    dns.lookup(hostname, { ...options, family: 4 }, callback);
+  }
+});
 
     const mailOptions = {
       from: 'Adinn <noreply@adinndigital.com>',
