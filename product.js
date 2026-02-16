@@ -4349,31 +4349,34 @@ app.post("/sendBrevoSMTP", async (req, res) => {
   try {
     const { firstName, lastName, email, message } = req.body;
 
-    // Create Brevo SMTP transporter
+    
     const transporter = nodemailer.createTransport({
-      host: "smtp-relay.brevo.com",
-      port: 587,
-      secure: false, // true for 465, false for other ports
+      host: "smtpout.secureserver.net",
+      port: 465,
+      secure: true, // 587 = false
       auth: {
-        user: "a2182b001@smtp-brevo.com", // From Brevo SMTP settings
-        pass: "M1tw86SyVzRjpmUh" // From Brevo SMTP settings
+        user: "noreply@adinndigital.com",
+        pass: "Adinn@321@"
       }
+
     });
 
-    const mailOptions = {
-      from: 'Adinn <reactdeveloper@adinn.co.in>',
-      to: email,
-      subject: `Welcome to Adinn Outdoors! Welcome ${firstName} ${lastName}! Thank you for contacting us.`,
-      html: `<h1>Welcome email content here...</h1>`,
-      text: `Welcome ${firstName} ${lastName}! Thank you for contacting us.`
-    };
+const mailOptions = {
+  from: 'Adinn <noreply@adinndigital.com>',
+  to: email,
+  subject: `Welcome ${firstName} ${lastName}!`,
+  html: `<h1>Welcome to Adinn</h1>`,
+  text: `Welcome ${firstName} ${lastName}!`
+};
+
+
 
     const info = await transporter.sendMail(mailOptions);
     
     res.json({
       success: true,
       messageId: info.messageId,
-      message: "Email sent via Brevo SMTP"
+      message: "Email sent via SMTP"
     });
 
   } catch (error) {
