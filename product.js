@@ -36,7 +36,11 @@ mongoose
   )
   .then(() => console.log("MongoDB connected successfully"))
   .catch((err) => console.error("MongoDB connection error:", err));
-
+// app.use(cors({
+//     origin: ['https://backend-plum-two-80.vercel.app', 'http://localhost:3000'],
+//     methods: ['GET', 'POST', 'DELETE', 'PUT'],
+//     allowedHeaders: ['Content-Type', 'Authorization']
+// }));
 // mongoose
 //   .connect(
 //     "mongodb://127.0.0.1:27017/Outdoors_backup"
