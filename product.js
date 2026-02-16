@@ -4404,7 +4404,7 @@ app.post("/sendBrevoSMTP", async (req, res) => {
       // secure: true, // true for 465, false for 587
       port: 587,
       secure: false,
-      requireTLS: true,
+      // requireTLS: true,
       auth: {
         user: "noreply@adinndigital.com",
         pass: "Adinn@321@"  // ⚠️ Move to environment variable!
