@@ -1,6 +1,8 @@
 const express = require('express');
 const emailID = 'reactdeveloper@adinn.co.in';
-const emailPwd = 'tcht lwgz hjwr nkzl';
+// const emailPwd = 'tcht lwgz hjwr nkzl';
+const emailPwd = 'gxnn sezu klyp ifhn';
+
 
 // Gmail API credentials 
 const GMAIL_CLIENT_ID = '980758001918-unbobrt8sf22ha4mbj6nrmk1opb2j69s.apps.googleusercontent.com';
