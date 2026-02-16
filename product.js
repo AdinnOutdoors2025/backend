@@ -73,6 +73,9 @@ app.use("/notifications", require("./UPDATED_NOTIFICATIONS"));
 app.use("/PrimeSpoted", require("./PrimeSpots"));
 
 
+app.get('/',(req,res)=>{
+  return res.send("Backend is running");
+})
 //IMAGE UPLOAD CLOUDINARY CORRECTED CODE
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const { v2: cloudinary } = require("cloudinary");
