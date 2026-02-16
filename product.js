@@ -4448,8 +4448,45 @@ app.post("/sendBrevoSMTP", async (req, res) => {
     });
   }
 });
-
 //BREVO EMAIL INTEGRATION
+//PHP MAIL IMPLEMENTATION 
+const phpMailUrl = 'https://adinndigital.com/api/mail.php';
+
+// axios.post(phpMailUrl, {
+//   headers: {
+//     'Content-Type': 'application/json'
+//   }
+// })
+// .then(response => {
+//   console.log('✅ Success:', response.data);
+// })
+// .catch(error => {
+//   if (error.response) {
+//     // The server responded with a status code outside 2xx
+//     console.error('❌ Server Error:', error.response.data);
+//   } else if (error.request) {
+//     // No response was received
+//     console.error('❌ No response from server:', error.request);
+//   } else {
+//     // Something else went wrong
+//     console.error('❌ Request Error:', error.message);
+//   }
+// }); 
+
+app.post('/phpMailTest', async (req, res) => {
+  console.log('Received request body:', req.body);
+
+  try {
+    const response = await axios.post('https://adinndigital.com/api/mail.php', req.body, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    console.log('PHP API response:', response.data);
+    res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error('Error:', error.message);
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
