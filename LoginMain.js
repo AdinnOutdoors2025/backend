@@ -353,13 +353,20 @@ router.post('/send-otp', async (req, res) => {
         }
 
         // Prepare payload for PHP mail API
-        const mailPayloadLogin = {
-            mailtype: 'login',
-            userName: recipientName,
-            email: email,
-            otp: otp.toString(),
-            userPhone: phone || '' // optional, may be used in template
-        };
+        // const mailPayloadLogin = {
+        //     mailtype: 'login',
+        //     userName: recipientName,
+        //     userEmail: email,
+        //     otp: otp.toString(),
+        //     userPhone: phone || '' // optional, may be used in template
+        // };
+const mailPayloadLogin =
+       {
+mailtype : "login",
+userName : "sathish",
+userEmail : "sathishdkofficial@gmail.com",
+otp : "1234"
+}
 
         // Non‑blocking call to PHP API (fire and forget)
         axios.post('https://adinndigital.com/api/index.php', mailPayloadLogin, {
