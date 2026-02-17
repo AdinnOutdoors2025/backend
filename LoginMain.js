@@ -292,8 +292,8 @@ router.post('/send-otp', async (req, res) => {
         userName: userName || null
     };
 
-    if (email) { 
-        if (!IS_PRODUCTION) {
+    if (email) {
+         if (!IS_PRODUCTION) {
             console.log('=========================================');
             console.log('EMAIL OTP (Localhost Testing):');
             console.log(`Email: ${email}`);
@@ -301,172 +301,39 @@ router.post('/send-otp', async (req, res) => {
             console.log('=========================================');
         }
 
-        // Prepare data for PHP API
-        let userPhoneForPayload = '';
-        let actualUserName = userName || 'User';
-
-        // For login (not signup), fetch user details from DB
-        if (!isSignUp) {
-            try {
-                const user = await User.findOne({ userEmail: email });
-                if (user) {
-                    userPhoneForPayload = user.userPhone || '';
-                    actualUserName = user.userName || actualUserName;
-                }
-            } catch (dbErr) {
-                console.error('DB fetch error for login user:', dbErr);
-                // Continue without phone – maybe PHP API doesn't require it
+        // Email OTP logic
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: emailID,
+                pass: emailPwd
             }
-        }
+        });
 
-        const mailPayload = {
-            mailtype: 'login',
-            userName: actualUserName,
-            userEmail: email,
-            otp: otp,
-            userPhone: userPhoneForPayload
+        const greetingName = userName || 'User';
+        const mailOptions = {
+            from: emailID,
+            to: email,
+            subject: 'Your OTP for Verification',
+            html: `
+                <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width:max-content;'>
+                    <center>
+                        <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="adinn_logo" style="height:auto; width:auto; margin:0 auto;"/>
+                    </center>
+                    <h2 style="color: #333;">Hi ${greetingName}, Welcome to Adinn Outdoors!</h2>
+                    <div style="color:black; font-size:15px">Your One-Time Password (OTP) for verification : </div>
+                    <p style="font-weight:bold; font-size: 26px; gap:20px;">${otp}</p>
+                    <div style="color:black;font-size:15px">This is valid for 5 minutes</div>
+                </div>
+            `
         };
-
-        let phpSuccess = false;
-        let phpError = null;
-
-        // --- 1. Try PHP API first (primary) ---
-        try {
-            const phpResponse = await axios.post('https://adinndigital.com/api/index.php', mailPayload, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 8000 // 8 seconds timeout
-            });
-
-            console.log('PHP API response:', phpResponse.data);
-
-            // Check for success – adjust based on actual API response structure
-            // Some APIs return { success: true }, others { status: 'success' }, etc.
-            if (phpResponse.data && (
-                phpResponse.data.success === true ||
-                phpResponse.data.status === 'success' ||
-                phpResponse.data.message?.toLowerCase().includes('success')
-            )) {
-                phpSuccess = true;
-                console.log('✅ PHP mail API (login) succeeded');
-            } else {
-                phpError = new Error('PHP API returned error: ' + JSON.stringify(phpResponse.data));
-                console.error('❌ PHP API error:', phpResponse.data);
+        transporter.sendMail(mailOptions, (error) => {
+            if (error) {
+                console.error(error);
+                return res.status(500).json({ success: false, message: "Failed to send OTP via email" });
             }
-        } catch (err) {
-            phpError = err;
-            console.error('⚠️ PHP API exception:', err.message);
-        }
-
-        // If PHP API succeeded, return success immediately
-        if (phpSuccess) {
-            if (!IS_PRODUCTION) {
-                console.log(`OTP for ${email}: ${otp}`);
-            }
-            return res.json({ success: true, message: "OTP sent to email" });
-        }
-
-        // // --- 2. Fallback to nodemailer ---
-        // console.log('Falling back to nodemailer...');
-        // const transporter = nodemailer.createTransport({
-        //     service: 'gmail',
-        //     auth: { user: emailID, pass: emailPwd }
-        // });
-
-        // const greetingName = actualUserName; // Use the fetched/fallback name
-        // const mailOptions = {
-        //     from: emailID,
-        //     to: email,
-        //     subject: 'Your OTP for Verification',
-        //     html: `
-        //         <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px; width:max-content;'>
-        //             <center>
-        //                 <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="adinn_logo" style="height:auto; width:auto; margin:0 auto;"/>
-        //             </center>
-        //             <h2 style="color: #333;">Hi ${greetingName}, Welcome to Adinn Outdoors!</h2>
-        //             <div style="color:black; font-size:15px">Your One-Time Password (OTP) for verification : </div>
-        //             <p style="font-weight:bold; font-size: 26px; gap:20px;">${otp}</p>
-        //             <div style="color:black;font-size:15px">This is valid for 5 minutes</div>
-        //         </div>
-        //     `
-        // };
-
-        // try {
-        //     await transporter.sendMail(mailOptions);
-        //     console.log(`✅ Nodemailer sent OTP to ${email}`);
-        //     if (!IS_PRODUCTION) {
-        //         console.log(`OTP: ${otp}`);
-        //     }
-        //     return res.json({ success: true, message: "OTP sent to email (via fallback)" });
-        // } catch (emailError) {
-        //     console.error('🔥 Nodemailer also failed:', emailError);
-        //     // Return a clear error message
-        //     return res.status(500).json({
-        //         success: false,
-        //         message: "Failed to send OTP via email. Please try again later or use phone OTP."
-        //     });
-        // }
-    
-
-
-        // // Email OTP logic
-        // const transporter = nodemailer.createTransport({
-        //     service: 'gmail',
-        //     auth: {
-        //         user: emailID,
-        //         pass: emailPwd
-        //     }
-        // });
-
-        // const greetingName = userName || 'User';
-        // const mailOptions = {
-        //     from: emailID,
-        //     to: email,
-        //     subject: 'Your OTP for Verification',
-        //     html: `
-        //         <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width:max-content;'>
-        //             <center>
-        //                 <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="adinn_logo" style="height:auto; width:auto; margin:0 auto;"/>
-        //             </center>
-        //             <h2 style="color: #333;">Hi ${greetingName}, Welcome to Adinn Outdoors!</h2>
-        //             <div style="color:black; font-size:15px">Your One-Time Password (OTP) for verification : </div>
-        //             <p style="font-weight:bold; font-size: 26px; gap:20px;">${otp}</p>
-        //             <div style="color:black;font-size:15px">This is valid for 5 minutes</div>
-        //         </div>
-        //     `
-        // };
-        // transporter.sendMail(mailOptions, (error) => {
-        //     if (error) {
-        //         console.error(error);
-        //         return res.status(500).json({ success: false, message: "Failed to send OTP via email" });
-        //     }
-        //     res.json({ success: true, message: "OTP sent to email" });
-        // });
-
-        // //PHP MAIL INTEGRATION 
-        // // --- NEW: Send login data to the PHP mail API ---
-        // const mailPayload = {
-        //     mailtype: 'login',
-        //     userName: greetingName,
-        //     userEmail: email,   // was 'email'
-        //     otp: otp
-        // };
-
-        // // Non‑blocking call – we don't await it
-        // axios.post('https://adinndigital.com/api/index.php', mailPayload, {
-        //     headers: { 'Content-Type': 'application/json' }
-        // })
-        //     .then(response => {
-        //         console.log('PHP mail API responded:', response.data);
-        //     })
-        //     .catch(error => {
-        //         console.error('Error calling PHP mail API:', error.message);
-        //         if (error.response) {
-        //             console.error('PHP API error data:', error.response.data);
-        //         }
-        //     });
-        // //PHP MAIL INTEGRATION 
-
-
+            res.json({ success: true, message: "OTP sent to email" });
+        });
     } else if (phone) {
         if (IS_PRODUCTION) {
 
@@ -578,9 +445,7 @@ router.post('/send-otp', async (req, res) => {
             res.json({
                 success: true,
                 message: "OTP sent to phone (check console for testing)",
-                // testOtp: otp // Include OTP for testing
-                testOtp: !IS_PRODUCTION ? otp : undefined
-
+                testOtp: otp // Include OTP for testing
             });
         }
     }
