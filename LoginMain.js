@@ -364,7 +364,7 @@ const mailPayloadLogin =
        {
 mailtype : "login",
 userName : "sathish",
-userEmail : "sathishdkofficial@gmail.com",
+email : "sathishdkofficial@gmail.com",
 otp : "1234"
 }
 
