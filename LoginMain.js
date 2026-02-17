@@ -276,15 +276,15 @@ router.post('/create-user', async (req, res) => {
 
 // Updated Send OTP endpoint with proper Nettyfish integration
 router.post('/send-otp', async (req, res) => {
-    const { email, phone, userName, isSignUp } = req.body;
+    const { userEmail, phone, userName, isSignUp } = req.body;
 
-    if (!email && !phone) {
+    if (!userEmail && !phone) {
         return res.status(400).json({ success: false, message: "Email or phone is required" });
     }
 
     // Generate 4-digit OTP
     const otp = Math.floor(1000 + Math.random() * 9000);
-    const otpKey = email || phone;
+    const otpKey = userEmail || phone;
 
     otpStore[otpKey] = {
         otp,
@@ -292,11 +292,11 @@ router.post('/send-otp', async (req, res) => {
         userName: userName || null
     };
 
-    if (email) {
+    if (userEmail) {
         if (!IS_PRODUCTION) {
             console.log('=========================================');
             console.log('EMAIL OTP (Localhost Testing):');
-            console.log(`Email: ${email}`);
+            console.log(`Email: ${userEmail}`);
             console.log(`OTP: ${otp}`);
             console.log('=========================================');
         }
@@ -313,7 +313,7 @@ router.post('/send-otp', async (req, res) => {
         // const greetingName = userName || 'User';
         // const mailOptions = {
         //     from: emailID,
-        //     to: email,
+        //     to: userEmail,
         //     subject: 'Your OTP for Verification',
         //     html: `
         //         <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width:max-content;'>
@@ -338,7 +338,7 @@ router.post('/send-otp', async (req, res) => {
         let recipientName = userName;
         if (!isSignUp && !recipientName) {
             try {
-                const user = await User.findOne({ userEmail: email });
+                const user = await User.findOne({ userEmail: userEmail });
                 if (user) {
                     recipientName = user.userName;
                 } else {
@@ -364,7 +364,7 @@ const mailPayloadLogin =
        {
 mailtype : "login",
 userName : "sathish",
-email : "sathishdkofficial@gmail.com",
+userEmail : "sathishdkofficial@gmail.com",
 otp : "1234"
 }
 
