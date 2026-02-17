@@ -140,7 +140,7 @@ router.post('/create-user', async (req, res) => {
             console.log('=========================================');
             console.log('WELCOME MESSAGE (Localhost Testing):');
             console.log('=========================================');
-                       console.log(`User: ${userName}, Email: ${userEmail}, Phone: ${userPhone}`);
+            console.log(`User: ${userName}, Email: ${userEmail}, Phone: ${userPhone}`);
             console.log('=========================================');
             console.log('NOTE: Welcome SMS is disabled for localhost testing');
             console.log('=========================================');
@@ -293,7 +293,7 @@ router.post('/send-otp', async (req, res) => {
     };
 
     if (email) {
-         if (!IS_PRODUCTION) {
+        if (!IS_PRODUCTION) {
             console.log('=========================================');
             console.log('EMAIL OTP (Localhost Testing):');
             console.log(`Email: ${email}`);
@@ -301,39 +301,83 @@ router.post('/send-otp', async (req, res) => {
             console.log('=========================================');
         }
 
-        // Email OTP logic
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: emailID,
-                pass: emailPwd
-            }
-        });
+        // // Email OTP logic
+        // const transporter = nodemailer.createTransport({
+        //     service: 'gmail',
+        //     auth: {
+        //         user: emailID,
+        //         pass: emailPwd
+        //     }
+        // });
 
-        const greetingName = userName || 'User';
-        const mailOptions = {
-            from: emailID,
-            to: email,
-            subject: 'Your OTP for Verification',
-            html: `
-                <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width:max-content;'>
-                    <center>
-                        <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="adinn_logo" style="height:auto; width:auto; margin:0 auto;"/>
-                    </center>
-                    <h2 style="color: #333;">Hi ${greetingName}, Welcome to Adinn Outdoors!</h2>
-                    <div style="color:black; font-size:15px">Your One-Time Password (OTP) for verification : </div>
-                    <p style="font-weight:bold; font-size: 26px; gap:20px;">${otp}</p>
-                    <div style="color:black;font-size:15px">This is valid for 5 minutes</div>
-                </div>
-            `
-        };
-        transporter.sendMail(mailOptions, (error) => {
-            if (error) {
-                console.error(error);
-                return res.status(500).json({ success: false, message: "Failed to send OTP via email" });
+        // const greetingName = userName || 'User';
+        // const mailOptions = {
+        //     from: emailID,
+        //     to: email,
+        //     subject: 'Your OTP for Verification',
+        //     html: `
+        //         <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width:max-content;'>
+        //             <center>
+        //                 <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="adinn_logo" style="height:auto; width:auto; margin:0 auto;"/>
+        //             </center>
+        //             <h2 style="color: #333;">Hi ${greetingName}, Welcome to Adinn Outdoors!</h2>
+        //             <div style="color:black; font-size:15px">Your One-Time Password (OTP) for verification : </div>
+        //             <p style="font-weight:bold; font-size: 26px; gap:20px;">${otp}</p>
+        //             <div style="color:black;font-size:15px">This is valid for 5 minutes</div>
+        //         </div>
+        //     `
+        // };
+        // transporter.sendMail(mailOptions, (error) => {
+        //     if (error) {
+        //         console.error(error);
+        //         return res.status(500).json({ success: false, message: "Failed to send OTP via email" });
+        //     }
+        //     res.json({ success: true, message: "OTP sent to email" });
+        // });
+
+        let recipientName = userName;
+        if (!isSignUp && !recipientName) {
+            try {
+                const user = await User.findOne({ userEmail: email });
+                if (user) {
+                    recipientName = user.userName;
+                } else {
+                    recipientName = 'User'; // fallback (should not happen because we checked existence before)
+                }
+            } catch (err) {
+                console.error("Error fetching user for login OTP:", err);
+                recipientName = 'User';
             }
-            res.json({ success: true, message: "OTP sent to email" });
-        });
+        } else if (!recipientName) {
+            recipientName = 'User'; // fallback for signup if name missing
+        }
+
+        // Prepare payload for PHP mail API
+        const mailPayloadLogin = {
+            mailtype: 'login',
+            userName: recipientName,
+            email: email,
+            otp: otp.toString(),
+            userPhone: phone || '' // optional, may be used in template
+        };
+
+        // Non‑blocking call to PHP API (fire and forget)
+        axios.post('https://adinndigital.com/api/index.php', mailPayloadLogin, {
+            headers: { 'Content-Type': 'application/json' }
+
+        })
+            .then(response => {
+                console.log('PHP login mail API responded:', response.data);
+            })
+            .catch(error => {
+                console.error('Error calling PHP login mail API:', error.message);
+                if (error.response) {
+                    console.error('PHP API error data:', error.response.data);
+                }
+            });
+        console.log('PHP Payload:', JSON.stringify(mailPayloadLogin));
+        // Immediately respond to client (OTP already stored)
+        return res.json({ success: true, message: "OTP sent to email" });
     } else if (phone) {
         if (IS_PRODUCTION) {
 
