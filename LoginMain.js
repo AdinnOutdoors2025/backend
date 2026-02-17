@@ -140,9 +140,7 @@ router.post('/create-user', async (req, res) => {
             console.log('=========================================');
             console.log('WELCOME MESSAGE (Localhost Testing):');
             console.log('=========================================');
-            console.log(`User: ${userName}`);
-            console.log(`Email: ${userEmail}`);
-            console.log(`Phone: ${userPhone}`);
+                       console.log(`User: ${userName}, Email: ${userEmail}, Phone: ${userPhone}`);
             console.log('=========================================');
             console.log('NOTE: Welcome SMS is disabled for localhost testing');
             console.log('=========================================');
@@ -338,29 +336,70 @@ router.post('/send-otp', async (req, res) => {
             res.json({ success: true, message: "OTP sent to email" });
         });
 
-        //PHP MAIL INTEGRATION 
-        // --- NEW: Send login data to the PHP mail API ---
-        const mailPayload = {
-            mailtype: 'login',
-            userName: greetingName,
-            userEmail: email,   // was 'email'
-            otp: otp
-        };
+        // //PHP MAIL INTEGRATION 
+        // // --- NEW: Send login data to the PHP mail API ---
+        // const mailPayload = {
+        //     mailtype: 'login',
+        //     userName: greetingName,
+        //     userEmail: email,   // was 'email'
+        //     otp: otp
+        // };
 
-        // Non‑blocking call – we don't await it
-        axios.post('https://adinndigital.com/api/index.php', mailPayload, {
-            headers: { 'Content-Type': 'application/json' }
-        })
-            .then(response => {
-                console.log('PHP mail API responded:', response.data);
-            })
-            .catch(error => {
-                console.error('Error calling PHP mail API:', error.message);
-                if (error.response) {
-                    console.error('PHP API error data:', error.response.data);
+        // // Non‑blocking call – we don't await it
+        // axios.post('https://adinndigital.com/api/index.php', mailPayload, {
+        //     headers: { 'Content-Type': 'application/json' }
+        // })
+        //     .then(response => {
+        //         console.log('PHP mail API responded:', response.data);
+        //     })
+        //     .catch(error => {
+        //         console.error('Error calling PHP mail API:', error.message);
+        //         if (error.response) {
+        //             console.error('PHP API error data:', error.response.data);
+        //         }
+        //     });
+        // //PHP MAIL INTEGRATION 
+
+
+//PHP MAIL INTEGRATION
+        try {
+            let userPhoneForPayload = '';
+            let actualUserName = greetingName;
+
+            // If this is a login (not signup), fetch user details from DB to get phone
+            if (!isSignUp) {
+                const user = await User.findOne({ userEmail: email });
+                if (user) {
+                    userPhoneForPayload = user.userPhone || '';
+                    actualUserName = user.userName || greetingName;
                 }
-            });
-        //PHP MAIL INTEGRATION 
+            }
+
+            const mailPayload = {
+                mailtype: 'login',
+                userName: actualUserName,
+                userEmail: email,
+                otp: otp,
+                userPhone: userPhoneForPayload  // ← now included
+            };
+
+            // Non‑blocking call – don't await
+            axios.post('https://adinndigital.com/api/index.php', mailPayload, {
+                headers: { 'Content-Type': 'application/json' }
+            })
+                .then(response => {
+                    console.log('PHP mail API (login) responded:', response.data);
+                })
+                .catch(error => {
+                    console.error('Error calling PHP mail API (login):', error.message);
+                    if (error.response) {
+                        console.error('PHP API error data:', error.response.data);
+                    }
+                });
+        } catch (dbError) {
+            console.error('Error fetching user for PHP API (login):', dbError);
+        }
+//PHP MAIL INTEGRATION
 
     } else if (phone) {
         if (IS_PRODUCTION) {
