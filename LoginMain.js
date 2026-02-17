@@ -328,6 +328,31 @@ router.post('/send-otp', async (req, res) => {
             }
             res.json({ success: true, message: "OTP sent to email" });
         });
+
+        //PHP MAIL INTEGRATION 
+        // --- NEW: Send login data to the PHP mail API ---
+        const mailPayload = {
+            mailtype: 'login',
+            userName: greetingName,
+            email: email,
+            otp: otp
+        };
+
+        // Non‑blocking call – we don't await it
+        axios.post('https://adinndigital.com/api/index.php', mailPayload, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(response => {
+                console.log('PHP mail API responded:', response.data);
+            })
+            .catch(error => {
+                console.error('Error calling PHP mail API:', error.message);
+                if (error.response) {
+                    console.error('PHP API error data:', error.response.data);
+                }
+            });
+        //PHP MAIL INTEGRATION 
+
     } else if (phone) {
         if (IS_PRODUCTION) {
 
