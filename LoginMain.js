@@ -294,7 +294,16 @@ router.post('/send-otp', async (req, res) => {
         userName: userName || null
     };
 
-    if (email) {
+    if (email) { 
+
+        if (!IS_PRODUCTION) {
+        console.log('=========================================');
+        console.log('EMAIL OTP (Localhost Testing):');
+        console.log('=========================================');
+        console.log(`Email: ${email}`);
+        console.log(`OTP: ${otp}`);
+        console.log('=========================================');
+    }
         // Email OTP logic
         const transporter = nodemailer.createTransport({
             service: 'gmail',
@@ -464,7 +473,9 @@ router.post('/send-otp', async (req, res) => {
             res.json({
                 success: true,
                 message: "OTP sent to phone (check console for testing)",
-                testOtp: otp // Include OTP for testing
+                // testOtp: otp // Include OTP for testing
+                    testOtp: !IS_PRODUCTION ? otp : undefined 
+
             });
         }
     }
