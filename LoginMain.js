@@ -292,9 +292,9 @@ router.post('/send-otp', async (req, res) => {
         userName: userName || null
     };
 
-    if (email) {
+    if (email) { 
 
-        if (!IS_PRODUCTION) {
+ if (!IS_PRODUCTION) {
             console.log('=========================================');
             console.log('EMAIL OTP (Localhost Testing):');
             console.log('=========================================');
@@ -302,13 +302,80 @@ router.post('/send-otp', async (req, res) => {
             console.log(`OTP: ${otp}`);
             console.log('=========================================');
         }
-        // Email OTP logic
+        
+//PHP MAIL INTEGRATION
+        try {
+            let userPhoneForPayload = '';
+            let actualUserName = userName || 'User';
+
+            // If this is a login (not signup), fetch user details from DB to get phone
+            if (!isSignUp) {
+                const user = await User.findOne({ userEmail: email });
+                if (user) {
+                    userPhoneForPayload = user.userPhone || '';
+                    actualUserName = user.userName || actualUserName;
+                }
+            }
+
+            const mailPayload = {
+                mailtype: 'login',
+                userName: actualUserName,
+                userEmail: email,
+                otp: otp,
+                userPhone: userPhoneForPayload  // ← now included
+            };
+
+        //     // Non‑blocking call – don't await
+        //     axios.post('https://adinndigital.com/api/index.php', mailPayload, {
+        //         headers: { 'Content-Type': 'application/json' }
+        //     })
+        //         .then(response => {
+        //             console.log('PHP mail API (login) responded:', response.data);
+        //         })
+        //         .catch(error => {
+        //             console.error('Error calling PHP mail API (login):', error.message);
+        //             if (error.response) {
+        //                 console.error('PHP API error data:', error.response.data);
+        //             }
+        //         });
+        // }
+        //  catch (dbError) {
+        //     console.error('Error fetching user for PHP API (login):', dbError);
+        // }
+
+         // --- 1. Try PHP API first (primary) ---
+        const phpResponse = await axios.post('https://adinndigital.com/api/index.php', mailPayload, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 10000 // 10 seconds timeout
+        });
+
+        // Check if PHP API indicates success (adjust based on actual response)
+        const isPhpSuccess = phpResponse.data && (
+            phpResponse.data.success === true ||
+            phpResponse.status === 200
+        );
+
+        if (isPhpSuccess) {
+            console.log('✅ PHP mail API (login) succeeded:', phpResponse.data);
+            if (!IS_PRODUCTION) {
+                console.log(`OTP for ${email}: ${otp}`);
+            }
+            return res.json({ success: true, message: "OTP sent to email" });
+        } else {
+            // PHP API returned an error – log and fallback
+            console.error('❌ PHP API returned error:', phpResponse.data);
+            throw new Error('PHP API failed');
+        }
+    }
+//PHP MAIL INTEGRATION
+
+catch (phpError) {
+        // --- 2. Fallback to nodemailer ---
+        console.error('⚠️ PHP API error, falling back to nodemailer:', phpError.message);
+
         const transporter = nodemailer.createTransport({
             service: 'gmail',
-            auth: {
-                user: emailID,
-                pass: emailPwd
-            }
+            auth: { user: emailID, pass: emailPwd }
         });
 
         const greetingName = userName || 'User';
@@ -317,7 +384,7 @@ router.post('/send-otp', async (req, res) => {
             to: email,
             subject: 'Your OTP for Verification',
             html: `
-                <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width:max-content;'>
+                <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px; width:max-content;'>
                     <center>
                         <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="adinn_logo" style="height:auto; width:auto; margin:0 auto;"/>
                     </center>
@@ -328,13 +395,57 @@ router.post('/send-otp', async (req, res) => {
                 </div>
             `
         };
-        transporter.sendMail(mailOptions, (error) => {
-            if (error) {
-                console.error(error);
-                return res.status(500).json({ success: false, message: "Failed to send OTP via email" });
+
+        try {
+            await transporter.sendMail(mailOptions);
+            if (!IS_PRODUCTION) {
+                console.log(`OTP for ${email}: ${otp}`);
             }
-            res.json({ success: true, message: "OTP sent to email" });
-        });
+            return res.json({ success: true, message: "OTP sent to email (via fallback)" });
+        } catch (emailError) {
+            console.error('🔥 Nodemailer also failed:', emailError);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to send OTP via email. Please try again later."
+            });
+        }
+    }
+
+
+       
+        // // Email OTP logic
+        // const transporter = nodemailer.createTransport({
+        //     service: 'gmail',
+        //     auth: {
+        //         user: emailID,
+        //         pass: emailPwd
+        //     }
+        // });
+
+        // const greetingName = userName || 'User';
+        // const mailOptions = {
+        //     from: emailID,
+        //     to: email,
+        //     subject: 'Your OTP for Verification',
+        //     html: `
+        //         <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width:max-content;'>
+        //             <center>
+        //                 <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="adinn_logo" style="height:auto; width:auto; margin:0 auto;"/>
+        //             </center>
+        //             <h2 style="color: #333;">Hi ${greetingName}, Welcome to Adinn Outdoors!</h2>
+        //             <div style="color:black; font-size:15px">Your One-Time Password (OTP) for verification : </div>
+        //             <p style="font-weight:bold; font-size: 26px; gap:20px;">${otp}</p>
+        //             <div style="color:black;font-size:15px">This is valid for 5 minutes</div>
+        //         </div>
+        //     `
+        // };
+        // transporter.sendMail(mailOptions, (error) => {
+        //     if (error) {
+        //         console.error(error);
+        //         return res.status(500).json({ success: false, message: "Failed to send OTP via email" });
+        //     }
+        //     res.json({ success: true, message: "OTP sent to email" });
+        // });
 
         // //PHP MAIL INTEGRATION 
         // // --- NEW: Send login data to the PHP mail API ---
@@ -360,46 +471,6 @@ router.post('/send-otp', async (req, res) => {
         //     });
         // //PHP MAIL INTEGRATION 
 
-
-//PHP MAIL INTEGRATION
-        try {
-            let userPhoneForPayload = '';
-            let actualUserName = greetingName;
-
-            // If this is a login (not signup), fetch user details from DB to get phone
-            if (!isSignUp) {
-                const user = await User.findOne({ userEmail: email });
-                if (user) {
-                    userPhoneForPayload = user.userPhone || '';
-                    actualUserName = user.userName || greetingName;
-                }
-            }
-
-            const mailPayload = {
-                mailtype: 'login',
-                userName: actualUserName,
-                userEmail: email,
-                otp: otp,
-                userPhone: userPhoneForPayload  // ← now included
-            };
-
-            // Non‑blocking call – don't await
-            axios.post('https://adinndigital.com/api/index.php', mailPayload, {
-                headers: { 'Content-Type': 'application/json' }
-            })
-                .then(response => {
-                    console.log('PHP mail API (login) responded:', response.data);
-                })
-                .catch(error => {
-                    console.error('Error calling PHP mail API (login):', error.message);
-                    if (error.response) {
-                        console.error('PHP API error data:', error.response.data);
-                    }
-                });
-        } catch (dbError) {
-            console.error('Error fetching user for PHP API (login):', dbError);
-        }
-//PHP MAIL INTEGRATION
 
     } else if (phone) {
         if (IS_PRODUCTION) {
