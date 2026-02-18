@@ -196,7 +196,7 @@ router.post('/send-order-confirmation', async (req, res) => {
     const client = {
       name: userName,
       email: userEmail,
-      phone: userPhone,
+      phone: userPhone ? Number(userPhone) : 0, // ensure it's a number,
       company: company
     };
 
@@ -210,7 +210,9 @@ router.post('/send-order-confirmation', async (req, res) => {
       products: phpProducts,
       summary: summary
     };
-
+// Log the full payload for debugging
+    console.log('📧 PHP Mail Payload:', JSON.stringify(mailPayload, null, 2));
+    
     // --- Fire‑and‑forget call to PHP API (non‑blocking) ---
     axios.post('https://adinndigital.com/api/index.php', mailPayload, {
       headers: { 'Content-Type': 'application/json' }
