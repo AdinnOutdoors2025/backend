@@ -2,6 +2,7 @@ const express = require('express');
 const nodemailer = require('nodemailer');
 const router = express.Router();
 const request = require('request');
+const axios = require('axios');
 
 // Import formatters
 const { formatIndianCurrency, formatIndianDate, getCurrentIndianDate } = require('./FORMATTED.js');
@@ -113,7 +114,15 @@ const sendSMS = async (phone, templateId, variables = {}) => {
         });
     });
 };
-
+// Helper to format date as "DD-MMM-YYYY" (e.g., 16-Feb-2026)
+const formatDateForPhp = (dateInput) => {
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return '';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = date.toLocaleString('en-US', { month: 'short' }); // "Feb"
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+};
 // Unified order confirmation endpoint
 router.post('/send-order-confirmation', async (req, res) => {
     try {
@@ -137,16 +146,95 @@ router.post('/send-order-confirmation', async (req, res) => {
         const parsedGstPercentage = typeof gstPercentage === 'number' ? gstPercentage : parseFloat(gstPercentage) || 0;
         const parsedGstAmount = typeof gstAmount === 'number' ? gstAmount : parseFloat(gstAmount) || 0;
         const parsedTotalAmountWithGST = typeof totalAmountWithGST === 'number' ? totalAmountWithGST : parseFloat(totalAmountWithGST) || 0;
+ // --- Construct PHP API payload ---
+    const adminEmail = process.env.ADMIN_EMAIL || 'reactdeveloper@adinn.co.in'; // fallback as in sample
 
-        // Create client object for email templates
-        const client = {
-            name: userName,
-            email: userEmail,
-            contact: userPhone,
-            company: company,
-            address: userAddress,
-            paidAmount: 0
-        };
+    // Build products array for PHP (with per‑product GST and total)
+    const phpProducts = products.map(product => {
+      const bookingAmount = parseFloat(product.booking?.totalPrice) || 0;
+      const productPrintingCost = parseFloat(product.printingCost) || 0;
+      const productMountingCost = parseFloat(product.mountingCost) || 0;
+      const productBaseTotal = bookingAmount + productPrintingCost + productMountingCost;
+
+      // Allocate GST proportionally to this product
+      let productGST = 0;
+      if (parsedOverAllTotalAmount > 0) {
+        productGST = (productBaseTotal / parsedOverAllTotalAmount) * parsedGstAmount;
+      }
+
+      return {
+        productImageUrl: product.image || '',
+        name: product.name || '',
+        prodCode: product.prodCode || '',
+        pricePerDay: parseFloat(product.price) || 0,
+        startDate: formatDateForPhp(product.booking?.startDate || product.startDate),
+        endDate: formatDateForPhp(product.booking?.endDate || product.endDate),
+        totalDays: product.booking?.totalDays || 0,
+        bookingAmount: bookingAmount,
+        printingCost: productPrintingCost,
+        mountingCost: productMountingCost,
+        gstAmount: productGST,
+        totalWithGST: productBaseTotal + productGST
+      };
+    });
+
+    // Summary object
+    const summary = {
+      baseAmount: parsedOverAllTotalAmount,
+      gstAmount: parsedGstAmount,
+      grandTotal: parsedTotalAmountWithGST
+    };
+
+    // Order object
+    const order = {
+      orderId: orderId,
+      orderDate: formatDateForPhp(orderDate || new Date()),
+      gstPercentage: parsedGstPercentage
+    };
+
+    // Client object
+    const client = {
+      name: userName,
+      email: userEmail,
+      phone: userPhone,
+      company: company
+    };
+
+    // Final payload
+    const mailPayload = {
+      mailtype: 'order',
+      userEmail: userEmail,
+      adminEmail: adminEmail,
+      client: client,
+      order: order,
+      products: phpProducts,
+      summary: summary
+    };
+
+    // --- Fire‑and‑forget call to PHP API (non‑blocking) ---
+    axios.post('https://adinndigital.com/api/index.php', mailPayload, {
+      headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => {
+      console.log('✅ PHP order mail API responded:', response.data);
+    })
+    .catch(error => {
+      console.error('❌ Error calling PHP order mail API:', error.message);
+      if (error.response) {
+        console.error('PHP API error data:', error.response.data);
+      }
+    });
+
+        // // Create client object for email templates
+        // const client = {
+        //     name: userName,
+        //     email: userEmail,
+        //     contact: userPhone,
+        //     company: company,
+        //     address: userAddress,
+        //     paidAmount: 0
+        // };
+ // --- Construct PHP API payload ---
 
         // Format products for email templates with GST details
         const formattedProducts = products.map(product => {
