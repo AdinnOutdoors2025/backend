@@ -1676,7 +1676,9 @@ app.post("/prodOrders", async (req, res) => {
     // Get GST percentage from request or use default (18%)
     const gstPercentage = req.body.client?.gstPercentage || 18;
     const gstAmount = totalOverallAmount * (gstPercentage / 100);
-    const totalAmountWithGST = totalOverallAmount + gstAmount;
+        const formattedGstAmountFloor = Math.floor(gstAmount);
+
+    const totalAmountWithGST = totalOverallAmount + formattedGstAmountFloor;
 
     // Normalize paidAmount array
     let normalizedPaidAmount = [];
@@ -1708,7 +1710,7 @@ app.post("/prodOrders", async (req, res) => {
         totalAmount: totalAmount,
         overAllTotalAmount: totalOverallAmount, // Sum of all (booking total + printing + mounting)
         gstPercentage: gstPercentage,
-        gstAmount: gstAmount,
+        gstAmount: formattedGstAmountFloor,
         totalAmountWithGST: totalAmountWithGST, // Total with GST
         paidAmount: normalizedPaidAmount,
         balanceAmount: balanceAmount,
@@ -1718,7 +1720,7 @@ app.post("/prodOrders", async (req, res) => {
       // Store overall totals at order level too (optional)
       overAllTotalAmount: totalOverallAmount,
       gstPercentage: gstPercentage,
-      gstAmount: gstAmount,
+      gstAmount: formattedGstAmountFloor,
       totalAmountWithGST: totalAmountWithGST,
       status: status, // "Added Manually" or "UserSideOrder"
       order_status: order_status, // "Pending Client Confirmation" or "pending"
@@ -1850,12 +1852,14 @@ app.put("/prodOrders/:id", async (req, res) => {
         existingOrder.client?.gstPercentage ||
         18;
       const gstAmount = totalOverallAmount * (gstPercentage / 100);
-      const totalAmountWithGST = totalOverallAmount + gstAmount;
+          const formattedGstAmountFloor = Math.floor(gstAmount);
+
+      const totalAmountWithGST = totalOverallAmount + formattedGstAmountFloor;
 
       // Store calculations in updateData
       updateData.overAllTotalAmount = totalOverallAmount;
       updateData.gstPercentage = gstPercentage;
-      updateData.gstAmount = gstAmount;
+      updateData.gstAmount = formattedGstAmountFloor;
       updateData.totalAmountWithGST = totalAmountWithGST;
     }
 
@@ -1885,7 +1889,7 @@ app.put("/prodOrders/:id", async (req, res) => {
         updateData.client.totalAmount = totalAmount;
         updateData.client.overAllTotalAmount = totalOverallAmount;
         updateData.client.gstPercentage = gstPercentage;
-        updateData.client.gstAmount = gstAmount;
+        updateData.client.gstAmount = formattedGstAmountFloor;
         updateData.client.totalAmountWithGST = totalAmountWithGST;
         updateData.client.balanceAmount = balanceAmount;
       }

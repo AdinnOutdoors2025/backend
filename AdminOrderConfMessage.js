@@ -123,7 +123,7 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
 
         // Calculate GST (default 18%)
         const gstPercentage = client.gstPercentage || 18;
-        const gstAmount = overAllTotalAmount * (gstPercentage / 100);
+        const gstAmount = Math.floor(overAllTotalAmount * (gstPercentage / 100));
         const totalAmountWithGST = overAllTotalAmount + gstAmount;
 
         const formattedTotalAmount = formatIndianCurrency(totalAmountWithGST);
@@ -139,7 +139,7 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
             // Calculate GST for this product proportionally
             let productGST = 0;
             if (overAllTotalAmount > 0) {
-                productGST = (productBaseTotal / overAllTotalAmount) * gstAmount;
+                productGST = Math.floor((productBaseTotal / overAllTotalAmount) * gstAmount);
             }
 
             return {
@@ -178,7 +178,7 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
             // Allocate GST proportionally to this product
             let productGST = 0;
             if (overAllTotalAmount > 0) {
-                productGST = (productBaseTotal / overAllTotalAmount) * gstAmount;
+                productGST = Math.floor((productBaseTotal / overAllTotalAmount) * gstAmount);
             }
 
             return {
