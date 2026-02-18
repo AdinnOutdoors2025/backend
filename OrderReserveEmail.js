@@ -39,24 +39,24 @@ const smsSendLock = new Map();
 // Function to send SMS with deduplication
 const sendSMS = async (phone, templateId, variables = {}) => {
     const lockKey = `${phone}-${templateId}-${variables.orderId || ''}`;
-    
+
     // Check if SMS was already sent for this combination
     if (smsSendLock.has(lockKey)) {
         console.log(`SMS already sent for ${lockKey}`);
         return { success: true, message: "SMS already sent" };
     }
-    
+
     // Set lock for 5 minutes
     smsSendLock.set(lockKey, true);
     setTimeout(() => smsSendLock.delete(lockKey), 5 * 60 * 1000);
-    
+
     return new Promise((resolve, reject) => {
         // Format phone number (ensure it starts with 91)
         let formattedPhone = phone.replace('+', '').replace(/\s/g, '');
-        
+
         // Remove any leading zeros
         formattedPhone = formattedPhone.replace(/^0+/, '');
-        
+
         if (!formattedPhone.startsWith('91')) {
             formattedPhone = '91' + formattedPhone;
         }
@@ -116,12 +116,12 @@ const sendSMS = async (phone, templateId, variables = {}) => {
 };
 // Helper to format date as "DD-MMM-YYYY" (e.g., 16-Feb-2026)
 const formatDateForPhp = (dateInput) => {
-  const date = new Date(dateInput);
-  if (isNaN(date.getTime())) return '';
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = date.toLocaleString('en-US', { month: 'short' }); // "Feb"
-  const year = date.getFullYear();
-  return `${day}-${month}-${year}`;
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return '';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = date.toLocaleString('en-US', { month: 'short' }); // "Feb"
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
 };
 // Unified order confirmation endpoint
 router.post('/send-order-confirmation', async (req, res) => {
@@ -146,86 +146,90 @@ router.post('/send-order-confirmation', async (req, res) => {
         const parsedGstPercentage = typeof gstPercentage === 'number' ? gstPercentage : parseFloat(gstPercentage) || 0;
         const parsedGstAmount = typeof gstAmount === 'number' ? gstAmount : parseFloat(gstAmount) || 0;
         const parsedTotalAmountWithGST = typeof totalAmountWithGST === 'number' ? totalAmountWithGST : parseFloat(totalAmountWithGST) || 0;
- // --- Construct PHP API payload ---
-    const adminEmail = process.env.ADMIN_EMAIL || 'reactdeveloper@adinn.co.in'; // fallback as in sample
+        
+        
+        
+        // --- Construct PHP API payload ---
+        const adminEmail = process.env.ADMIN_EMAIL || 'reactdeveloper@adinn.co.in'; // fallback as in sample
 
-    // Build products array for PHP (with per‑product GST and total)
-    const phpProducts = products.map(product => {
-      const bookingAmount = parseFloat(product.booking?.totalPrice) || 0;
-      const productPrintingCost = parseFloat(product.printingCost) || 0;
-      const productMountingCost = parseFloat(product.mountingCost) || 0;
-      const productBaseTotal = bookingAmount + productPrintingCost + productMountingCost;
+        // Build products array for PHP (with per‑product GST and total)
+        const phpProducts = products.map(product => {
+            const bookingAmount = parseFloat(product.booking?.totalPrice) || 0;
+            const productPrintingCost = parseFloat(product.printingCost) || 0;
+            const productMountingCost = parseFloat(product.mountingCost) || 0;
+            const productBaseTotal = bookingAmount + productPrintingCost + productMountingCost;
 
-      // Allocate GST proportionally to this product
-      let productGST = 0;
-      if (parsedOverAllTotalAmount > 0) {
-        productGST = (productBaseTotal / parsedOverAllTotalAmount) * parsedGstAmount;
-      }
+            // Allocate GST proportionally to this product
+            let productGST = 0;
+            if (parsedOverAllTotalAmount > 0) {
+                productGST = (productBaseTotal / parsedOverAllTotalAmount) * parsedGstAmount;
+            }
 
-      return {
-        productImageUrl: product.image || '',
-        name: product.name || '',
-        prodCode: product.prodCode || '',
-        pricePerDay: parseFloat(product.price) || 0,
-        startDate: formatDateForPhp(product.booking?.startDate || product.startDate),
-        endDate: formatDateForPhp(product.booking?.endDate || product.endDate),
-        totalDays: product.booking?.totalDays || 0,
-        bookingAmount: bookingAmount,
-        printingCost: productPrintingCost,
-        mountingCost: productMountingCost,
-        gstAmount: productGST,
-        totalWithGST: productBaseTotal + productGST
-      };
-    });
+            return {
+                productImageUrl: product.image || '',
+                name: product.name || '',
+                prodCode: product.prodCode || '',
+                pricePerDay: parseFloat(product.price) || 0,
+                startDate: formatDateForPhp(product.booking?.startDate || product.startDate),
+                endDate: formatDateForPhp(product.booking?.endDate || product.endDate),
+                totalDays: product.booking?.totalDays || 0,
+                bookingAmount: bookingAmount,
+                printingCost: productPrintingCost,
+                mountingCost: productMountingCost,
+                gstAmount: productGST,
+                totalWithGST: productBaseTotal + productGST
+            };
+        });
 
-    // Summary object
-    const summary = {
-      baseAmount: parsedOverAllTotalAmount,
-      gstAmount: parsedGstAmount,
-      grandTotal: parsedTotalAmountWithGST
-    };
+        // Summary object
+        const summary = {
+            baseAmount: parsedOverAllTotalAmount,
+            gstAmount: parsedGstAmount,
+            grandTotal: parsedTotalAmountWithGST
+        };
 
-    // Order object
-    const order = {
-      orderId: orderId,
-      orderDate: formatDateForPhp(orderDate || new Date()),
-      gstPercentage: parsedGstPercentage
-    };
+        // Order object
+        const order = {
+            orderId: orderId,
+            //   orderDate: formatDateForPhp(orderDate || new Date()),
+            orderDate: formatDateForPhp(new Date()),
+            gstPercentage: parsedGstPercentage
+        };
 
-    // Client object
-    const client = {
-      name: userName,
-      email: userEmail,
-      phone: userPhone ? Number(userPhone) : 0, // ensure it's a number,
-      company: company
-    };
+        // Client object
+        const client = {
+            name: userName,
+            email: userEmail,
+            phone: userPhone ? Number(userPhone) : 0, // ensure it's a number,
+            company: company
+        };
 
-    // Final payload
-    const mailPayload = {
-      mailtype: 'order',
-      userEmail: userEmail,
-      adminEmail: adminEmail,
-      client: client,
-      order: order,
-      products: phpProducts,
-      summary: summary
-    };
-// Log the full payload for debugging
-    console.log('📧 PHP Mail Payload:', JSON.stringify(mailPayload, null, 2));
-    
-    // --- Fire‑and‑forget call to PHP API (non‑blocking) ---
-    axios.post('https://adinndigital.com/api/index.php', mailPayload, {
-      headers: { 'Content-Type': 'application/json' }
-    })
-    .then(response => {
-      console.log('✅ PHP order mail API responded:', response.data);
-    })
-    .catch(error => {
-      console.error('❌ Error calling PHP order mail API:', error.message);
-      if (error.response) {
-        console.error('PHP API error data:', error.response.data);
-      }
-    });
+        // Final payload
+        const mailPayload = {
+            mailtype: 'order',
+            userEmail: userEmail,
+            adminEmail: adminEmail,
+            client: client,
+            order: order,
+            products: phpProducts,
+            summary: summary
+        };
+        // Log the full payload for debugging
+        console.log('📧 PHP Mail Payload:', JSON.stringify(mailPayload, null, 2));
+
+        // --- Fire‑and‑forget call to PHP API (non‑blocking) ---
+        axios.post('https://adinndigital.com/api/index.php', mailPayload, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(response => {
+                console.log('✅ PHP order mail API responded:', response.data);
+            })
+            .catch(error => {
+                console.error('❌ Error calling PHP order mail API:', error.message);
+                if (error.response) {
+                    console.error('PHP API error data:', error.response.data);
+                }
+            });
 
         // // Create client object for email templates
         // const client = {
@@ -236,7 +240,7 @@ router.post('/send-order-confirmation', async (req, res) => {
         //     address: userAddress,
         //     paidAmount: 0
         // };
- // --- Construct PHP API payload ---
+        // --- Construct PHP API payload ---
 
         // Format products for email templates with GST details
         const formattedProducts = products.map(product => {
@@ -244,12 +248,12 @@ router.post('/send-order-confirmation', async (req, res) => {
             const productPrintingCost = parseFloat(product.printingCost) || 0;
             const productMountingCost = parseFloat(product.mountingCost) || 0;
             const productBaseTotal = bookingAmount + productPrintingCost + productMountingCost;
-            
+
             let productGST = 0;
             if (parsedOverAllTotalAmount > 0) {
                 productGST = (productBaseTotal / parsedOverAllTotalAmount) * parsedGstAmount;
             }
-            
+
             return {
                 ...product,
                 prodCode: product.prodCode || '',
@@ -309,11 +313,11 @@ router.post('/send-order-confirmation', async (req, res) => {
                 subject: `New Order Received - #${orderId} Action Required`,
                 html: adminMailHtmlTemplate
             };
-        //COMMENT TO STOP EMAIL 
+            //COMMENT TO STOP EMAIL 
             // await transporter.sendMail(userMailOptions);
             // await transporter.sendMail(adminMailOptions);
             // console.log("✅ Emails sent successfully");
-        //COMMENT TO STOP EMAIL 
+            //COMMENT TO STOP EMAIL 
 
         } catch (emailError) {
             console.error("❌ Email sending error:", emailError);
@@ -324,18 +328,18 @@ router.post('/send-order-confirmation', async (req, res) => {
         try {
             if (IS_PRODUCTION) {
                 // Send user SMS with template 1007197121174928712
-                await sendSMS(userPhone, "1007197121174928712", { 
-                    orderId, 
-                    customerName: userName, 
-                    amount: parsedTotalAmount 
+                await sendSMS(userPhone, "1007197121174928712", {
+                    orderId,
+                    customerName: userName,
+                    amount: parsedTotalAmount
                 });
-                
+
                 // Send admin SMS with template 1007314947721730551
                 if (ADMIN_PHONE) {
-                    await sendSMS(ADMIN_PHONE, "1007314947721730551", { 
-                        orderId, 
-                        customerName: userName, 
-                        amount: parsedTotalAmount 
+                    await sendSMS(ADMIN_PHONE, "1007314947721730551", {
+                        orderId,
+                        customerName: userName,
+                        amount: parsedTotalAmount
                     });
                 } else {
                     console.error("❌ ADMIN_PHONE environment variable not set");
@@ -361,8 +365,8 @@ router.post('/send-order-confirmation', async (req, res) => {
             // Don't fail the entire process if SMS fails
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: "Order confirmation processed successfully",
             emailSent: true,
             smsSent: IS_PRODUCTION,
@@ -371,8 +375,8 @@ router.post('/send-order-confirmation', async (req, res) => {
 
     } catch (error) {
         console.error("❌ Error in send-order-confirmation route:", error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             error: "Failed to process order confirmation",
             details: error.message
         });
@@ -392,7 +396,7 @@ router.post('/send-sms', async (req, res) => {
 
         let templateId;
         let targetPhone = phone;
-        
+
         if (smsType === 'admin') {
             templateId = "1007314947721730551";
             targetPhone = ADMIN_PHONE;
@@ -401,12 +405,12 @@ router.post('/send-sms', async (req, res) => {
         }
 
         if (IS_PRODUCTION) {
-            await sendSMS(targetPhone, templateId, { 
-                orderId, 
-                customerName, 
-                amount 
+            await sendSMS(targetPhone, templateId, {
+                orderId,
+                customerName,
+                amount
             });
-            
+
             return res.json({
                 success: true,
                 message: `${smsType === 'admin' ? 'Admin' : 'User'} SMS sent successfully`
