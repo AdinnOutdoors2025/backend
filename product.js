@@ -31,10 +31,6 @@ app.use(
 );
 app.use(express.static("public"));
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
 mongoose
   .connect(
     "mongodb+srv://ba:sLAqxQMpCCjI2Gtf@adinnoutdoors.zpylrw9.mongodb.net/adinnoutdoors"
