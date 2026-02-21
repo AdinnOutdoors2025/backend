@@ -83,7 +83,7 @@ app.get('/',(req,res)=>{
 })
 
 app.get('/digitalOceanTest',(req,res)=>{
-  return res.send("Backend is running");
+  return res.send("Digital Ocean Backend is running");
 })
 //IMAGE UPLOAD CLOUDINARY CORRECTED CODE
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
