@@ -1073,7 +1073,7 @@ app.get("/mediatype", async (req, res) => {
   }
 });
 //POST
-app.post("/mediatype", async (req, res) => {
+app.post("/api/mediatype", async (req, res) => {
   try {
     const newMediaType = new mediaTypeData(req.body);
     const saved = await newMediaType.save();
@@ -1083,7 +1083,7 @@ app.post("/mediatype", async (req, res) => {
   }
 });
 //UPDATE
-app.put("/mediatype/:id", async (req, res) => {
+app.put("/api/mediatype/:id", async (req, res) => {
   try {
     const updated = await mediaTypeData.findByIdAndUpdate(
       req.params.id,
