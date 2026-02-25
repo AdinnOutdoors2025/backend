@@ -369,6 +369,7 @@ app.get("/api/products_paginated", async (req, res) => {
       total_products: totalCount,
       total_pages: Math.ceil(totalCount / limit),
       data: transformedData,
+      "test": "test"
     });
   } catch (err) {
     console.error("Error in products_paginated:", err);
