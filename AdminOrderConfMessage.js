@@ -3,6 +3,8 @@ const express = require('express');
 const request = require('request');
 const nodemailer = require('nodemailer');
 const router = express.Router();
+const axios = require('axios'); // Add axios
+
 
 const { formatIndianCurrency, formatIndianDate, getCurrentIndianDate } = require('./FORMATTED.js');
 const { generateUserEmailTemplate, generateAdminEmailTemplate } = require('./Email_Template.js');
@@ -30,6 +32,15 @@ const emailTransporter = nodemailer.createTransport({
 
 // SMS sending lock
 const adminSmsLock = new Map();
+// Helper to format date as "DD-MMM-YYYY" (e.g., 16-Feb-2026)
+const formatDateForPhp = (dateInput) => {
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return '';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+};
 
 const sendAdminSMS = (phone, templateId, variables = {}) => {
     const lockKey = `${phone}-${templateId}-${variables.orderId}`;
@@ -112,7 +123,7 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
 
         // Calculate GST (default 18%)
         const gstPercentage = client.gstPercentage || 18;
-        const gstAmount = overAllTotalAmount * (gstPercentage / 100);
+        const gstAmount = Math.floor(overAllTotalAmount * (gstPercentage / 100));
         const totalAmountWithGST = overAllTotalAmount + gstAmount;
 
         const formattedTotalAmount = formatIndianCurrency(totalAmountWithGST);
@@ -128,7 +139,7 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
             // Calculate GST for this product proportionally
             let productGST = 0;
             if (overAllTotalAmount > 0) {
-                productGST = (productBaseTotal / overAllTotalAmount) * gstAmount;
+                productGST = Math.floor((productBaseTotal / overAllTotalAmount) * gstAmount);
             }
 
             return {
@@ -149,6 +160,96 @@ router.post('/send-order-notificationsAdmin', async (req, res) => {
                 totalWithGST: productBaseTotal + productGST
             };
         });
+
+
+
+
+
+        // --- Construct PHP API payload ---
+        const adminEmail = process.env.ADMIN_EMAIL || 'reactdeveloper@adinn.co.in'; // Use the sample admin email
+
+        // Build products array for PHP (with per‑product GST and total)
+        const phpProducts = products.map(product => {
+            const bookingAmount = parseFloat(product.booking?.totalPrice) || 0;
+            const productPrintingCost = parseFloat(product.printingCost) || 0;
+            const productMountingCost = parseFloat(product.mountingCost) || 0;
+            const productBaseTotal = bookingAmount + productPrintingCost + productMountingCost;
+
+            // Allocate GST proportionally to this product
+            let productGST = 0;
+            if (overAllTotalAmount > 0) {
+                productGST = Math.floor((productBaseTotal / overAllTotalAmount) * gstAmount);
+            }
+
+            return {
+                productImageUrl: product.image || '',
+                name: product.name || '',
+                prodCode: product.prodCode || '',
+                pricePerDay: parseFloat(product.price) || 0,
+                startDate: formatDateForPhp(product.booking?.startDate || product.startDate),
+                endDate: formatDateForPhp(product.booking?.endDate || product.endDate),
+                totalDays: product.booking?.totalDays || 0,
+                bookingAmount: bookingAmount,
+                printingCost: productPrintingCost,
+                mountingCost: productMountingCost,
+                gstAmount: productGST,
+                totalWithGST: productBaseTotal + productGST
+            };
+        });
+
+        // Summary object
+        const summary = {
+            baseAmount: overAllTotalAmount,
+            gstAmount: gstAmount,
+            grandTotal: totalAmountWithGST
+        };
+
+        // Order object – use current date as orderDate
+        const order = {
+            orderId: orderId,
+            orderDate: formatDateForPhp(new Date()), // Always use current date for admin-created orders
+            gstPercentage: gstPercentage
+        };
+
+        // Client object – convert phone to number if possible
+        const phpClient = {
+            name: client.name,
+            email: client.email,
+            phone: client.contact ? Number(client.contact) : 0,
+            company: client.company || ''
+        };
+
+        // Final payload
+        const mailPayload = {
+            mailtype: 'order',
+            userEmail: client.email,
+            adminEmail: adminEmail,
+            client: phpClient,
+            order: order,
+            products: phpProducts,
+            summary: summary
+        };
+
+        // Log the full payload for debugging
+        console.log('📧 PHP Mail Payload (Admin):', JSON.stringify(mailPayload, null, 2));
+
+        // --- Fire‑and‑forget call to PHP API (non‑blocking) ---
+        axios.post('https://adinndigital.com/api/index.php', mailPayload, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(response => {
+                console.log('✅ PHP order mail API (admin) responded:', response.data);
+            })
+            .catch(error => {
+                console.error('❌ Error calling PHP order mail API (admin):', error.message);
+                if (error.response) {
+                    console.error('PHP API error data:', error.response.data);
+                }
+            });
+        // --- Construct PHP API payload ---
+
+
+
 
         // Generate emails
         const userMailHtmlTemplate = generateUserEmailTemplate(

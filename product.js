@@ -30,13 +30,18 @@ app.use(
   express.static(path.join(__dirname, "../first-app/public/images"))
 );
 app.use(express.static("public"));
+
 mongoose
   .connect(
     "mongodb+srv://ba:sLAqxQMpCCjI2Gtf@adinnoutdoors.zpylrw9.mongodb.net/adinnoutdoors"
   )
   .then(() => console.log("MongoDB connected successfully"))
   .catch((err) => console.error("MongoDB connection error:", err));
-
+// app.use(cors({
+//     origin: ['https://backend-plum-two-80.vercel.app', 'http://localhost:3000'],
+//     methods: ['GET', 'POST', 'DELETE', 'PUT'],
+//     allowedHeaders: ['Content-Type', 'Authorization']
+// }));
 // mongoose
 //   .connect(
 //     "mongodb://127.0.0.1:27017/Outdoors_backup"
@@ -73,6 +78,13 @@ app.use("/notifications", require("./UPDATED_NOTIFICATIONS"));
 app.use("/PrimeSpoted", require("./PrimeSpots"));
 
 
+app.get('/',(req,res)=>{
+  return res.send("Backend is running");
+})
+
+app.get('/digitalOceanTest',(req,res)=>{
+  return res.send("Digital Ocean Backend is running");
+})
 //IMAGE UPLOAD CLOUDINARY CORRECTED CODE
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const { v2: cloudinary } = require("cloudinary");
@@ -1667,7 +1679,9 @@ app.post("/prodOrders", async (req, res) => {
     // Get GST percentage from request or use default (18%)
     const gstPercentage = req.body.client?.gstPercentage || 18;
     const gstAmount = totalOverallAmount * (gstPercentage / 100);
-    const totalAmountWithGST = totalOverallAmount + gstAmount;
+        const formattedGstAmountFloor = Math.floor(gstAmount);
+
+    const totalAmountWithGST = totalOverallAmount + formattedGstAmountFloor;
 
     // Normalize paidAmount array
     let normalizedPaidAmount = [];
@@ -1699,7 +1713,7 @@ app.post("/prodOrders", async (req, res) => {
         totalAmount: totalAmount,
         overAllTotalAmount: totalOverallAmount, // Sum of all (booking total + printing + mounting)
         gstPercentage: gstPercentage,
-        gstAmount: gstAmount,
+        gstAmount: formattedGstAmountFloor,
         totalAmountWithGST: totalAmountWithGST, // Total with GST
         paidAmount: normalizedPaidAmount,
         balanceAmount: balanceAmount,
@@ -1709,7 +1723,7 @@ app.post("/prodOrders", async (req, res) => {
       // Store overall totals at order level too (optional)
       overAllTotalAmount: totalOverallAmount,
       gstPercentage: gstPercentage,
-      gstAmount: gstAmount,
+      gstAmount: formattedGstAmountFloor,
       totalAmountWithGST: totalAmountWithGST,
       status: status, // "Added Manually" or "UserSideOrder"
       order_status: order_status, // "Pending Client Confirmation" or "pending"
@@ -1746,12 +1760,193 @@ app.post("/prodOrders", async (req, res) => {
   }
 });
 
+// app.put("/prodOrders/:id", async (req, res) => {
+//   try {
+//     const orderId = req.params.id;
+//     const updateData = req.body;
+
+//     console.log("Updating order:", orderId, "with data:", updateData);
+
+//     // Find existing order
+//     const existingOrder = await prodOrderData.findById(orderId);
+//     if (!existingOrder) {
+//       return res.status(404).json({ message: "Order not found" });
+//     }
+
+//     // Process products if provided
+//     if (updateData.products && Array.isArray(updateData.products)) {
+//       const updatedProducts = updateData.products.map((product) => {
+//         if (!product.booking || !product.booking.startDate || !product.booking.endDate) {
+//           throw new Error("Booking dates are required");
+//         }
+
+//         // Parse dates
+//         const start = new Date(product.booking.startDate);
+//         const end = new Date(product.booking.endDate);
+
+//         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//           throw new Error("Invalid booking dates");
+//         }
+
+//         // Calculate booked dates
+//         let bookedDates = [];
+//         const current = new Date(start);
+
+//         while (current <= end) {
+//           const normalizedDate = new Date(Date.UTC(
+//             current.getUTCFullYear(),
+//             current.getUTCMonth(),
+//             current.getUTCDate()
+//           ));
+//           bookedDates.push(normalizedDate);
+//           current.setDate(current.getDate() + 1);
+//         }
+
+//         const totalDays = bookedDates.length;
+
+//         // Get individual costs
+//         const price = product.price || 0;
+//         const printingCost = product.printingCost || 0;
+//         const mountingCost = product.mountingCost || 0;
+//         const totalPrice = price * totalDays;
+
+//         return {
+//           ...product,
+//           bookedDates,
+//           booking: {
+//             ...product.booking,
+//             startDate: new Date(product.booking.startDate),
+//             endDate: new Date(product.booking.endDate),
+//             totalDays: totalDays,
+//             totalPrice: totalPrice,
+//           },
+//           price: price,
+//           printingCost: printingCost,
+//           mountingCost: mountingCost,
+//           deleted: product.deleted !== undefined ? product.deleted : false,
+//           deletedAt: product.deletedAt || null,
+//           deletedBy: product.deletedBy || null
+//         };
+//       });
+
+//       updateData.products = updatedProducts;
+
+//       // Calculate overall totals from updated products
+//       let totalAmount = 0;
+//       let totalOverallAmount = 0;
+//       let totalPrintingCost = 0;
+//       let totalMountingCost = 0;
+
+//       updatedProducts.forEach(product => {
+//         if (!product.deleted) {
+//           const bookingTotal = product.booking?.totalPrice || 0;
+//           const printing = product.printingCost || 0;
+//           const mounting = product.mountingCost || 0;
+
+//           totalAmount += bookingTotal;
+//           totalPrintingCost += printing;
+//           totalMountingCost += mounting;
+//           totalOverallAmount += (bookingTotal + printing + mounting);
+//         }
+//       });
+
+//       // Get GST percentage from update data or existing order
+//       const gstPercentage = updateData.client?.gstPercentage ||
+//         existingOrder.client?.gstPercentage ||
+//         18;
+//       const gstAmount = totalOverallAmount * (gstPercentage / 100);
+//           const formattedGstAmountFloor = Math.floor(gstAmount);
+
+//       const totalAmountWithGST = totalOverallAmount + formattedGstAmountFloor;
+
+//       // Store calculations in updateData
+//       updateData.overAllTotalAmount = totalOverallAmount;
+//       updateData.gstPercentage = gstPercentage;
+//       updateData.gstAmount = formattedGstAmountFloor;
+//       updateData.totalAmountWithGST = totalAmountWithGST;
+//     }
+
+//     // Handle paidAmount normalization
+//     if (updateData.client && updateData.client.paidAmount) {
+//       if (Array.isArray(updateData.client.paidAmount)) {
+//         updateData.client.paidAmount = updateData.client.paidAmount.map(payment => ({
+//           amount: Number(payment.amount) || 0,
+//           paidAt: payment.paidAt ? new Date(payment.paidAt) : new Date()
+//         }));
+//       } else if (typeof updateData.client.paidAmount === 'number') {
+//         updateData.client.paidAmount = [{
+//           amount: updateData.client.paidAmount,
+//           paidAt: new Date()
+//         }];
+//       }
+//     }
+
+//     // Calculate totals if products were updated
+//     if (updateData.products) {
+//       const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
+//         .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+//       const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+//       if (updateData.client) {
+//         updateData.client.totalAmount = totalAmount;
+//         updateData.client.overAllTotalAmount = totalOverallAmount;
+//         updateData.client.gstPercentage = gstPercentage;
+//         updateData.client.gstAmount = formattedGstAmountFloor;
+//         updateData.client.totalAmountWithGST = totalAmountWithGST;
+//         updateData.client.balanceAmount = balanceAmount;
+//       }
+//     }
+
+//     // Add last_edited timestamp
+//     updateData.last_edited = new Date();
+
+//     // FIX: Preserve status if not provided in update
+//     if (!updateData.status) {
+//       updateData.status = existingOrder.status;
+//     }
+//     if (!updateData.order_status) {
+//       updateData.order_status = existingOrder.order_status;
+//     }
+
+//     // Update the order
+//     const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//       orderId,
+//       { $set: updateData },
+//       {
+//         new: true,
+//         runValidators: true,
+//         context: 'query'
+//       }
+//     );
+
+//     if (!updatedOrder) {
+//       return res.status(404).json({ message: 'Order not found after update' });
+//     }
+
+//     res.json({
+//       success: true,
+//       message: 'Order updated successfully',
+//       order: updatedOrder,
+//       orderId: updatedOrder.orderId,
+//       _id: updatedOrder._id
+//     });
+//   } catch (err) {
+//     console.error('Error updating order:', err);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Server error while updating order',
+//       error: err.message
+//     });
+//   }
+// });
+
 app.put("/prodOrders/:id", async (req, res) => {
   try {
     const orderId = req.params.id;
     const updateData = req.body;
 
-    console.log("Updating order:", orderId, "with data:", updateData);
+    console.log("Updating order:", orderId);
 
     // Find existing order
     const existingOrder = await prodOrderData.findById(orderId);
@@ -1763,7 +1958,7 @@ app.put("/prodOrders/:id", async (req, res) => {
     if (updateData.products && Array.isArray(updateData.products)) {
       const updatedProducts = updateData.products.map((product) => {
         if (!product.booking || !product.booking.startDate || !product.booking.endDate) {
-          throw new Error("Booking dates are required");
+          return product;
         }
 
         // Parse dates
@@ -1771,7 +1966,7 @@ app.put("/prodOrders/:id", async (req, res) => {
         const end = new Date(product.booking.endDate);
         
         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-          throw new Error("Invalid booking dates");
+          return product;
         }
 
         // Calculate booked dates
@@ -1796,6 +1991,7 @@ app.put("/prodOrders/:id", async (req, res) => {
         const mountingCost = product.mountingCost || 0;
         const totalPrice = price * totalDays;
         
+
         return {
           ...product,
           bookedDates,
@@ -1804,11 +2000,8 @@ app.put("/prodOrders/:id", async (req, res) => {
             startDate: new Date(product.booking.startDate),
             endDate: new Date(product.booking.endDate),
             totalDays: totalDays,
-            totalPrice: totalPrice,
+            totalPrice: (product.price || 0) * totalDays,
           },
-          price: price,
-          printingCost: printingCost,
-          mountingCost: mountingCost,
           deleted: product.deleted !== undefined ? product.deleted : false,
           deletedAt: product.deletedAt || null,
           deletedBy: product.deletedBy || null
@@ -1816,38 +2009,24 @@ app.put("/prodOrders/:id", async (req, res) => {
       });
 
       updateData.products = updatedProducts;
-      
-      // Calculate overall totals from updated products
-      let totalAmount = 0;
-      let totalOverallAmount = 0;
-      let totalPrintingCost = 0;
-      let totalMountingCost = 0;
+    }
 
-      updatedProducts.forEach(product => {
-        if (!product.deleted) {
-          const bookingTotal = product.booking?.totalPrice || 0;
-          const printing = product.printingCost || 0;
-          const mounting = product.mountingCost || 0;
-          
-          totalAmount += bookingTotal;
-          totalPrintingCost += printing;
-          totalMountingCost += mounting;
-          totalOverallAmount += (bookingTotal + printing + mounting);
-        }
-      });
-
-      // Get GST percentage from update data or existing order
-      const gstPercentage = updateData.client?.gstPercentage || 
-                           existingOrder.client?.gstPercentage || 
-                           18;
-      const gstAmount = totalOverallAmount * (gstPercentage / 100);
-      const totalAmountWithGST = totalOverallAmount + gstAmount;
-
-      // Store calculations in updateData
-      updateData.overAllTotalAmount = totalOverallAmount;
-      updateData.gstPercentage = gstPercentage;
-      updateData.gstAmount = gstAmount;
-      updateData.totalAmountWithGST = totalAmountWithGST;
+    // If client data is provided, use it; otherwise, preserve existing client data
+    if (updateData.client) {
+      // Ensure all required client fields are present
+      updateData.client = {
+        ...existingOrder.client.toObject(), // Preserve existing client data
+        ...updateData.client, // Override with new data
+        // Ensure required fields are not lost
+        userId: updateData.client.userId || existingOrder.client.userId,
+        name: updateData.client.name || existingOrder.client.name,
+        email: updateData.client.email || existingOrder.client.email,
+        contact: updateData.client.contact || existingOrder.client.contact,
+        company: updateData.client.company || existingOrder.client.company,
+      };
+    } else {
+      // If no client data provided, keep the existing client data
+      updateData.client = existingOrder.client;
     }
 
     // Handle paidAmount normalization
@@ -1865,27 +2044,19 @@ app.put("/prodOrders/:id", async (req, res) => {
       }
     }
 
-    // Calculate totals if products were updated
-    if (updateData.products) {
-      const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
-        .reduce((sum, p) => sum + (p.amount || 0), 0);
-      
-      const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+    // Calculate total paid
+    const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
 
-      if (updateData.client) {
-        updateData.client.totalAmount = totalAmount;
-        updateData.client.overAllTotalAmount = totalOverallAmount;
-        updateData.client.gstPercentage = gstPercentage;
-        updateData.client.gstAmount = gstAmount;
-        updateData.client.totalAmountWithGST = totalAmountWithGST;
-        updateData.client.balanceAmount = balanceAmount;
-      }
+    // Calculate balance
+    if (updateData.client && updateData.client.totalAmountWithGST !== undefined) {
+      updateData.client.balanceAmount = Math.max(updateData.client.totalAmountWithGST - totalPaid, 0);
     }
 
     // Add last_edited timestamp
     updateData.last_edited = new Date();
 
-    // FIX: Preserve status if not provided in update
+    // Preserve status if not provided in update
     if (!updateData.status) {
       updateData.status = existingOrder.status;
     }
@@ -1907,6 +2078,14 @@ app.put("/prodOrders/:id", async (req, res) => {
     if (!updatedOrder) {
       return res.status(404).json({ message: 'Order not found after update' });
     }
+
+    console.log("✅ Order updated successfully:", {
+      orderId: updatedOrder.orderId,
+      totalAmount: updatedOrder.client?.totalAmount,
+      overallTotal: updatedOrder.client?.overAllTotalAmount,
+      gstAmount: updatedOrder.client?.gstAmount,
+      totalWithGST: updatedOrder.client?.totalAmountWithGST
+    });
 
     res.json({
       success: true,
@@ -4387,8 +4566,45 @@ const mailOptions = {
     });
   }
 });
-
 //BREVO EMAIL INTEGRATION
+//PHP MAIL IMPLEMENTATION 
+const phpMailUrl = 'https://adinndigital.com/api/mail.php';
+
+// axios.post(phpMailUrl, {
+//   headers: {
+//     'Content-Type': 'application/json'
+//   }
+// })
+// .then(response => {
+//   console.log('✅ Success:', response.data);
+// })
+// .catch(error => {
+//   if (error.response) {
+//     // The server responded with a status code outside 2xx
+//     console.error('❌ Server Error:', error.response.data);
+//   } else if (error.request) {
+//     // No response was received
+//     console.error('❌ No response from server:', error.request);
+//   } else {
+//     // Something else went wrong
+//     console.error('❌ Request Error:', error.message);
+//   }
+// }); 
+
+app.post('/phpMailTest', async (req, res) => {
+  console.log('Received request body:', req.body);
+
+  try {
+    const response = await axios.post('https://adinndigital.com/api/mail.php', req.body, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    console.log('PHP API response:', response.data);
+    res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error('Error:', error.message);
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -6,8 +6,10 @@ const mongoose = require('mongoose');
 const bcyrypt = require('bcryptjs');
 const request = require('request');
 require('dotenv').config();
+const axios = require('axios');
+
 //EMAIL CREDENTIALS 
-const {emailID, emailPwd} = require('./EmailCredentials');
+const { emailID, emailPwd } = require('./EmailCredentials');
 
 
 // MongoDB connection 
@@ -111,41 +113,39 @@ router.post('/create-user', async (req, res) => {
 
         if (IS_PRODUCTION) {
 
-        // Send welcome SMS after successful registration
-        try {
-            const welcomeMessage = "Thank you for registering with Adinn Outdoors. We're glad to have you on board!";
-            const mobileNumber = userPhone.replace(/\D/g, '');
-            const formattedNumber = mobileNumber.length === 10 ? `91${mobileNumber}` : mobileNumber;
+            // Send welcome SMS after successful registration
+            try {
+                const welcomeMessage = "Thank you for registering with Adinn Outdoors. We're glad to have you on board!";
+                const mobileNumber = userPhone.replace(/\D/g, '');
+                const formattedNumber = mobileNumber.length === 10 ? `91${mobileNumber}` : mobileNumber;
 
-            const welcomeSmsUrl = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedNumber}&dlttemplateid=1007653370910160293&text=${encodeURIComponent(welcomeMessage)}&route=17`;
+                const welcomeSmsUrl = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedNumber}&dlttemplateid=1007653370910160293&text=${encodeURIComponent(welcomeMessage)}&route=17`;
 
-            request(welcomeSmsUrl, { method: 'GET' }, (error, response, body) => {
-                if (error) {
-                    console.error("Welcome SMS Error:", error);
-                } else {
-                    console.log("Welcome SMS sent successfully:", body);
-                }
-            });
-        } catch (smsError) {
-            console.error("Error sending welcome SMS:", smsError);
-            // Don't fail the registration if SMS fails
+                request(welcomeSmsUrl, { method: 'GET' }, (error, response, body) => {
+                    if (error) {
+                        console.error("Welcome SMS Error:", error);
+                    } else {
+                        console.log("Welcome SMS sent successfully:", body);
+                    }
+                });
+            } catch (smsError) {
+                console.error("Error sending welcome SMS:", smsError);
+                // Don't fail the registration if SMS fails
+            }
+
+            // // STOPS THE SMS FOR TESTING PURPOSE
+        }
+        else {
+            // Log welcome message to console instead
+            console.log('=========================================');
+            console.log('WELCOME MESSAGE (Localhost Testing):');
+            console.log('=========================================');
+            console.log(`User: ${userName}, Email: ${userEmail}, Phone: ${userPhone}`);
+            console.log('=========================================');
+            console.log('NOTE: Welcome SMS is disabled for localhost testing');
+            console.log('=========================================');
         }
 
-                // // STOPS THE SMS FOR TESTING PURPOSE
-    }
-else {
-        // Log welcome message to console instead
-        console.log('=========================================');
-        console.log('WELCOME MESSAGE (Localhost Testing):');
-        console.log('=========================================');
-        console.log(`User: ${userName}`);
-        console.log(`Email: ${userEmail}`);
-        console.log(`Phone: ${userPhone}`);
-        console.log('=========================================');
-        console.log('NOTE: Welcome SMS is disabled for localhost testing');
-        console.log('=========================================');
-}
-        
         //Sent welcome mail to the User
         const transporter = nodemailer.createTransport(
             {
@@ -234,10 +234,35 @@ else {
                 console.error("Error Sending admin Mail:", error);
             }
         })
+
+        //PHP MAIL INTEGRATION 
+        // --- NEW: Send registration data to the PHP mail API ---
+        const mailPayload = {
+            mailtype: 'register',
+            userName: newUser.userName,
+            userEmail: newUser.userEmail,
+            userPhone: newUser.userPhone
+        };
+
+        // Non‑blocking call – we don't await it
+        axios.post('https://adinndigital.com/api/index.php', mailPayload, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(response => {
+                console.log('PHP mail API responded:', response.data);
+            })
+            .catch(error => {
+                console.error('Error calling PHP mail API:', error.message);
+                if (error.response) {
+                    console.error('PHP API error data:', error.response.data);
+                }
+            });
+        //PHP MAIL INTEGRATION 
+
         res.json({
             success: true,
             user: {
-                 _id: newUser._id,
+                _id: newUser._id,
                 userName: newUser.userName,
                 userEmail: newUser.userEmail,
                 userPhone: newUser.userPhone
@@ -251,15 +276,15 @@ else {
 
 // Updated Send OTP endpoint with proper Nettyfish integration
 router.post('/send-otp', async (req, res) => {
-    const { email, phone, userName, isSignUp } = req.body;
+    const { userEmail, phone, userName, isSignUp } = req.body;
 
-    if (!email && !phone) {
+    if (!userEmail && !phone) {
         return res.status(400).json({ success: false, message: "Email or phone is required" });
     }
 
     // Generate 4-digit OTP
     const otp = Math.floor(1000 + Math.random() * 9000);
-    const otpKey = email || phone;
+    const otpKey = userEmail || phone;
 
     otpStore[otpKey] = {
         otp,
@@ -267,83 +292,134 @@ router.post('/send-otp', async (req, res) => {
         userName: userName || null
     };
 
-    if (email) {
-        // Email OTP logic
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: emailID,
-                pass: emailPwd
-            }
-        });
+    if (userEmail) {
+        if (!IS_PRODUCTION) {
+            console.log('=========================================');
+            console.log('EMAIL OTP (Localhost Testing):');
+            console.log(`Email: ${userEmail}`);
+            console.log(`OTP: ${otp}`);
+            console.log('=========================================');
+        }
 
-        const greetingName = userName || 'User';
-        const mailOptions = {
-            from: emailID,
-            to: email,
-            subject: 'Your OTP for Verification',
-            html: `
-                <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width:max-content;'>
-                    <center>
-                        <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="adinn_logo" style="height:auto; width:auto; margin:0 auto;"/>
-                    </center>
-                    <h2 style="color: #333;">Hi ${greetingName}, Welcome to Adinn Outdoors!</h2>
-                    <div style="color:black; font-size:15px">Your One-Time Password (OTP) for verification : </div>
-                    <p style="font-weight:bold; font-size: 26px; gap:20px;">${otp}</p>
-                    <div style="color:black;font-size:15px">This is valid for 5 minutes</div>
-                </div>
-            `
-        };
-        transporter.sendMail(mailOptions, (error) => {
-            if (error) {
-                console.error(error);
-                return res.status(500).json({ success: false, message: "Failed to send OTP via email" });
+        // // Email OTP logic
+        // const transporter = nodemailer.createTransport({
+        //     service: 'gmail',
+        //     auth: {
+        //         user: emailID,
+        //         pass: emailPwd
+        //     }
+        // });
+
+        // const greetingName = userName || 'User';
+        // const mailOptions = {
+        //     from: emailID,
+        //     to: userEmail,
+        //     subject: 'Your OTP for Verification',
+        //     html: `
+        //         <div style='font-family: Montserrat; margin: 0 auto; padding:20px; border: 1px solid #ddd; border-radius:5px;width:max-content;'>
+        //             <center>
+        //                 <img src="https://www.adinnoutdoors.com/wp-content/uploads/2024/04/adinn-outdoor-final-logo.png" alt="adinn_logo" style="height:auto; width:auto; margin:0 auto;"/>
+        //             </center>
+        //             <h2 style="color: #333;">Hi ${greetingName}, Welcome to Adinn Outdoors!</h2>
+        //             <div style="color:black; font-size:15px">Your One-Time Password (OTP) for verification : </div>
+        //             <p style="font-weight:bold; font-size: 26px; gap:20px;">${otp}</p>
+        //             <div style="color:black;font-size:15px">This is valid for 5 minutes</div>
+        //         </div>
+        //     `
+        // };
+        // transporter.sendMail(mailOptions, (error) => {
+        //     if (error) {
+        //         console.error(error);
+        //         return res.status(500).json({ success: false, message: "Failed to send OTP via email" });
+        //     }
+        //     res.json({ success: true, message: "OTP sent to email" });
+        // });
+
+        let recipientName = userName;
+        if (!isSignUp && !recipientName) {
+            try {
+                const user = await User.findOne({ userEmail: userEmail });
+                if (user) {
+                    recipientName = user.userName;
+                } else {
+                    recipientName = 'User'; // fallback (should not happen because we checked existence before)
+                }
+            } catch (err) {
+                console.error("Error fetching user for login OTP:", err);
+                recipientName = 'User';
             }
-            res.json({ success: true, message: "OTP sent to email" });
-        });
-    } else if (phone) { 
+        } else if (!recipientName) {
+            recipientName = 'User'; // fallback for signup if name missing
+        }
+
+        // Prepare payload for PHP mail API
+        const mailPayloadLogin = {
+            mailtype: 'login',
+            userName: recipientName,
+            userEmail: userEmail,
+            otp: otp.toString(),
+            userPhone: phone || '' // optional, may be used in template
+        }; 
+
+        // Non‑blocking call to PHP API (fire and forget)
+        axios.post('https://adinndigital.com/api/index.php', mailPayloadLogin, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+            .then(response => {
+                console.log('PHP login mail API responded:', response.data);
+            })
+            .catch(error => {
+                console.error('Error calling PHP login mail API:', error.message);
+                if (error.response) {
+                    console.error('PHP API error data:', error.response.data);
+                }
+            });
+        console.log('PHP Payload:', JSON.stringify(mailPayloadLogin));
+        // Immediately respond to client (OTP already stored)
+        return res.json({ success: true, message: "OTP sent to email" });
+    } else if (phone) {
         if (IS_PRODUCTION) {
 
-        // Nettyfish SMS OTP implementation - FIXED
-        try {
-            // Clean the phone number
-            const mobileNumber = phone.replace(/\D/g, '');
-            // Check if number has country code, if not add 91 for India
-            const formattedNumber = mobileNumber.length === 10 ? `91${mobileNumber}` : mobileNumber;
-            // Use the approved DLT template with the OTP variable properly formatted
-            const message = `Welcome to Adinn Outdoors! Your verification code is ${otp}. Use this OTP to complete your verification. Please don't share it with anyone.`;
-            // Construct the API URL with template ID
-            const apiUrl = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedNumber}&dlttemplateid=${NETTYFISH_TEMPLATE_ID}&text=${encodeURIComponent(message)}&route=17`;
-            console.log("Sending SMS via URL:", apiUrl);
+            // Nettyfish SMS OTP implementation - FIXED
+            try {
+                // Clean the phone number
+                const mobileNumber = phone.replace(/\D/g, '');
+                // Check if number has country code, if not add 91 for India
+                const formattedNumber = mobileNumber.length === 10 ? `91${mobileNumber}` : mobileNumber;
+                // Use the approved DLT template with the OTP variable properly formatted
+                const message = `Welcome to Adinn Outdoors! Your verification code is ${otp}. Use this OTP to complete your verification. Please don't share it with anyone.`;
+                // Construct the API URL with template ID
+                const apiUrl = `https://retailsms.nettyfish.com/api/mt/SendSMS?APIKey=${NETTYFISH_API_KEY}&senderid=${NETTYFISH_SENDER_ID}&channel=Trans&DCS=0&flashsms=0&number=${formattedNumber}&dlttemplateid=${NETTYFISH_TEMPLATE_ID}&text=${encodeURIComponent(message)}&route=17`;
+                console.log("Sending SMS via URL:", apiUrl);
 
-            // Make the request to Nettyfish API
-            request(apiUrl, { method: 'GET' }, (error, response, body) => {
-                if (error) {
-                    console.error("Nettyfish API Error:", error);
-                    return res.status(500).json({
-                        success: false,
-                        message: "Failed to send OTP via SMS",
-                        error: error.message
-                    });
-                }
+                // Make the request to Nettyfish API
+                request(apiUrl, { method: 'GET' }, (error, response, body) => {
+                    if (error) {
+                        console.error("Nettyfish API Error:", error);
+                        return res.status(500).json({
+                            success: false,
+                            message: "Failed to send OTP via SMS",
+                            error: error.message
+                        });
+                    }
 
-                console.log("Nettyfish API Response:", body);
+                    console.log("Nettyfish API Response:", body);
 
-                // // Check if the response was successful
-                // if (response.statusCode === 200) {
-                //     console.log(`OTP ${otp} sent to ${phone}`);
-                //     res.json({ success: true, message: "OTP sent to phone" });
-                // } 
-                
+                    // // Check if the response was successful
+                    // if (response.statusCode === 200) {
+                    //     console.log(`OTP ${otp} sent to ${phone}`);
+                    //     res.json({ success: true, message: "OTP sent to phone" });
+                    // } 
 
-                 // Parse the response to check if it was successful
+
+                    // Parse the response to check if it was successful
                     if (response.statusCode === 200) {
                         try {
                             const responseData = JSON.parse(body);
                             if (responseData.ErrorCode === "000") {
                                 console.log(`OTP ${otp} sent to ${phone} via SMS`);
-                                res.json({ 
-                                    success: true, 
+                                res.json({
+                                    success: true,
                                     message: "OTP sent to phone via SMS"
                                 });
                             } else {
@@ -359,8 +435,8 @@ router.post('/send-otp', async (req, res) => {
                             // Even if parsing fails, check if body contains success indicator
                             if (body && body.includes("Message Accepted")) {
                                 console.log(`OTP ${otp} sent to ${phone} via SMS`);
-                                res.json({ 
-                                    success: true, 
+                                res.json({
+                                    success: true,
                                     message: "OTP sent to phone via SMS"
                                 });
                             } else {
@@ -372,30 +448,30 @@ router.post('/send-otp', async (req, res) => {
                             }
                         }
                     }
-                
-                
-                else {
-                    console.error("Nettyfish API Non-200 Response:", body);
-                    res.status(500).json({
-                        success: false,
-                        message: "SMS gateway returned an error",
-                        apiResponse: body
-                    });
-                }
-            });
-        } catch (error) {
-            console.error("Error in SMS OTP sending:", error);
-            res.status(500).json({
-                success: false,
-                message: "Internal server error while sending SMS OTP",
-                error: error.message
-            });
+
+
+                    else {
+                        console.error("Nettyfish API Non-200 Response:", body);
+                        res.status(500).json({
+                            success: false,
+                            message: "SMS gateway returned an error",
+                            apiResponse: body
+                        });
+                    }
+                });
+            } catch (error) {
+                console.error("Error in SMS OTP sending:", error);
+                res.status(500).json({
+                    success: false,
+                    message: "Internal server error while sending SMS OTP",
+                    error: error.message
+                });
+            }
         }
-    }
 
 
 
-    else {
+        else {
             // DEVELOPMENT/LOCALHOST: Show OTP in console
             console.log('=========================================');
             console.log('OTP SENDING (Localhost Testing):');
@@ -407,10 +483,10 @@ router.post('/send-otp', async (req, res) => {
             console.log('=========================================');
             console.log('NOTE: In production, this would be sent via SMS');
             console.log('=========================================');
-            
+
             // For localhost testing, return success with test OTP
-            res.json({ 
-                success: true, 
+            res.json({
+                success: true,
                 message: "OTP sent to phone (check console for testing)",
                 testOtp: otp // Include OTP for testing
             });
