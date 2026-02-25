@@ -1064,7 +1064,7 @@ app.delete("/category/:id", async (req, res) => {
 
 //MEDIA TYPE SECTION
 // GET
-app.get("/mediatype", async (req, res) => {
+app.get("/api/mediatype", async (req, res) => {
   try {
     const mediaTypes = await mediaTypeData.find();
     res.json(mediaTypes);
