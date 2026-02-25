@@ -251,7 +251,7 @@ app.get("/products", async (req, res) => {
 });
 
 /* order fetched with pagination */
-app.get("/products_paginated", async (req, res) => {
+app.get("/api/products_paginated", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 0;
     const limit = parseInt(req.query.limit) || 9;
@@ -474,7 +474,7 @@ app.get("/products/similar/:prodCode", async (req, res) => {
     // Decode and clean the product code
     const prodCode = decodeURIComponent(req.params.prodCode).trim();
     const cleanedProdCode = prodCode.replace(/^#/, '').trim();
-
+    
     console.log(`Fetching similar products for code: "${cleanedProdCode}"`);
 
     // First find the current product using regex for flexibility
@@ -647,16 +647,16 @@ app.delete("/products/:id", async (req, res) => {
 app.put('/products/:id/mark-prime', async (req, res) => {
   try {
     const { isPrime } = req.body;
-
+    
     // Validate isPrime value
     if (isPrime !== 0 && isPrime !== 1) {
-      return res.status(400).json({
+      return res.status(400).json({ 
         success: false,
-        message: 'Invalid prime status. Must be 0 or 1'
+        message: 'Invalid prime status. Must be 0 or 1' 
       });
     }
 
-    const updateData = {
+    const updateData = { 
       isPrime: isPrime,
       updatedAt: new Date()
     };
@@ -673,14 +673,14 @@ app.put('/products/:id/mark-prime', async (req, res) => {
       updateData,
       { new: true }
     );
-
+    
     if (!updatedProduct) {
-      return res.status(404).json({
+      return res.status(404).json({ 
         success: false,
-        message: 'Product not found'
+        message: 'Product not found' 
       });
     }
-
+    
     res.json({
       success: true,
       message: `Product marked as ${isPrime === 1 ? 'Prime' : 'Regular'} successfully`,
@@ -688,9 +688,9 @@ app.put('/products/:id/mark-prime', async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating product prime status:', error);
-    res.status(500).json({
+    res.status(500).json({ 
       success: false,
-      message: error.message
+      message: error.message 
     });
   }
 });
@@ -699,18 +699,18 @@ app.put('/products/:id/mark-prime', async (req, res) => {
 app.get('/products/check-prime/:prodCode', async (req, res) => {
   try {
     const cleanedCode = req.params.prodCode.replace(/^#/, '').trim();
-
+    
     const product = await productData.findOne({
       prodCode: { $regex: new RegExp(`^${cleanedCode}$`, 'i') }
     });
-
+    
     if (!product) {
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
-
+    
     res.json({
       success: true,
       isPrime: product.isPrime || 0,
@@ -732,26 +732,24 @@ app.get('/products/check-prime/:prodCode', async (req, res) => {
 app.get('/products/get-prime', async (req, res) => {
   try {
     console.log('Fetching prime products...');
-
+    
     // Find products where isPrime = 1 and visible is not false
-    const primeProducts = await productData.find({
+    const primeProducts = await productData.find({ 
       $and: [
         { isPrime: 1 },
-        {
-          $or: [
-            { visible: true },
-            { visible: { $exists: false } },
-            { visible: null }
-          ]
-        }
+        { $or: [
+          { visible: true },
+          { visible: { $exists: false } },
+          { visible: null }
+        ]}
       ]
-    }).sort({
+    }).sort({ 
       primeUpdatedAt: -1,
-      createdAt: -1
+      createdAt: -1 
     });
-
+    
     console.log(`Found ${primeProducts.length} prime products`);
-
+    
     // Transform the data for frontend
     const transformedProducts = primeProducts.map(product => ({
       _id: product._id,
@@ -781,7 +779,7 @@ app.get('/products/get-prime', async (req, res) => {
       updatedAt: product.updatedAt,
       primeUpdatedAt: product.primeUpdatedAt
     }));
-
+    
     res.json({
       success: true,
       count: transformedProducts.length,
@@ -789,10 +787,10 @@ app.get('/products/get-prime', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching prime products:', error);
-    res.status(500).json({
+    res.status(500).json({ 
       success: false,
       message: error.message,
-      error: error.stack
+      error: error.stack 
     });
   }
 });
@@ -831,10 +829,10 @@ app.get('/products/with-prime-status', async (req, res) => {
     }
 
     const products = await productData.find(filter)
-      .sort({
+      .sort({ 
         isPrime: -1,
         primeUpdatedAt: -1,
-        createdAt: -1
+        createdAt: -1 
       });
 
     res.json({
@@ -844,9 +842,9 @@ app.get('/products/with-prime-status', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching products with prime status:', error);
-    res.status(500).json({
+    res.status(500).json({ 
       success: false,
-      message: error.message
+      message: error.message 
     });
   }
 });
@@ -855,22 +853,22 @@ app.get('/products/with-prime-status', async (req, res) => {
 app.get('/products/admin/prime-table', async (req, res) => {
   try {
     const { includeHidden } = req.query;
-
+    
     let filter = {};
-
+    
     // Handle visibility
     if (includeHidden !== 'true') {
       filter.visible = { $ne: false };
     }
-
+    
     // Get all products
     const products = await productData.find(filter)
-      .sort({
+      .sort({ 
         isPrime: -1,
         primeUpdatedAt: -1,
-        createdAt: -1
+        createdAt: -1 
       });
-
+    
     res.json({
       success: true,
       count: products.length,
@@ -878,9 +876,9 @@ app.get('/products/admin/prime-table', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching products for admin table:', error);
-    res.status(500).json({
+    res.status(500).json({ 
       success: false,
-      message: error.message
+      message: error.message 
     });
   }
 });
@@ -889,11 +887,11 @@ app.get('/products/admin/prime-table', async (req, res) => {
 app.get('/products-debug/all', async (req, res) => {
   try {
     const allProducts = await productData.find({});
-
+    
     // Count prime products
     const primeProducts = allProducts.filter(p => p.isPrime === 1);
     const visiblePrimeProducts = allProducts.filter(p => p.isPrime === 1 && p.visible !== false);
-
+    
     res.json({
       success: true,
       totalCount: allProducts.length,
@@ -916,9 +914,9 @@ app.get('/products-debug/all', async (req, res) => {
     });
   } catch (error) {
     console.error('Debug error:', error);
-    res.status(500).json({
+    res.status(500).json({ 
       success: false,
-      message: error.message
+      message: error.message 
     });
   }
 });
@@ -926,11 +924,11 @@ app.get('/products-debug/all', async (req, res) => {
 // Route to get only Prime products
 app.get('/products/prime', async (req, res) => {
   try {
-    const primeProducts = await productData.find({
+    const primeProducts = await productData.find({ 
       isPrime: 1,
       visible: { $ne: false }
     }).sort({ createdAt: -1 });
-
+    
     res.json(primeProducts);
   } catch (error) {
     console.error('Error fetching prime products:', error);
@@ -942,27 +940,27 @@ app.get('/products/prime', async (req, res) => {
 app.get('/products/filter/prime-status/:status', async (req, res) => {
   try {
     const status = parseInt(req.params.status); // 0 or 1
-
+    
     if (status !== 0 && status !== 1) {
-      return res.status(400).json({
+      return res.status(400).json({ 
         success: false,
-        message: 'Invalid prime status'
+        message: 'Invalid prime status' 
       });
     }
-
+    
     const filter = { isPrime: status };
-
+    
     // Only show visible products by default
     if (req.query.includeHidden !== 'true') {
       filter.visible = { $ne: false };
     }
-
+    
     const products = await productData.find(filter)
-      .sort({
+      .sort({ 
         primeUpdatedAt: -1,
-        createdAt: -1
+        createdAt: -1 
       });
-
+    
     res.json({
       success: true,
       count: products.length,
@@ -970,9 +968,9 @@ app.get('/products/filter/prime-status/:status', async (req, res) => {
     });
   } catch (error) {
     console.error('Error filtering by prime status:', error);
-    res.status(500).json({
+    res.status(500).json({ 
       success: false,
-      message: error.message
+      message: error.message 
     });
   }
 });
@@ -980,17 +978,17 @@ app.get('/products/filter/prime-status/:status', async (req, res) => {
 // Get only Prime products (for homepage)
 app.get('/products/prime-only', async (req, res) => {
   try {
-    const filter = {
+    const filter = { 
       isPrime: 1,
       visible: { $ne: false }
     };
 
     const products = await productData.find(filter)
-      .sort({
+      .sort({ 
         primeUpdatedAt: -1, // Recently updated first
-        createdAt: -1
+        createdAt: -1 
       });
-
+    
     res.json({
       success: true,
       count: products.length,
@@ -998,9 +996,9 @@ app.get('/products/prime-only', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching prime products:', error);
-    res.status(500).json({
+    res.status(500).json({ 
       success: false,
-      message: error.message
+      message: error.message 
     });
   }
 });
@@ -1213,7 +1211,7 @@ const generateNextOrderId = async (prefix = "AD") => {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     const dateStr = `${year}${month}${day}`;
-
+    
     // Find orders with the same prefix and date
     const regex = new RegExp(`^${prefix}${dateStr}`);
     const lastOrder = await prodOrderData
@@ -1221,7 +1219,7 @@ const generateNextOrderId = async (prefix = "AD") => {
       .sort({ orderId: -1 });
 
     let sequentialNumber;
-
+    
     if (!lastOrder) {
       // First order of the day
       sequentialNumber = '001';
@@ -1231,9 +1229,9 @@ const generateNextOrderId = async (prefix = "AD") => {
       const lastSeq = parseInt(lastOrderId.slice(-3)) || 0;
       sequentialNumber = String(lastSeq + 1).padStart(3, '0');
     }
-
+    
     return `${prefix}${dateStr}${sequentialNumber}`;
-
+    
   } catch (err) {
     console.error("Error generating order ID:", err);
     // Fallback - generate based on timestamp
@@ -1298,7 +1296,7 @@ const generateNextOrderId = async (prefix = "AD") => {
 //       // Parse dates
 //       const start = new Date(product.booking.startDate);
 //       const end = new Date(product.booking.endDate);
-
+      
 //       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
 //         throw new Error("Invalid booking dates");
 //       }
@@ -1306,7 +1304,7 @@ const generateNextOrderId = async (prefix = "AD") => {
 //       // Calculate booked dates
 //       let bookedDates = [];
 //       const current = new Date(start);
-
+      
 //       while (current <= end) {
 //         const normalizedDate = new Date(Date.UTC(
 //           current.getUTCFullYear(),
@@ -1318,7 +1316,7 @@ const generateNextOrderId = async (prefix = "AD") => {
 //       }
 
 //       const totalDays = bookedDates.length;
-
+      
 //       return {
 //         ...product,
 //         bookedDates,
@@ -1385,7 +1383,7 @@ const generateNextOrderId = async (prefix = "AD") => {
 //       order_status: savedOrder.order_status,
 //       totalAmount: savedOrder.client.totalAmount
 //     });
-
+    
 //     res.status(201).json({
 //       success: true,
 //       orderId: savedOrder.orderId,
@@ -1428,7 +1426,7 @@ const generateNextOrderId = async (prefix = "AD") => {
 //         // Parse dates
 //         const start = new Date(product.booking.startDate);
 //         const end = new Date(product.booking.endDate);
-
+        
 //         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
 //           throw new Error("Invalid booking dates");
 //         }
@@ -1436,7 +1434,7 @@ const generateNextOrderId = async (prefix = "AD") => {
 //         // Calculate booked dates
 //         let bookedDates = [];
 //         const current = new Date(start);
-
+        
 //         while (current <= end) {
 //           const normalizedDate = new Date(Date.UTC(
 //             current.getUTCFullYear(),
@@ -1448,7 +1446,7 @@ const generateNextOrderId = async (prefix = "AD") => {
 //         }
 
 //         const totalDays = bookedDates.length;
-
+        
 //         return {
 //           ...product,
 //           bookedDates,
@@ -1492,7 +1490,7 @@ const generateNextOrderId = async (prefix = "AD") => {
 
 //       const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
 //         .reduce((sum, p) => sum + (p.amount || 0), 0);
-
+      
 //       const balanceAmount = Math.max(totalAmount - totalPaid, 0);
 
 //       if (updateData.client) {
@@ -1581,8 +1579,8 @@ app.post("/prodOrders", async (req, res) => {
     let order_status = req.body.order_status;
     if (!order_status || order_status.trim() === "") {
       // Default order_status based on status
-      order_status = status === "Added Manually"
-        ? "Pending Client Confirmation"
+      order_status = status === "Added Manually" 
+        ? "Pending Client Confirmation" 
         : "pending";
     }
 
@@ -1600,7 +1598,7 @@ app.post("/prodOrders", async (req, res) => {
       // Parse dates
       const start = new Date(product.booking.startDate);
       const end = new Date(product.booking.endDate);
-
+      
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
         throw new Error("Invalid booking dates");
       }
@@ -1608,7 +1606,7 @@ app.post("/prodOrders", async (req, res) => {
       // Calculate booked dates
       let bookedDates = [];
       const current = new Date(start);
-
+      
       while (current <= end) {
         const normalizedDate = new Date(Date.UTC(
           current.getUTCFullYear(),
@@ -1620,13 +1618,13 @@ app.post("/prodOrders", async (req, res) => {
       }
 
       const totalDays = bookedDates.length;
-
+      
       // Get individual costs
       const price = product.price || 0;
       const printingCost = product.printingCost || 0;
       const mountingCost = product.mountingCost || 0;
       const totalPrice = price * totalDays;
-
+      
       return {
         ...product,
         bookedDates,
@@ -1658,7 +1656,7 @@ app.post("/prodOrders", async (req, res) => {
         const bookingTotal = product.booking?.totalPrice || 0;
         const printing = product.printingCost || 0;
         const mounting = product.mountingCost || 0;
-
+        
         totalAmount += bookingTotal;
         totalPrintingCost += printing;
         totalMountingCost += mounting;
@@ -1729,7 +1727,7 @@ app.post("/prodOrders", async (req, res) => {
       gstAmount: savedOrder.client.gstAmount,
       totalWithGST: savedOrder.client.totalAmountWithGST
     });
-
+    
     res.status(201).json({
       success: true,
       orderId: savedOrder.orderId,
@@ -1771,7 +1769,7 @@ app.put("/prodOrders/:id", async (req, res) => {
         // Parse dates
         const start = new Date(product.booking.startDate);
         const end = new Date(product.booking.endDate);
-
+        
         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
           throw new Error("Invalid booking dates");
         }
@@ -1779,7 +1777,7 @@ app.put("/prodOrders/:id", async (req, res) => {
         // Calculate booked dates
         let bookedDates = [];
         const current = new Date(start);
-
+        
         while (current <= end) {
           const normalizedDate = new Date(Date.UTC(
             current.getUTCFullYear(),
@@ -1791,13 +1789,13 @@ app.put("/prodOrders/:id", async (req, res) => {
         }
 
         const totalDays = bookedDates.length;
-
+        
         // Get individual costs
         const price = product.price || 0;
         const printingCost = product.printingCost || 0;
         const mountingCost = product.mountingCost || 0;
         const totalPrice = price * totalDays;
-
+        
         return {
           ...product,
           bookedDates,
@@ -1818,7 +1816,7 @@ app.put("/prodOrders/:id", async (req, res) => {
       });
 
       updateData.products = updatedProducts;
-
+      
       // Calculate overall totals from updated products
       let totalAmount = 0;
       let totalOverallAmount = 0;
@@ -1830,7 +1828,7 @@ app.put("/prodOrders/:id", async (req, res) => {
           const bookingTotal = product.booking?.totalPrice || 0;
           const printing = product.printingCost || 0;
           const mounting = product.mountingCost || 0;
-
+          
           totalAmount += bookingTotal;
           totalPrintingCost += printing;
           totalMountingCost += mounting;
@@ -1839,9 +1837,9 @@ app.put("/prodOrders/:id", async (req, res) => {
       });
 
       // Get GST percentage from update data or existing order
-      const gstPercentage = updateData.client?.gstPercentage ||
-        existingOrder.client?.gstPercentage ||
-        18;
+      const gstPercentage = updateData.client?.gstPercentage || 
+                           existingOrder.client?.gstPercentage || 
+                           18;
       const gstAmount = totalOverallAmount * (gstPercentage / 100);
       const totalAmountWithGST = totalOverallAmount + gstAmount;
 
@@ -1871,7 +1869,7 @@ app.put("/prodOrders/:id", async (req, res) => {
     if (updateData.products) {
       const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
         .reduce((sum, p) => sum + (p.amount || 0), 0);
-
+      
       const balanceAmount = Math.max(totalAmount - totalPaid, 0);
 
       if (updateData.client) {
@@ -1958,7 +1956,7 @@ const updateBookedDatesOnRestore = async (product, orderId) => {
   try {
     // When a product is restored, we need to check for date conflicts
     console.log(`📅 Restoring booked dates for product: ${product.prodCode}`);
-
+    
     // The booked dates will automatically be included in future
     // /booked-dates endpoint queries
     return true;
@@ -2068,12 +2066,12 @@ app.get("/booked-dates/:prodCode", async (req, res) => {
       order.products.forEach((product) => {
         if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
           const orderStatus = order.order_status || 'Pending Client Confirmation';
-
+          
           // Categorize based on order_status
           product.bookedDates.forEach((date) => {
             try {
               if (!date) return;
-
+              
               const dateObj = new Date(date);
               if (isNaN(dateObj.getTime())) {
                 console.warn("Invalid date in bookedDates:", date);
@@ -2088,16 +2086,16 @@ app.get("/booked-dates/:prodCode", async (req, res) => {
                   dateObj.getUTCDate()
                 )
               );
-
+              
               const dateString = utcDate.toISOString().split("T")[0];
-
+              
               // CATEGORIZE BASED ON ORDER_STATUS
               if (orderStatus === "Cancelled" || orderStatus === "cancelled") {
                 // Cancelled orders - green (available)
                 cancelledDates.push(dateString);
-              } else if (orderStatus === "Pending Client Confirmation" ||
-                orderStatus === "pending" ||
-                orderStatus === "Pending") {
+              } else if (orderStatus === "Pending Client Confirmation" || 
+                         orderStatus === "pending" || 
+                         orderStatus === "Pending") {
                 // Pending orders - orange
                 pendingDates.push({
                   date: dateString,
@@ -2120,9 +2118,9 @@ app.get("/booked-dates/:prodCode", async (req, res) => {
     // Remove duplicates and maintain backward compatibility
     const uniqueCancelledDates = [...new Set(cancelledDates)];
     const uniqueConfirmedDates = [...new Set(confirmedDates)];
-
+    
     // For pending dates, keep the structure but deduplicate
-    const uniquePendingDates = pendingDates.filter((value, index, self) =>
+    const uniquePendingDates = pendingDates.filter((value, index, self) => 
       index === self.findIndex((p) => p.date === value.date)
     );
 
@@ -2138,7 +2136,7 @@ app.get("/booked-dates/:prodCode", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching booked dates:", error);
-    res.status(500).json({
+    res.status(500).json({ 
       error: "Failed to fetch booked dates",
       cancelled: [],
       pending: [],
@@ -2256,8 +2254,8 @@ app.get("/deleteProductOrder/:orderIdentifier/:productId", async (req, res) => {
 
     res.json({
       status: true,
-      message: isCurrentlyDeleted
-        ? "Product restored successfully"
+      message: isCurrentlyDeleted 
+        ? "Product restored successfully" 
         : "Product marked as deleted successfully",
       totalAmount,
       totalPaid,
@@ -2496,9 +2494,9 @@ app.get("/softDeleteProductOrder/:orderId/:productId", async (req, res) => {
 //     const start = new Date(startDate);
 //     const end = new Date(endDate);
 //     const current = new Date(start);
-
+    
 //     const conflictingDates = [];
-
+    
 //     while (current <= end) {
 //       const dateStr = current.toISOString().split('T')[0];
 //       if (bookedDates.includes(dateStr)) {
@@ -2524,94 +2522,94 @@ app.get("/softDeleteProductOrder/:orderId/:productId", async (req, res) => {
 // });
 
 app.get("/check-date-availability/:prodCode", async (req, res) => {
-  try {
-    const { prodCode } = req.params;
-    const { startDate, endDate, excludeOrderId } = req.query;
+    try {
+        const { prodCode } = req.params;
+        const { startDate, endDate, excludeOrderId } = req.query;
 
-    if (!startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Start and end dates are required"
-      });
-    }
+        if (!startDate || !endDate) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Start and end dates are required" 
+            });
+        }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Invalid date format" 
+            });
+        }
 
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid date format"
-      });
-    }
+        // Get all booked dates for this product
+        const dateResponse = await fetch(`${req.protocol}://${req.get('host')}/booked-dates/${prodCode}${excludeOrderId ? `?excludeOrderId=${excludeOrderId}` : ''}`);
+        const dateData = await dateResponse.json();
+        
+        const confirmedDates = dateData.confirmed || [];
+        const pendingDates = dateData.pending || [];
 
-    // Get all booked dates for this product
-    const dateResponse = await fetch(`${req.protocol}://${req.get('host')}/booked-dates/${prodCode}${excludeOrderId ? `?excludeOrderId=${excludeOrderId}` : ''}`);
-    const dateData = await dateResponse.json();
+        // Generate all dates in requested range
+        const requestedDates = [];
+        const current = new Date(start);
+        const endDateObj = new Date(end);
+        
+        while (current <= endDateObj) {
+            const dateStr = current.toISOString().split('T')[0];
+            requestedDates.push(dateStr);
+            current.setDate(current.getDate() + 1);
+        }
 
-    const confirmedDates = dateData.confirmed || [];
-    const pendingDates = dateData.pending || [];
+        // Check for conflicts
+        const confirmedConflicts = [];
+        const pendingConflicts = [];
+        const availableDates = [];
 
-    // Generate all dates in requested range
-    const requestedDates = [];
-    const current = new Date(start);
-    const endDateObj = new Date(end);
-
-    while (current <= endDateObj) {
-      const dateStr = current.toISOString().split('T')[0];
-      requestedDates.push(dateStr);
-      current.setDate(current.getDate() + 1);
-    }
-
-    // Check for conflicts
-    const confirmedConflicts = [];
-    const pendingConflicts = [];
-    const availableDates = [];
-
-    requestedDates.forEach(dateStr => {
-      if (confirmedDates.includes(dateStr)) {
-        confirmedConflicts.push(dateStr);
-      } else if (pendingDates.some(p => p.date === dateStr)) {
-        pendingConflicts.push({
-          date: dateStr,
-          type: 'pending'
+        requestedDates.forEach(dateStr => {
+            if (confirmedDates.includes(dateStr)) {
+                confirmedConflicts.push(dateStr);
+            } else if (pendingDates.some(p => p.date === dateStr)) {
+                pendingConflicts.push({
+                    date: dateStr,
+                    type: 'pending'
+                });
+            } else {
+                availableDates.push(dateStr);
+            }
         });
-      } else {
-        availableDates.push(dateStr);
-      }
-    });
 
-    const totalRequestedDays = requestedDates.length;
-    const confirmedConflictCount = confirmedConflicts.length;
-    const pendingConflictCount = pendingConflicts.length;
-    const availableCount = availableDates.length;
-    const isAvailable = confirmedConflictCount === 0;
+        const totalRequestedDays = requestedDates.length;
+        const confirmedConflictCount = confirmedConflicts.length;
+        const pendingConflictCount = pendingConflicts.length;
+        const availableCount = availableDates.length;
+        const isAvailable = confirmedConflictCount === 0;
 
-    res.json({
-      success: true,
-      isAvailable,
-      hasConflicts: confirmedConflictCount > 0,
-      hasQueueDates: pendingConflictCount > 0,
-      totalRequestedDays,
-      confirmedConflicts,
-      pendingConflicts,
-      availableDates,
-      confirmedConflictCount,
-      pendingConflictCount,
-      availableCount,
-      message: confirmedConflictCount > 0
-        ? `${confirmedConflictCount} date(s) are already confirmed booked. ${pendingConflictCount > 0 ? `${pendingConflictCount} date(s) are in queue.` : ''}`
-        : pendingConflictCount > 0
-          ? `All dates available. ${pendingConflictCount} date(s) are in queue (can be booked).`
-          : 'All dates are available for immediate booking.'
-    });
-  } catch (error) {
-    console.error("Error checking date availability:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
+        res.json({
+            success: true,
+            isAvailable,
+            hasConflicts: confirmedConflictCount > 0,
+            hasQueueDates: pendingConflictCount > 0,
+            totalRequestedDays,
+            confirmedConflicts,
+            pendingConflicts,
+            availableDates,
+            confirmedConflictCount,
+            pendingConflictCount,
+            availableCount,
+            message: confirmedConflictCount > 0 
+                ? `${confirmedConflictCount} date(s) are already confirmed booked. ${pendingConflictCount > 0 ? `${pendingConflictCount} date(s) are in queue.` : ''}`
+                : pendingConflictCount > 0
+                ? `All dates available. ${pendingConflictCount} date(s) are in queue (can be booked).`
+                : 'All dates are available for immediate booking.'
+        });
+    } catch (error) {
+        console.error("Error checking date availability:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
 });
 
 // Helper function to get booked dates
@@ -2626,7 +2624,7 @@ async function getBookedDatesForProduct(prodCode, excludeOrderId = null) {
   }
 
   const orders = await prodOrderData.find(query);
-
+  
   const bookedDates = [];
   orders.forEach(order => {
     order.products.forEach(product => {
@@ -2732,7 +2730,7 @@ app.get("/getOrderStatuses", async (req, res) => {
 //     // Find and update
 //     if (cancel == false) {
 //       let updateData = {};
-
+      
 //       // Special handling for order confirmation
 //       if (isConfirmation && status === "Order Confirmed") {
 //         updateData = {
@@ -2744,7 +2742,7 @@ app.get("/getOrderStatuses", async (req, res) => {
 //       } else {
 //         // Normal status update
 //         updateData = { order_status: status };
-
+        
 //         // Map status to proper values
 //         if (status.toLowerCase().includes("pending")) {
 //           updateData.order_status = "pending";
@@ -2775,7 +2773,7 @@ app.get("/getOrderStatuses", async (req, res) => {
 //         data: updatedOrder,
 //       });
 //     }
-
+    
 //     if (cancel == true) {
 //       const updatedOrder = await prodOrderData.findByIdAndUpdate(
 //         orderId,
@@ -2844,11 +2842,11 @@ app.put("/updateOrderStatus/:orderId", async (req, res) => {
 
     if (cancel == false) {
       let updateData = {};
-
+      
       // DO NOT CHANGE THE 'status' FIELD (it should remain "Added Manually" or "UserSideOrder")
       // Only update 'order_status' field
       updateData.order_status = status;
-
+      
       // Special handling for order confirmation
       if (isConfirmation && status === "Order Confirmed") {
         updateData.confirmed_at = new Date();
@@ -2874,7 +2872,7 @@ app.put("/updateOrderStatus/:orderId", async (req, res) => {
         data: updatedOrder,
       });
     }
-
+    
     if (cancel == true) {
       // For cancellation, only update order_status, NOT the main status field
       const updatedOrder = await prodOrderData.findByIdAndUpdate(
@@ -3212,7 +3210,7 @@ app.put("/prodOrders/:id/handled-by", async (req, res) => {
 app.get("/pending-reservations/:prodCode", async (req, res) => {
   try {
     const { prodCode } = req.params;
-
+    
     // Find all pending orders for this product
     const pendingOrders = await prodOrderData.find({
       "products.prodCode": prodCode,
@@ -3235,7 +3233,7 @@ app.get("/pending-reservations/:prodCode", async (req, res) => {
             const dateObj = new Date(date);
             dates.push(dateObj.toISOString().split('T')[0]);
           });
-
+          
           reservations.push({
             orderId: order.orderId,
             userId: order.client?.userId,
@@ -3424,37 +3422,37 @@ app.get("/date-suggestions/:prodCode", async (req, res) => {
 
     const daysRequired = parseInt(requiredDays) || 7;
     const startDate = startFrom ? new Date(startFrom) : new Date();
-
+    
     // Get confirmed dates
     const dateResponse = await fetch(`${req.protocol}://${req.get('host')}/booked-dates/${prodCode}`);
     const dateData = await dateResponse.json();
-
+    
     const confirmedDates = dateData.confirmed || [];
     const pendingDates = dateData.pending || [];
 
     // Combine both confirmed and pending for conflict checking
     const allBlockedDates = [...new Set([...confirmedDates])]; // Only confirmed dates block
-
+    
     const suggestions = [];
     const maxDaysToCheck = 90; // Check next 90 days
-
+    
     for (let dayOffset = 0; dayOffset < maxDaysToCheck; dayOffset++) {
       const currentStart = new Date(startDate);
       currentStart.setDate(currentStart.getDate() + dayOffset);
-
+      
       // Skip past dates
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (currentStart < today) continue;
-
+      
       let consecutiveDays = 0;
       let currentDay = new Date(currentStart);
       let availableDays = [];
       let conflictDays = [];
-
+      
       while (consecutiveDays < daysRequired) {
         const dateStr = currentDay.toISOString().split('T')[0];
-
+        
         // Check if date is confirmed booked
         if (allBlockedDates.includes(dateStr)) {
           conflictDays.push({
@@ -3463,25 +3461,25 @@ app.get("/date-suggestions/:prodCode", async (req, res) => {
           });
           break;
         }
-
+        
         // Check if date is pending (still available)
         const isPending = pendingDates.some(p => p.date === dateStr);
-
+        
         availableDays.push({
           date: dateStr,
           status: isPending ? 'pending' : 'available'
         });
-
+        
         consecutiveDays++;
         currentDay.setDate(currentDay.getDate() + 1);
       }
-
+      
       if (consecutiveDays >= daysRequired) {
         const endDate = new Date(currentStart);
         endDate.setDate(endDate.getDate() + daysRequired - 1);
-
+        
         const pendingCount = availableDays.filter(d => d.status === 'pending').length;
-
+        
         suggestions.push({
           startDate: currentStart.toISOString().split('T')[0],
           endDate: endDate.toISOString().split('T')[0],
@@ -3492,11 +3490,11 @@ app.get("/date-suggestions/:prodCode", async (req, res) => {
           suggestionText: `${currentStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`,
           note: pendingCount > 0 ? `(${pendingCount} pending dates in queue)` : 'All dates available'
         });
-
+        
         if (suggestions.length >= 3) break; // Limit to 3 suggestions
       }
     }
-
+    
     res.json({
       success: true,
       suggestions: suggestions,
@@ -3530,7 +3528,7 @@ app.get("/check-date-conflicts/:prodCode", async (req, res) => {
     // Parse dates
     const start = new Date(startDate);
     const end = new Date(endDate);
-
+    
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({
         success: false,
@@ -3541,7 +3539,7 @@ app.get("/check-date-conflicts/:prodCode", async (req, res) => {
     // Get all booked dates (both confirmed and pending)
     const dateResponse = await fetch(`${req.protocol}://${req.get('host')}/booked-dates/${prodCode}${excludeOrderId ? `?excludeOrderId=${excludeOrderId}` : ''}`);
     const dateData = await dateResponse.json();
-
+    
     const confirmedDates = dateData.confirmed || [];
     const pendingDates = dateData.pending || [];
 
@@ -3549,7 +3547,7 @@ app.get("/check-date-conflicts/:prodCode", async (req, res) => {
     const requestedDates = [];
     const current = new Date(start);
     const endDateObj = new Date(end);
-
+    
     while (current <= endDateObj) {
       const dateStr = current.toISOString().split('T')[0];
       requestedDates.push(dateStr);
@@ -3593,14 +3591,14 @@ app.get("/check-date-conflicts/:prodCode", async (req, res) => {
     if (confirmedConflictCount > 0 && availableCount < totalRequestedDays) {
       // Try to find alternative date ranges
       const alternativeRanges = await generateAlternativeDateRanges(
-        prodCode,
-        start,
-        end,
-        totalRequestedDays,
+        prodCode, 
+        start, 
+        end, 
+        totalRequestedDays, 
         confirmedDates,
         pendingDates
       );
-
+      
       if (alternativeRanges.length > 0) {
         suggestions.push(...alternativeRanges);
       }
@@ -3619,7 +3617,7 @@ app.get("/check-date-conflicts/:prodCode", async (req, res) => {
       availableCount,
       canBook: confirmedConflictCount === 0,
       suggestions: suggestions.length > 0 ? suggestions.slice(0, 3) : [],
-      message: confirmedConflictCount > 0
+      message: confirmedConflictCount > 0 
         ? `${confirmedConflictCount} date(s) are already confirmed booked. ${pendingConflictCount > 0 ? `${pendingConflictCount} date(s) are in queue.` : ''}`
         : pendingConflictCount > 0
           ? `All dates available. ${pendingConflictCount} date(s) are in queue (can be booked).`
@@ -3638,27 +3636,27 @@ app.get("/check-date-conflicts/:prodCode", async (req, res) => {
 async function generateAlternativeDateRanges(prodCode, originalStart, originalEnd, requiredDays, confirmedDates, pendingDates) {
   const suggestions = [];
   const maxAttempts = 30;
-
+  
   // Try different starting points
   for (let attempt = 0; attempt < maxAttempts && suggestions.length < 3; attempt++) {
     // Start from original start date + attempt days
     const startDate = new Date(originalStart);
     startDate.setDate(startDate.getDate() + attempt);
-
+    
     // Skip past dates
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (startDate < today) continue;
-
+    
     let consecutiveAvailable = 0;
     let currentDate = new Date(startDate);
     let potentialStart = new Date(startDate);
     let potentialEnd = null;
-
+    
     // Try to find required consecutive days
     while (consecutiveAvailable < requiredDays) {
       const dateStr = currentDate.toISOString().split('T')[0];
-
+      
       // Check if date is available (not confirmed)
       if (!confirmedDates.includes(dateStr)) {
         consecutiveAvailable++;
@@ -3674,15 +3672,15 @@ async function generateAlternativeDateRanges(prodCode, originalStart, originalEn
         potentialStart = new Date(currentDate);
         potentialStart.setDate(potentialStart.getDate() + 1);
       }
-
+      
       currentDate.setDate(currentDate.getDate() + 1);
-
+      
       // Don't search too far into the future
       if (currentDate > new Date(originalEnd.getTime() + (90 * 24 * 60 * 60 * 1000))) {
         break;
       }
     }
-
+    
     if (potentialEnd) {
       // Count pending dates in this range
       let pendingCount = 0;
@@ -3694,7 +3692,7 @@ async function generateAlternativeDateRanges(prodCode, originalStart, originalEn
         }
         checkDate.setDate(checkDate.getDate() + 1);
       }
-
+      
       suggestions.push({
         startDate: potentialStart.toISOString().split('T')[0],
         endDate: potentialEnd.toISOString().split('T')[0],
@@ -3706,7 +3704,7 @@ async function generateAlternativeDateRanges(prodCode, originalStart, originalEn
       });
     }
   }
-
+  
   return suggestions;
 }
 // RAC CONCEPTS 
@@ -3924,7 +3922,7 @@ const contactUserTemplate = ({ firstname, lastname, email, message }) => `
 app.post("/sendMailAdinnContactUs", async (req, res) => {
   try {
     const { firstName, lastName, email, message } = req.body;
-
+    
 
     // ✅ Validation
     if (!firstName || !lastName || !email || !message) {
@@ -3966,7 +3964,7 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
       {
         headers: {
           "api-key": process.env.BREVO_API_KEY,
-
+          
           "Content-Type": "application/json",
         },
         timeout: 15000, // 15 sec safety's
@@ -4003,48 +4001,48 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
 // Simple GET  HII
 app.post("/checkPost", (req, res) => {
   const { firstName, lastName, email, message } = req.body;
-  res.json({ firstName: firstName, lastName: lastName, email: email, message: message, test: "test" });
+    res.json({ firstName: firstName, lastName : lastName,email:email,message:message , test : "test"});
 });
 app.get("/testurl", async (req, res) => {
-  try {
-    const transporter = nodemailer.createTransport({
-      host: "mail.adinnoutdoors.com",
-      port: 465,
-      secure: false,
-      auth: {
-        user: "roadshows@adinnoutdoors.com",
-        pass: "Pie~(HOk7q5c",
-      },
-      tls: {
-        rejectUnauthorized: false
-      }
-    });
-
-    const mailOptions = {
-      from: `"Order Notification" <roadshows@adinnoutdoors.com>`,
-      to: "webdeveloper1@adinn.co.in",
-      subject: "New Order Notification",
-      html: `
+    try {
+      const transporter = nodemailer.createTransport({
+        host: "mail.adinnoutdoors.com",
+        port: 465,
+       secure: false,
+        auth: {
+          user: "roadshows@adinnoutdoors.com",
+          pass: "Pie~(HOk7q5c",
+        },
+        tls: {
+          rejectUnauthorized: false
+        }
+      });
+  
+      const mailOptions = {
+        from: `"Order Notification" <roadshows@adinnoutdoors.com>`,
+        to: "webdeveloper1@adinn.co.in",
+        subject: "New Order Notification",
+        html: `
           <h3>New Order Received</h3>
           <p>This is a test email sent from Node.js</p>
         `,
-    };
-
-    await transporter.sendMail(mailOptions);
-
-    res.json({
-      success: true,
-      message: "Email sent successfully",
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      success: false,
-      message: "Email sending failed",
-      error: error.message,
-    });
-  }
-
+      };
+  
+      await transporter.sendMail(mailOptions);
+  
+      res.json({
+        success: true,
+        message: "Email sent successfully",
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        success: false,
+        message: "Email sending failed",
+        error: error.message,
+      });
+    }
+  
 })
 
 
@@ -4303,7 +4301,7 @@ app.get("/getDashboardCount", async (req, res) => {
           }
         }
       ]),
-      // 7️⃣ Overall product enquiries count
+       // 7️⃣ Overall product enquiries count
       productEnquiryData.countDocuments({}),
 
       // 8️⃣ Contact us enquiries count
@@ -4347,88 +4345,34 @@ app.get("/getDashboardCount", async (req, res) => {
 
 
 //BREVO EMAIL INTEGRATION
-// app.post("/sendBrevoSMTP", async (req, res) => {
-//   try {
-//     const { firstName, lastName, email, message } = req.body;
-
-
-//     const transporter = nodemailer.createTransport({
-//       host: "smtpout.secureserver.net",
-//       port: 465,
-//       secure: true, // 587 = false
-//       auth: {
-//         user: "noreply@adinndigital.com",
-//         pass: "Adinn@321@"
-//       }
-
-//     });
-
-// const mailOptions = {
-//   from: 'Adinn <noreply@adinndigital.com>',
-//   to: email,
-//   subject: `Welcome ${firstName} ${lastName}!`,
-//   html: `<h1>Welcome to Adinn</h1>`,
-//   text: `Welcome ${firstName} ${lastName}!`
-// };
-
-
-
-//     const info = await transporter.sendMail(mailOptions);
-
-//     res.json({
-//       success: true,
-//       messageId: info.messageId,
-//       message: "Email sent via SMTP"
-//     });
-
-//   } catch (error) {
-//     console.error("SMTP Error:", error);
-//     res.status(500).json({
-//       success: false,
-//       error: error.message
-//     });
-//   }
-// });
-
-
-// BREVO SMTP EMAIL INTEGRATION (with Render-compatible fixes)
 app.post("/sendBrevoSMTP", async (req, res) => {
   try {
     const { firstName, lastName, email, message } = req.body;
 
-    // Force IPv4 DNS lookup (avoids IPv6 timeouts)
-    const dns = require('dns');
+    
     const transporter = nodemailer.createTransport({
       host: "smtpout.secureserver.net",
-      // port: 465,
-      // secure: true, // true for 465, false for 587
-      port: 587,
-      secure: false,
-      // requireTLS: true,
+      port: 465,
+      secure: true, // 587 = false
       auth: {
         user: "noreply@adinndigital.com",
-        pass: "Adinn@321@"  // ⚠️ Move to environment variable!
-      },
-      // Increase timeouts for slower networks
-      connectionTimeout: 15000,   // 15 seconds
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
-      // Prefer IPv4
-      lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { ...options, family: 4 }, callback);
+        pass: "Adinn@321@"
       }
+
     });
 
-    const mailOptions = {
-      from: 'Adinn <noreply@adinndigital.com>',
-      to: email,
-      subject: `Welcome ${firstName} ${lastName}!`,
-      html: `<h1>Welcome to Adinn</h1>`,
-      text: `Welcome ${firstName} ${lastName}!`
-    };
+const mailOptions = {
+  from: 'Adinn <noreply@adinndigital.com>',
+  to: email,
+  subject: `Welcome ${firstName} ${lastName}!`,
+  html: `<h1>Welcome to Adinn</h1>`,
+  text: `Welcome ${firstName} ${lastName}!`
+};
+
+
 
     const info = await transporter.sendMail(mailOptions);
-
+    
     res.json({
       success: true,
       messageId: info.messageId,
