@@ -263,7 +263,7 @@ app.get("/products", async (req, res) => {
 });
 
 /* order fetched with pagination */
-app.get("/api/products_paginated", async (req, res) => {
+app.get("/products_paginated", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 0;
     const limit = parseInt(req.query.limit) || 9;
@@ -1021,7 +1021,7 @@ app.get('/products/prime-only', async (req, res) => {
 
 // CATEGORY CRUD OPERATION
 // GET
-app.get("/api/category", async (req, res) => {
+app.get("/category", async (req, res) => {
   try {
     const categories = await categoryData.find();
     res.json(categories);
@@ -1064,7 +1064,7 @@ app.delete("/category/:id", async (req, res) => {
 
 //MEDIA TYPE SECTION
 // GET
-app.get("/api/mediatype", async (req, res) => {
+app.get("/mediatype", async (req, res) => {
   try {
     const mediaTypes = await mediaTypeData.find();
     res.json(mediaTypes);
@@ -1073,7 +1073,7 @@ app.get("/api/mediatype", async (req, res) => {
   }
 });
 //POST
-app.post("/api/mediatype", async (req, res) => {
+app.post("/mediatype", async (req, res) => {
   try {
     const newMediaType = new mediaTypeData(req.body);
     const saved = await newMediaType.save();
@@ -1083,7 +1083,7 @@ app.post("/api/mediatype", async (req, res) => {
   }
 });
 //UPDATE
-app.put("/api/mediatype/:id", async (req, res) => {
+app.put("/mediatype/:id", async (req, res) => {
   try {
     const updated = await mediaTypeData.findByIdAndUpdate(
       req.params.id,
