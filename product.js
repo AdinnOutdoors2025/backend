@@ -1021,7 +1021,7 @@ app.get('/products/prime-only', async (req, res) => {
 
 // CATEGORY CRUD OPERATION
 // GET
-app.get("/category", async (req, res) => {
+app.get("/api/category", async (req, res) => {
   try {
     const categories = await categoryData.find();
     res.json(categories);
