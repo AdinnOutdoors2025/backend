@@ -11,15 +11,66 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// Helper function to calculate product totals with GST
+const calculateProductTotals = (product, gstPercentage = 18) => {
+  if (!product) return { bookingTotal: 0, overallBase: 0, gstAmount: 0, totalWithGST: 0 };
+
+  const bookingTotal = product.booking?.totalPrice || 0;
+  const printingCost = product.printingCost || 0;
+  const mountingCost = product.mountingCost || 0;
+  const overallBase = bookingTotal + printingCost + mountingCost;
+  const gstAmount = Math.floor(overallBase * (gstPercentage / 100));
+  const totalWithGST = overallBase + gstAmount;
+
+  return {
+    bookingTotal,
+    printingCost,
+    mountingCost,
+    overallBase,
+    gstAmount,
+    totalWithGST,
+    totalDays: product.booking?.totalDays || 0,
+    pricePerDay: product.price || 0
+  };
+};
+
+// Helper function to calculate order totals with proper GST handling
+const calculateOrderTotals = (products, gstPercentage = 18) => {
+  let totalBookingAmount = 0;
+  let totalPrintingCost = 0;
+  let totalMountingCost = 0;
+
+  products.forEach(product => {
+    if (!product.deleted) {
+      totalBookingAmount += product.booking?.totalPrice || 0;
+      totalPrintingCost += product.printingCost || 0;
+      totalMountingCost += product.mountingCost || 0;
+    }
+  });
+
+  const overallBase = totalBookingAmount + totalPrintingCost + totalMountingCost;
+  const gstAmount = Math.floor(overallBase * (gstPercentage / 100));
+  const totalWithGST = overallBase + gstAmount;
+
+  return {
+    totalBookingAmount,
+    totalPrintingCost,
+    totalMountingCost,
+    overallBase,
+    gstAmount,
+    totalWithGST
+  };
+};
+
 // Generate product details HTML for emails
-const generateProductDetailsHTML = (products) => {
+const generateProductDetailsHTML = (products, gstPercentage = 18) => {
   return products.map((product, index) => {
     const productImage = product.image;
     const startDate = formatIndianDate(product.booking?.startDate);
     const endDate = formatIndianDate(product.booking?.endDate);
     const pricePerDay = formatIndianCurrency(product.price || 0);
-    const totalPrice = formatIndianCurrency(product.booking?.totalPrice || 0);
-
+    const totals = calculateProductTotals(product, gstPercentage);
+    
     return `
       <table width="100%" cellpadding="0" cellspacing="0"
         style="border-bottom:2px solid #C4C1C1; margin-bottom:20px; padding-bottom:20px;">
@@ -29,13 +80,22 @@ const generateProductDetailsHTML = (products) => {
               style="height:90px;width:90px;border-radius:10px;">
           </td>
           <td>
-            <table style="font-size:16px;">
-              <tr><td>Product Name</td><td>:</td><td>${product.name}</td></tr>
-              <tr><td>Product Code</td><td>:</td><td>${product.prodCode}</td></tr>
-              <tr><td>Price Per Day</td><td>:</td><td>${pricePerDay}</td></tr>
-              <tr><td>Booked Dates</td><td>:</td><td>${startDate} - ${endDate}</td></tr>
-              <tr><td>Total Days</td><td>:</td><td>${product.booking?.totalDays || 0} days</td></tr>
-              <tr><td>Total Price</td><td>:</td><td>${totalPrice}</td></tr>
+            <table style="font-size:16px; width:100%;">
+              <tr><td style="padding:5px;"><strong>Product Name</strong></td><td>:</td><td>${product.name}</td></tr>
+              <tr><td style="padding:5px;"><strong>Product Code</strong></td><td>:</td><td>${product.prodCode}</td></tr>
+              <tr><td style="padding:5px;"><strong>Price Per Day</strong></td><td>:</td><td>${pricePerDay}</td></tr>
+              <tr><td style="padding:5px;"><strong>Booked Dates</strong></td><td>:</td><td>${startDate} - ${endDate}</td></tr>
+              <tr><td style="padding:5px;"><strong>Total Days</strong></td><td>:</td><td>${product.booking?.totalDays || 0} days</td></tr>
+              <tr><td style="padding:5px;"><strong>Booking Amount</strong></td><td>:</td><td>${formatIndianCurrency(totals.bookingTotal, true)}</td></tr>
+              <tr><td style="padding:5px;"><strong>Printing Cost</strong></td><td>:</td><td>${formatIndianCurrency(totals.printingCost, true)}</td></tr>
+              <tr><td style="padding:5px;"><strong>Mounting Cost</strong></td><td>:</td><td>${formatIndianCurrency(totals.mountingCost, true)}</td></tr>
+              <tr><td style="padding:5px;"><strong>Base Amount (Excl. GST)</strong></td><td>:</td><td>${formatIndianCurrency(totals.overallBase, true)}</td></tr>
+              <tr><td style="padding:5px;"><strong>GST @${gstPercentage}%</strong></td><td>:</td><td>${formatIndianCurrency(totals.gstAmount, true)}</td></tr>
+              <tr style="border-top:2px solid #000;">
+                <td style="padding:5px; font-weight:700; color:#E31F25;"><strong>Total (Incl. GST)</strong></td>
+                <td style="font-weight:700; color:#E31F25;">:</td>
+                <td style="padding:5px; font-weight:700; color:#E31F25;">${formatIndianCurrency(totals.totalWithGST, true)}</td>
+              </tr>
             </table>
           </td>
         </tr>
@@ -149,8 +209,9 @@ router.post('/send-cancellation-notification', async (req, res) => {
     }
 
     const currentDate = getCurrentIndianDate();
-    const formattedTotalAmount = formatIndianCurrency(orderDetails.products.reduce((sum, p) =>
-      sum + (p.booking?.totalPrice || 0), 0));
+    const gstPercentage = orderDetails.client?.gstPercentage || 18;
+    const totals = calculateOrderTotals(orderDetails.products || [], gstPercentage);
+    const formattedTotalAmount = formatIndianCurrency(totals.totalWithGST, true);
     const formattedCreatedOrderDate = formatIndianDate(createdAt);
 
     // User Email Template
@@ -214,7 +275,8 @@ router.post('/send-cancellation-notification', async (req, res) => {
 
           <!-- Product Details -->
           <div>
-            ${generateProductDetailsHTML(orderDetails.products)}
+            <h3>Product Details:</h3>
+            ${generateProductDetailsHTML(orderDetails.products, gstPercentage)}
           </div>
 
           <!-- Message -->
@@ -321,7 +383,7 @@ router.post('/send-cancellation-notification', async (req, res) => {
           <!-- Product Details -->
           <div>
             <h3>Cancelled Products:</h3>
-            ${generateProductDetailsHTML(orderDetails.products)}
+            ${generateProductDetailsHTML(orderDetails.products, gstPercentage)}
           </div>
 
           <!-- Action Required -->
@@ -366,9 +428,7 @@ router.post('/send-cancellation-notification', async (req, res) => {
   }
 });
 
-
-// 2. Product Deletion Notification - CORRECTED VERSION
-// Product deletion/restoration notification
+// 2. Product Deletion/Restoration Notification
 router.post('/send-product-deletion-notification', async (req, res) => {
   try {
     const { orderId, productId, productName, client, orderDetails, action, handler, createdAt } = req.body;
@@ -379,16 +439,15 @@ router.post('/send-product-deletion-notification', async (req, res) => {
 
     const currentDate = getCurrentIndianDate();
     const isDeleting = action === "delete";
+    const gstPercentage = orderDetails.client?.gstPercentage || 18;
 
     // Get ALL products from orderDetails
     const allProducts = orderDetails.products || [];
 
-    // CRITICAL FIX: Calculate counts based on ACTUAL current state of products
-    // The orderDetails should contain the UPDATED products array with correct deleted status
+    // Calculate counts based on ACTUAL current state of products
     let activeProductsCount = 0;
     let deletedProductsCount = 0;
 
-    // Count products based on their actual deleted status in the updated order
     allProducts.forEach(product => {
       if (product.deleted) {
         deletedProductsCount++;
@@ -406,11 +465,8 @@ router.post('/send-product-deletion-notification', async (req, res) => {
 
     // Calculate total amount from ACTIVE products only
     const activeProducts = allProducts.filter(p => !p.deleted);
-    const activeTotalAmount = activeProducts.reduce((sum, p) => {
-      return sum + (p.booking?.totalPrice || 0);
-    }, 0);
-
-    const formattedTotalAmount = formatIndianCurrency(activeTotalAmount);
+    const totals = calculateOrderTotals(activeProducts, gstPercentage);
+    const formattedTotalAmount = formatIndianCurrency(totals.totalWithGST, true);
 
     // Get the specific product details
     const product = allProducts.find(p => p._id === productId) || {};
@@ -418,6 +474,7 @@ router.post('/send-product-deletion-notification', async (req, res) => {
     const productImage = product.image || '';
     const productPrice = product.price || 0;
     const productBooking = product.booking;
+    const productTotals = calculateProductTotals(product, gstPercentage);
 
     // User Email Template
     const userMailHtmlTemplate = `
@@ -461,29 +518,36 @@ router.post('/send-product-deletion-notification', async (req, res) => {
             <p style="font-size:16px; margin:10px 0;"><strong>Date:</strong> ${currentDate}</p>
           </div>
 
-         
           <!-- Product Details -->
-          <h3>Product Details : </h3>
-         <table width="100%" cellpadding="0" cellspacing="0"
-        style="border-bottom:2px solid #C4C1C1; margin-bottom:20px; padding-bottom:20px;">
-        <tr>
-          <td width="120">
-            <img src="${productImage}"
-              style="height:90px;width:90px;border-radius:10px;">
-          </td>
-          <td>
-            <table style="font-size:16px;">
-              <tr><td>Product Name</td><td>:</td><td>${productName}</td></tr>
-              <tr><td>Product Code</td><td>:</td><td>${productCode}</td></tr>
-              <tr><td>Price Per Day</td><td>:</td><td>${formatIndianCurrency(productPrice)}</td></tr>
-              <tr><td>Booked Dates</td><td>:</td><td>${formatIndianDate(productBooking.startDate)} - ${formatIndianDate(productBooking.endDate)}</td></tr>
-              <tr><td>Total Days</td><td>:</td><td>${productBooking.totalDays} days</td></tr>
-              <tr><td>Total Price</td><td>:</td><td>${formatIndianCurrency(productBooking.totalPrice)}</td></tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-
+          <h3>Product Details:</h3>
+          <table width="100%" cellpadding="0" cellspacing="0"
+            style="border-bottom:2px solid #C4C1C1; margin-bottom:20px; padding-bottom:20px;">
+            <tr>
+              <td width="120">
+                <img src="${productImage}"
+                  style="height:90px;width:90px;border-radius:10px;">
+              </td>
+              <td>
+                <table style="font-size:16px; width:100%;">
+                  <tr><td style="padding:5px;"><strong>Product Name</strong></td><td>:</td><td>${productName}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Product Code</strong></td><td>:</td><td>${productCode}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Price Per Day</strong></td><td>:</td><td>${formatIndianCurrency(productPrice, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Booked Dates</strong></td><td>:</td><td>${formatIndianDate(productBooking?.startDate)} - ${formatIndianDate(productBooking?.endDate)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Total Days</strong></td><td>:</td><td>${productBooking?.totalDays || 0} days</td></tr>
+                  <tr><td style="padding:5px;"><strong>Booking Amount</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.bookingTotal, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Printing Cost</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.printingCost, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Mounting Cost</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.mountingCost, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Base Amount (Excl. GST)</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.overallBase, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>GST @${gstPercentage}%</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.gstAmount, true)}</td></tr>
+                  <tr style="border-top:2px solid #000;">
+                    <td style="padding:5px; font-weight:700; color:#E31F25;"><strong>Total (Incl. GST)</strong></td>
+                    <td style="font-weight:700; color:#E31F25;">:</td>
+                    <td style="padding:5px; font-weight:700; color:#E31F25;">${formatIndianCurrency(productTotals.totalWithGST, true)}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
 
           <!-- Order Summary -->
           <div style="margin:30px 0;">
@@ -497,7 +561,7 @@ router.post('/send-product-deletion-notification', async (req, res) => {
                   <th style="padding:12px;">Active Products</th>
                   <th style="padding:12px;">Deleted Products</th>
                   <th style="padding:12px;">Total Products</th>
-                  <th style="padding:12px;">Updated Total</th>
+                  <th style="padding:12px;">Updated Total (Incl. GST)</th>
                 </tr>
               </thead>
               <tbody>
@@ -617,33 +681,58 @@ router.post('/send-product-deletion-notification', async (req, res) => {
                 <td style="padding:12px; border:1px solid #dee2e6; color:${isDeleting ? '#ff9800' : '#6c757d'};">${deletedProductsCount}</td>
               </tr>
               <tr>
-                <td style="padding:12px; background:#e9ecef; border:1px solid #dee2e6;"><strong>Updated Total Amount:</strong></td>
-                <td style="padding:12px; border:1px solid #dee2e6; font-weight:bold; color:#007bff;">${formattedTotalAmount}</td>
+                <td style="padding:12px; background:#e9ecef; border:1px solid #dee2e6;"><strong>Total Booking Amount:</strong></td>
+                <td style="padding:12px; border:1px solid #dee2e6;">${formatIndianCurrency(totals.totalBookingAmount, true)}</td>
+              </tr>
+              <tr>
+                <td style="padding:12px; background:#e9ecef; border:1px solid #dee2e6;"><strong>Printing + Mounting:</strong></td>
+                <td style="padding:12px; border:1px solid #dee2e6;">${formatIndianCurrency(totals.totalPrintingCost + totals.totalMountingCost, true)}</td>
+              </tr>
+              <tr>
+                <td style="padding:12px; background:#e9ecef; border:1px solid #dee2e6;"><strong>Base Amount (Excl. GST):</strong></td>
+                <td style="padding:12px; border:1px solid #dee2e6;">${formatIndianCurrency(totals.overallBase, true)}</td>
+              </tr>
+              <tr>
+                <td style="padding:12px; background:#e9ecef; border:1px solid #dee2e6;"><strong>GST @${gstPercentage}%:</strong></td>
+                <td style="padding:12px; border:1px solid #dee2e6;">${formatIndianCurrency(totals.gstAmount, true)}</td>
+              </tr>
+              <tr style="border-top:2px solid #000;">
+                <td style="padding:12px; background:#e9ecef; border:1px solid #dee2e6; font-weight:700; color:#E31F25;"><strong>Updated Total (Incl. GST):</strong></td>
+                <td style="padding:12px; border:1px solid #dee2e6; font-weight:700; color:#E31F25;">${formattedTotalAmount}</td>
               </tr>
             </table>
           </div>
 
-                   <!-- Product Details -->
- <h3>Product Details : </h3>
-         <table width="100%" cellpadding="0" cellspacing="0"
-        style="border-bottom:2px solid #C4C1C1; margin-bottom:20px; padding-bottom:20px;">
-        <tr>
-          <td width="120">
-            <img src="${productImage}"
-              style="height:90px;width:90px;border-radius:10px;">
-          </td>
-          <td>
-            <table style="font-size:16px;">
-              <tr><td>Product Name</td><td>:</td><td>${productName}</td></tr>
-              <tr><td>Product Code</td><td>:</td><td>${productCode}</td></tr>
-              <tr><td>Price Per Day</td><td>:</td><td>${formatIndianCurrency(productPrice)}</td></tr>
-              <tr><td>Booked Dates</td><td>:</td><td>${formatIndianDate(productBooking.startDate)} - ${formatIndianDate(productBooking.endDate)}</td></tr>
-              <tr><td>Total Days</td><td>:</td><td>${productBooking.totalDays} days</td></tr>
-              <tr><td>Total Price</td><td>:</td><td>${formatIndianCurrency(productBooking.totalPrice)}</td></tr>
-            </table>
-          </td>
-        </tr>
-      </table>
+          <!-- Product Details -->
+          <h3>Product Details:</h3>
+          <table width="100%" cellpadding="0" cellspacing="0"
+            style="border-bottom:2px solid #C4C1C1; margin-bottom:20px; padding-bottom:20px;">
+            <tr>
+              <td width="120">
+                <img src="${productImage}"
+                  style="height:90px;width:90px;border-radius:10px;">
+              </td>
+              <td>
+                <table style="font-size:16px; width:100%;">
+                  <tr><td style="padding:5px;"><strong>Product Name</strong></td><td>:</td><td>${productName}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Product Code</strong></td><td>:</td><td>${productCode}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Price Per Day</strong></td><td>:</td><td>${formatIndianCurrency(productPrice, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Booked Dates</strong></td><td>:</td><td>${formatIndianDate(productBooking?.startDate)} - ${formatIndianDate(productBooking?.endDate)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Total Days</strong></td><td>:</td><td>${productBooking?.totalDays || 0} days</td></tr>
+                  <tr><td style="padding:5px;"><strong>Booking Amount</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.bookingTotal, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Printing Cost</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.printingCost, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Mounting Cost</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.mountingCost, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>Base Amount (Excl. GST)</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.overallBase, true)}</td></tr>
+                  <tr><td style="padding:5px;"><strong>GST @${gstPercentage}%</strong></td><td>:</td><td>${formatIndianCurrency(productTotals.gstAmount, true)}</td></tr>
+                  <tr style="border-top:2px solid #000;">
+                    <td style="padding:5px; font-weight:700; color:#E31F25;"><strong>Total (Incl. GST)</strong></td>
+                    <td style="font-weight:700; color:#E31F25;">:</td>
+                    <td style="padding:5px; font-weight:700; color:#E31F25;">${formatIndianCurrency(productTotals.totalWithGST, true)}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
 
           <!-- Customer Info -->
           <div style="margin:30px 0;">
@@ -676,12 +765,12 @@ router.post('/send-product-deletion-notification', async (req, res) => {
               ${isDeleting ? `
                 <li><strong>Inventory Update:</strong> Mark product as deleted in inventory records</li>
                 <li><strong>Date Availability:</strong> The booked dates (${productBooking?.totalDays || 0} days) are now AVAILABLE for other bookings</li>
-                <li><strong>Financial Update:</strong> Adjust total amount (reduced by ${formatIndianCurrency(productBooking?.totalPrice || 0)})</li>
+                <li><strong>Financial Update:</strong> Adjust total amount (reduced by ${formatIndianCurrency(productTotals.totalWithGST, true)})</li>
                 <li><strong>Calendar Update:</strong> Update booking calendar to show dates as available</li>
               ` : `
                 <li><strong>Inventory Update:</strong> Restore product in inventory records</li>
                 <li><strong>Date Reservation:</strong> The booked dates (${productBooking?.totalDays || 0} days) are now RESERVED again</li>
-                <li><strong>Financial Update:</strong> Adjust total amount (increased by ${formatIndianCurrency(productBooking?.totalPrice || 0)})</li>
+                <li><strong>Financial Update:</strong> Adjust total amount (increased by ${formatIndianCurrency(productTotals.totalWithGST, true)})</li>
                 <li><strong>Calendar Update:</strong> Update booking calendar to show dates as booked</li>
               `}
             </ul>
@@ -731,7 +820,7 @@ router.post('/send-product-deletion-notification', async (req, res) => {
   }
 });
 
-// 3. Date Update Notification
+// 3. Date Update Notification - UPDATED with complete amount details
 router.post('/send-date-update-notification', async (req, res) => {
   try {
     const { orderId, client, product, oldDates, newDates, orderDetails, handler, createdAt } = req.body;
@@ -741,22 +830,59 @@ router.post('/send-date-update-notification', async (req, res) => {
     }
 
     const currentDate = getCurrentIndianDate();
+    const gstPercentage = orderDetails.client?.gstPercentage || 18;
+    
+    // Create product objects with old and new dates for calculations
+    const productWithOldDates = {
+      ...product,
+      booking: oldDates || product.booking
+    };
+    
+    const productWithNewDates = {
+      ...product,
+      booking: {
+        ...product.booking,
+        startDate: newDates.startDate,
+        endDate: newDates.endDate,
+        totalDays: newDates.totalDays,
+        totalPrice: newDates.totalPrice
+      }
+    };
+
+    // Calculate totals for old and new dates
+    const oldTotals = calculateProductTotals(productWithOldDates, gstPercentage);
+    const newTotals = calculateProductTotals(productWithNewDates, gstPercentage);
+    
+    // Calculate order totals for context
+    const updatedProducts = orderDetails.products.map(p => {
+      if (p._id === product._id) {
+        return productWithNewDates;
+      }
+      return p;
+    });
+    const orderTotals = calculateOrderTotals(updatedProducts, gstPercentage);
+
+    // Format values
     const formattedOldStart = oldDates?.startDate ? formatIndianDate(oldDates.startDate) : 'Not previously set';
     const formattedOldEnd = oldDates?.endDate ? formatIndianDate(oldDates.endDate) : 'Not previously set';
     const formattedNewStart = formatIndianDate(newDates.startDate);
     const formattedNewEnd = formatIndianDate(newDates.endDate);
-    const formattedOldPrice = oldDates?.totalPrice ? formatIndianCurrency(oldDates.totalPrice) : '₹0';
-    const formattedNewPrice = formatIndianCurrency(newDates.totalPrice);
-    const priceDifference = newDates.totalPrice - (oldDates?.totalPrice || 0);
+    
+    // Calculate differences
+    const daysDifference = newDates.totalDays - (oldDates?.totalDays || 0);
+    const bookingAmountDifference = newDates.totalPrice - (oldDates?.totalPrice || 0);
+    const overallBaseDifference = newTotals.overallBase - oldTotals.overallBase;
+    const gstAmountDifference = newTotals.gstAmount - oldTotals.gstAmount;
+    const totalWithGSTDifference = newTotals.totalWithGST - oldTotals.totalWithGST;
 
-    // User Email Template
+    // User Email Template - COMPLETELY UPDATED with full amount details
     const userMailHtmlTemplate = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1.0">
-        <title>Booking Dates Updated</title>
+        <title>Booking Dates Updated with Amount Changes</title>
       </head>
       <body style="margin:0; padding:0; font-family: Arial, sans-serif;">
         <div style="max-width:700px; margin:auto; font-family:'Montserrat', Arial, sans-serif;">
@@ -769,110 +895,186 @@ router.post('/send-date-update-notification', async (req, res) => {
           <div style="
             text-align:center;
             padding:20px 0;
-            background: linear-gradient(180deg,#28a745 0%,#218838 100%);
+            background: linear-gradient(180deg,#007bff 0%,#0056b3 100%);
             font-weight:700;
             font-size:35px;
             color:#FFFFFF;">
-            Booking Dates Updated
+            Booking Dates & Amount Updated
           </div>
 
           <!-- Intro -->
           <div style="font-size:24px; font-weight:600; margin:30px 0;">Hi ${client.name},</div>
 
           <!-- Update Message -->
-          <div style="margin:30px 0; padding:20px; background:#d4edda; border-left:4px solid #28a745;">
-            <h3 style="color:#28a745; margin-top:0;">✅ Booking Dates Successfully Updated</h3>
+          <div style="margin:30px 0; padding:20px; background:#e7f3ff; border-left:4px solid #007bff;">
+            <h3 style="color:#007bff; margin-top:0;">📅 Booking Dates Successfully Updated</h3>
             <p style="font-size:18px; margin:10px 0;">
-              The booking dates for your product have been updated as per your request.
+              The booking dates for your product have been updated. The changes have been reflected in your order amount.
             </p>
           </div>
 
           <!-- Product Info -->
           <div style="margin:30px 0; padding:20px; background:#f8f9fa; border-radius:8px;">
             <h3>Product Details:</h3>
-            <table style="font-size:18px; width:100%;">
+            <table style="font-size:18px; width:100%; border-collapse: collapse;">
               <tr>
-                <td style="padding:8px; width:40%;"><strong>Product Name:</strong></td>
+                <td style="padding:8px; width:40%; background:#e9ecef;"><strong>Product Name:</strong></td>
                 <td style="padding:8px;">${product.name}</td>
               </tr>
               <tr>
-                <td style="padding:8px;"><strong>Product Code:</strong></td>
+                <td style="padding:8px; background:#e9ecef;"><strong>Product Code:</strong></td>
                 <td style="padding:8px;">${product.prodCode}</td>
               </tr>
               <tr>
-                <td style="padding:8px;"><strong>Order ID:</strong></td>
+                <td style="padding:8px; background:#e9ecef;"><strong>Order ID:</strong></td>
                 <td style="padding:8px; font-weight:bold;">${orderId}</td>
               </tr>
-               
+              <tr>
+                <td style="padding:8px; background:#e9ecef;"><strong>Order Date:</strong></td>
+                <td style="padding:8px;">${formatIndianDate(createdAt)}</td>
+              </tr>
             </table>
           </div>
 
           <!-- Date Comparison -->
           <div style="margin:30px 0;">
-            <h3>Date Changes:</h3>
+            <h3>Date Changes Summary:</h3>
             <table border="1" cellpadding="0" cellspacing="0"
               style="border-collapse:collapse; width:100%; border:1px solid #ddd; text-align:center;">
               <thead>
-                <tr style="background:#007bff; color:#fff; font-weight:600; font-size:18px;">
-                  <th style="padding:12px;"> </th>
-                  <th style="padding:12px;">Previous Dates</th>
-                  <th style="padding:12px;">Updated Dates</th>
+                <tr style="background:#007bff; color:#fff; font-weight:600; font-size:16px;">
+                  <th style="padding:12px;">Description</th>
+                  <th style="padding:12px;">Previous</th>
+                  <th style="padding:12px;">Updated</th>
                   <th style="padding:12px;">Change</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style="padding:12px; background:#f8f9fa;"><strong>Booking Period</strong></td>
-                  <td style="padding:12px;">${formattedOldStart} - ${formattedOldEnd}</td>
-                  <td style="padding:12px; font-weight:bold; color:#28a745;">${formattedNewStart} - ${formattedNewEnd}</td>
-                  <td style="padding:12px;">Updated</td>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Start Date</strong></td>
+                  <td style="padding:12px;">${formattedOldStart}</td>
+                  <td style="padding:12px; font-weight:bold; color:#007bff;">${formattedNewStart}</td>
+                  <td style="padding:12px;">→</td>
                 </tr>
                 <tr>
-                  <td style="padding:12px; background:#f8f9fa;"><strong>Total Days</strong></td>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>End Date</strong></td>
+                  <td style="padding:12px;">${formattedOldEnd}</td>
+                  <td style="padding:12px; font-weight:bold; color:#007bff;">${formattedNewEnd}</td>
+                  <td style="padding:12px;">→</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Duration</strong></td>
                   <td style="padding:12px;">${oldDates?.totalDays || 0} days</td>
-                  <td style="padding:12px; font-weight:bold; color:#28a745;">${newDates.totalDays} days</td>
-                  <td style="padding:12px; color:${newDates.totalDays > (oldDates?.totalDays || 0) ? '#28a745' : '#dc3545'};">
-                    ${newDates.totalDays > (oldDates?.totalDays || 0) ? '+' : ''}${newDates.totalDays - (oldDates?.totalDays || 0)} days
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:12px; background:#f8f9fa;"><strong>Total Price</strong></td>
-                  <td style="padding:12px;">${formattedOldPrice}</td>
-                  <td style="padding:12px; font-weight:bold; color:#28a745;">${formattedNewPrice}</td>
-                  <td style="padding:12px; color:${priceDifference >= 0 ? '#28a745' : '#dc3545'};">
-                    ${priceDifference >= 0 ? '+' : ''}${formatIndianCurrency(priceDifference)}
+                  <td style="padding:12px; font-weight:bold; color:#007bff;">${newDates.totalDays} days</td>
+                  <td style="padding:12px; color:${daysDifference >= 0 ? '#28a745' : '#dc3545'}; font-weight:bold;">
+                    ${daysDifference >= 0 ? '+' : ''}${daysDifference} days
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <!-- Order Summary -->
+          <!-- Amount Changes - NEW SECTION -->
           <div style="margin:30px 0;">
+            <h3>Amount Changes (Including GST):</h3>
             <table border="1" cellpadding="0" cellspacing="0"
-              style="border-collapse:collapse; width:100%; border:1px solid gray; text-align:center;">
+              style="border-collapse:collapse; width:100%; border:1px solid #ddd; text-align:center;">
               <thead>
-                <tr style="color:#E31F25; font-weight:600; font-size:20px;">
-                  <th style="padding:12px;">Order ID</th>
-                  <th style="padding:12px;">Order Date</th>
-                  <th style="padding:12px;">Update Date</th>
-                  <th style="padding:12px;">Order Status</th>
+                <tr style="background:#28a745; color:#fff; font-weight:600; font-size:16px;">
+                  <th style="padding:12px;">Component</th>
+                  <th style="padding:12px;">Previous Amount</th>
+                  <th style="padding:12px;">Updated Amount</th>
+                  <th style="padding:12px;">Difference</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style="padding:12px;">${orderId}</td>
-                  <td style="padding:12px;">${formatIndianDate(createdAt)}</td>
-
-                  <td style="padding:12px;">${currentDate}</td>
-                  <td style="padding:12px; color:#28a745; font-weight:bold;">UPDATED</td>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Booking Amount</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.bookingTotal, true)}</td>
+                  <td style="padding:12px; font-weight:bold;">${formatIndianCurrency(newTotals.bookingTotal, true)}</td>
+                  <td style="padding:12px; color:${bookingAmountDifference >= 0 ? '#28a745' : '#dc3545'}; font-weight:bold;">
+                    ${bookingAmountDifference >= 0 ? '+' : ''}${formatIndianCurrency(bookingAmountDifference, true)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Printing Cost</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.printingCost, true)}</td>
+                  <td style="padding:12px;">${formatIndianCurrency(newTotals.printingCost, true)}</td>
+                  <td style="padding:12px;">No change</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Mounting Cost</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.mountingCost, true)}</td>
+                  <td style="padding:12px;">${formatIndianCurrency(newTotals.mountingCost, true)}</td>
+                  <td style="padding:12px;">No change</td>
+                </tr>
+                <tr style="border-top:2px solid #000;">
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Base Amount (Excl. GST)</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.overallBase, true)}</td>
+                  <td style="padding:12px; font-weight:bold;">${formatIndianCurrency(newTotals.overallBase, true)}</td>
+                  <td style="padding:12px; color:${overallBaseDifference >= 0 ? '#28a745' : '#dc3545'}; font-weight:bold;">
+                    ${overallBaseDifference >= 0 ? '+' : ''}${formatIndianCurrency(overallBaseDifference, true)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>GST @${gstPercentage}%</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.gstAmount, true)}</td>
+                  <td style="padding:12px; font-weight:bold;">${formatIndianCurrency(newTotals.gstAmount, true)}</td>
+                  <td style="padding:12px; color:${gstAmountDifference >= 0 ? '#28a745' : '#dc3545'}; font-weight:bold;">
+                    ${gstAmountDifference >= 0 ? '+' : ''}${formatIndianCurrency(gstAmountDifference, true)}
+                  </td>
+                </tr>
+                <tr style="border-top:2px solid #000; background:#fff3cd;">
+                  <td style="padding:12px; font-weight:700; color:#E31F25;"><strong>TOTAL (Incl. GST)</strong></td>
+                  <td style="padding:12px; font-weight:700;">${formatIndianCurrency(oldTotals.totalWithGST, true)}</td>
+                  <td style="padding:12px; font-weight:700; color:#E31F25;">${formatIndianCurrency(newTotals.totalWithGST, true)}</td>
+                  <td style="padding:12px; font-weight:700; color:${totalWithGSTDifference >= 0 ? '#28a745' : '#dc3545'};">
+                    ${totalWithGSTDifference >= 0 ? '+' : ''}${formatIndianCurrency(totalWithGSTDifference, true)}
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
+          <!-- Updated Order Summary -->
+          <div style="margin:30px 0; padding:20px; background:#e8f5e9; border-radius:8px;">
+            <h3 style="color:#28a745; margin-top:0;">📊 Updated Order Summary</h3>
+            <table style="font-size:18px; width:100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding:10px; width:50%;"><strong>Total Booking Amount:</strong></td>
+                <td style="padding:10px;">${formatIndianCurrency(orderTotals.totalBookingAmount, true)}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px;"><strong>Printing + Mounting Cost:</strong></td>
+                <td style="padding:10px;">${formatIndianCurrency(orderTotals.totalPrintingCost + orderTotals.totalMountingCost, true)}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px;"><strong>Base Amount (Excl. GST):</strong></td>
+                <td style="padding:10px;">${formatIndianCurrency(orderTotals.overallBase, true)}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px;"><strong>GST @${gstPercentage}%:</strong></td>
+                <td style="padding:10px;">${formatIndianCurrency(orderTotals.gstAmount, true)}</td>
+              </tr>
+              <tr style="border-top:2px solid #000;">
+                <td style="padding:10px; font-weight:700; color:#E31F25;"><strong>ORDER TOTAL (Incl. GST):</strong></td>
+                <td style="padding:10px; font-weight:700; color:#E31F25;">${formatIndianCurrency(orderTotals.totalWithGST, true)}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Important Note -->
+          <div style="margin:30px 0; padding:20px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:8px;">
+            <h4 style="color:#856404; margin-top:0;">📝 Important Note:</h4>
+            <ul style="font-size:16px; margin:10px 0;">
+              <li>The updated amount will reflect in your invoice</li>
+              <li>Your payment schedule has been adjusted accordingly</li>
+              <li>${daysDifference !== 0 ? `The booking period has ${daysDifference > 0 ? 'increased' : 'decreased'} by ${Math.abs(daysDifference)} days` : ''}</li>
+            </ul>
+          </div>
+
           <!-- Contact Info -->
-          <div style="font-size:20px; margin:30px 0;">
+          <div style="font-size:18px; margin:30px 0;">
             If you have any questions about these changes, please contact our support team.
           </div>
 
@@ -882,14 +1084,14 @@ router.post('/send-date-update-notification', async (req, res) => {
       </html>
     `;
 
-    // Admin Email Template
+    // Admin Email Template - UPDATED with full amount details
     const adminMailHtmlTemplate = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width,initial-scale=1.0">
-        <title>Booking Dates Modified - Admin</title>
+        <title>Booking Dates Modified with Amount Changes - Admin</title>
       </head>
       <body style="margin:0; padding:0; font-family: Arial, sans-serif;">
         <div style="max-width:700px; margin:auto; font-family:'Montserrat', Arial, sans-serif;">
@@ -902,7 +1104,7 @@ router.post('/send-date-update-notification', async (req, res) => {
           <div style="
             text-align:center;
             padding:20px 0;
-            background: linear-gradient(180deg,#28a745 0%,#218838 100%);
+            background: linear-gradient(180deg,#007bff 0%,#0056b3 100%);
             font-weight:700;
             font-size:35px;
             color:#FFFFFF;">
@@ -913,11 +1115,10 @@ router.post('/send-date-update-notification', async (req, res) => {
           <div style="font-size:24px; font-weight:600; margin:30px 0;">Hi Admin Team,</div>
 
           <!-- Update Alert -->
-          <div style="margin:30px 0; padding:20px; background:#d4edda; border:2px solid #28a745; border-radius:8px;">
-            <h3 style="color:#28a745; margin-top:0;">📅 BOOKING DATES UPDATED</h3>
+          <div style="margin:30px 0; padding:20px; background:#e7f3ff; border:2px solid #007bff; border-radius:8px;">
+            <h3 style="color:#007bff; margin-top:0;">📅 BOOKING DATES UPDATED WITH AMOUNT CHANGES</h3>
             <p style="font-size:18px;"><strong>Order ID:</strong> ${orderId}</p>
             <p style="font-size:18px;"><strong>Order Date:</strong> ${formatIndianDate(createdAt)}</p>
-
             <p style="font-size:18px;"><strong>Updated by Handler:</strong> ${handler || 'Not specified'}</p>
             <p style="font-size:18px;"><strong>Updated At:</strong> ${currentDate}</p>
             <p style="font-size:18px;"><strong>Product:</strong> ${product.name} (${product.prodCode})</p>
@@ -926,11 +1127,11 @@ router.post('/send-date-update-notification', async (req, res) => {
 
           <!-- Date Comparison -->
           <div style="margin:30px 0;">
-            <h3>Date Changes Summary:</h3>
+            <h3>Date Changes:</h3>
             <table border="1" cellpadding="0" cellspacing="0"
               style="border-collapse:collapse; width:100%; border:1px solid #ddd;">
               <thead>
-                <tr style="background:#28a745; color:#fff; font-weight:600;">
+                <tr style="background:#007bff; color:#fff; font-weight:600;">
                   <th style="padding:12px;">Description</th>
                   <th style="padding:12px;">Before</th>
                   <th style="padding:12px;">After</th>
@@ -941,32 +1142,113 @@ router.post('/send-date-update-notification', async (req, res) => {
                 <tr>
                   <td style="padding:12px; background:#f8f9fa;"><strong>Start Date</strong></td>
                   <td style="padding:12px;">${formattedOldStart}</td>
-                  <td style="padding:12px; font-weight:bold; color:#28a745;">${formattedNewStart}</td>
-                  <td style="padding:12px;">Changed</td>
+                  <td style="padding:12px; font-weight:bold; color:#007bff;">${formattedNewStart}</td>
+                  <td style="padding:12px;">→</td>
                 </tr>
                 <tr>
                   <td style="padding:12px; background:#f8f9fa;"><strong>End Date</strong></td>
                   <td style="padding:12px;">${formattedOldEnd}</td>
-                  <td style="padding:12px; font-weight:bold; color:#28a745;">${formattedNewEnd}</td>
-                  <td style="padding:12px;">Changed</td>
+                  <td style="padding:12px; font-weight:bold; color:#007bff;">${formattedNewEnd}</td>
+                  <td style="padding:12px;">→</td>
                 </tr>
                 <tr>
                   <td style="padding:12px; background:#f8f9fa;"><strong>Duration</strong></td>
                   <td style="padding:12px;">${oldDates?.totalDays || 0} days</td>
-                  <td style="padding:12px; font-weight:bold; color:#28a745;">${newDates.totalDays} days</td>
-                  <td style="padding:12px; color:${newDates.totalDays > (oldDates?.totalDays || 0) ? '#28a745' : '#dc3545'}">
-                    ${newDates.totalDays > (oldDates?.totalDays || 0) ? '+' : ''}${newDates.totalDays - (oldDates?.totalDays || 0)} days
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:12px; background:#f8f9fa;"><strong>Price</strong></td>
-                  <td style="padding:12px;">${formattedOldPrice}</td>
-                  <td style="padding:12px; font-weight:bold; color:#28a745;">${formattedNewPrice}</td>
-                  <td style="padding:12px; color:${priceDifference >= 0 ? '#28a745' : '#dc3545'}">
-                    ${priceDifference >= 0 ? '+' : ''}${formatIndianCurrency(priceDifference)}
+                  <td style="padding:12px; font-weight:bold; color:#007bff;">${newDates.totalDays} days</td>
+                  <td style="padding:12px; color:${daysDifference >= 0 ? '#28a745' : '#dc3545'}; font-weight:bold;">
+                    ${daysDifference >= 0 ? '+' : ''}${daysDifference} days
                   </td>
                 </tr>
               </tbody>
+            </table>
+          </div>
+
+          <!-- Amount Changes - NEW SECTION -->
+          <div style="margin:30px 0;">
+            <h3>Amount Changes (Including GST):</h3>
+            <table border="1" cellpadding="0" cellspacing="0"
+              style="border-collapse:collapse; width:100%; border:1px solid #ddd; text-align:center;">
+              <thead>
+                <tr style="background:#28a745; color:#fff; font-weight:600;">
+                  <th style="padding:12px;">Component</th>
+                  <th style="padding:12px;">Previous</th>
+                  <th style="padding:12px;">Updated</th>
+                  <th style="padding:12px;">Difference</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Booking Amount</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.bookingTotal, true)}</td>
+                  <td style="padding:12px;">${formatIndianCurrency(newTotals.bookingTotal, true)}</td>
+                  <td style="padding:12px; color:${bookingAmountDifference >= 0 ? '#28a745' : '#dc3545'}; font-weight:bold;">
+                    ${bookingAmountDifference >= 0 ? '+' : ''}${formatIndianCurrency(bookingAmountDifference, true)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Printing Cost</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.printingCost, true)}</td>
+                  <td style="padding:12px;">${formatIndianCurrency(newTotals.printingCost, true)}</td>
+                  <td style="padding:12px;">No change</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Mounting Cost</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.mountingCost, true)}</td>
+                  <td style="padding:12px;">${formatIndianCurrency(newTotals.mountingCost, true)}</td>
+                  <td style="padding:12px;">No change</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>Base Amount (Excl. GST)</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.overallBase, true)}</td>
+                  <td style="padding:12px;">${formatIndianCurrency(newTotals.overallBase, true)}</td>
+                  <td style="padding:12px; color:${overallBaseDifference >= 0 ? '#28a745' : '#dc3545'}; font-weight:bold;">
+                    ${overallBaseDifference >= 0 ? '+' : ''}${formatIndianCurrency(overallBaseDifference, true)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px; background:#f8f9fa;"><strong>GST @${gstPercentage}%</strong></td>
+                  <td style="padding:12px;">${formatIndianCurrency(oldTotals.gstAmount, true)}</td>
+                  <td style="padding:12px;">${formatIndianCurrency(newTotals.gstAmount, true)}</td>
+                  <td style="padding:12px; color:${gstAmountDifference >= 0 ? '#28a745' : '#dc3545'}; font-weight:bold;">
+                    ${gstAmountDifference >= 0 ? '+' : ''}${formatIndianCurrency(gstAmountDifference, true)}
+                  </td>
+                </tr>
+                <tr style="background:#fff3cd;">
+                  <td style="padding:12px; font-weight:700; color:#E31F25;"><strong>TOTAL (Incl. GST)</strong></td>
+                  <td style="padding:12px; font-weight:700;">${formatIndianCurrency(oldTotals.totalWithGST, true)}</td>
+                  <td style="padding:12px; font-weight:700; color:#E31F25;">${formatIndianCurrency(newTotals.totalWithGST, true)}</td>
+                  <td style="padding:12px; font-weight:700; color:${totalWithGSTDifference >= 0 ? '#28a745' : '#dc3545'};">
+                    ${totalWithGSTDifference >= 0 ? '+' : ''}${formatIndianCurrency(totalWithGSTDifference, true)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Updated Order Summary -->
+          <div style="margin:30px 0; padding:20px; background:#f8f9fa; border-radius:8px;">
+            <h3>Updated Order Summary:</h3>
+            <table style="font-size:18px; width:100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding:10px; background:#e9ecef;"><strong>Total Booking Amount:</strong></td>
+                <td style="padding:10px;">${formatIndianCurrency(orderTotals.totalBookingAmount, true)}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px; background:#e9ecef;"><strong>Printing + Mounting:</strong></td>
+                <td style="padding:10px;">${formatIndianCurrency(orderTotals.totalPrintingCost + orderTotals.totalMountingCost, true)}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px; background:#e9ecef;"><strong>Base Amount (Excl. GST):</strong></td>
+                <td style="padding:10px;">${formatIndianCurrency(orderTotals.overallBase, true)}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px; background:#e9ecef;"><strong>GST @${gstPercentage}%:</strong></td>
+                <td style="padding:10px;">${formatIndianCurrency(orderTotals.gstAmount, true)}</td>
+              </tr>
+              <tr style="border-top:2px solid #000;">
+                <td style="padding:10px; background:#e9ecef; font-weight:700; color:#E31F25;"><strong>ORDER TOTAL (Incl. GST):</strong></td>
+                <td style="padding:10px; font-weight:700; color:#E31F25;">${formatIndianCurrency(orderTotals.totalWithGST, true)}</td>
+              </tr>
             </table>
           </div>
 
@@ -987,7 +1269,6 @@ router.post('/send-date-update-notification', async (req, res) => {
                 <td style="padding:12px; background:#f8f9fa;"><strong>Phone:</strong></td>
                 <td style="padding:12px;"><a href="tel:${client.contact}" style="color:#2B3333; text-decoration:none;">${client.contact}</a></td>
               </tr>
-             
             </table>
           </div>
 
@@ -997,8 +1278,9 @@ router.post('/send-date-update-notification', async (req, res) => {
             <ul style="font-size:18px;">
               <li>Update booking calendar for product ${product.prodCode}</li>
               <li>Adjust inventory availability for new dates</li>
-              <li>Update financial records for price change</li>
+              <li><strong>Update financial records with new amount: ${formatIndianCurrency(newTotals.totalWithGST, true)}</strong></li>
               <li>Notify relevant teams about date modification</li>
+              <li>${daysDifference !== 0 ? `Update invoice with ${daysDifference > 0 ? 'additional' : 'reduced'} charges` : ''}</li>
             </ul>
           </div>
 
@@ -1012,21 +1294,29 @@ router.post('/send-date-update-notification', async (req, res) => {
     const userMailOptions = {
       from: 'reactdeveloper@adinn.co.in',
       to: client.email,
-      subject: `Booking Dates Updated - Order ${orderId}`,
+      subject: `📅 Booking Dates & Amount Updated - Order ${orderId}`,
       html: userMailHtmlTemplate
     };
 
     const adminMailOptions = {
       from: 'reactdeveloper@adinn.co.in',
       to: 'reactdeveloper@adinn.co.in',
-      subject: `📅 Dates Modified for Order ${orderId}`,
+      subject: `📅💰 Dates & Amount Modified for Order ${orderId}`,
       html: adminMailHtmlTemplate
     };
 
     await transporter.sendMail(userMailOptions);
     await transporter.sendMail(adminMailOptions);
 
-    res.json({ success: true, message: "Date update notifications sent" });
+    res.json({ 
+      success: true, 
+      message: "Date update notifications sent with amount details",
+      changes: {
+        daysDifference,
+        bookingAmountDifference,
+        totalWithGSTDifference
+      }
+    });
   } catch (error) {
     console.error("Error sending date update notification:", error);
     res.status(500).json({ success: false, error: "Failed to send notifications" });
