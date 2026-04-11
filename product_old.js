@@ -37,7 +37,17 @@ mongoose
   )
   .then(() => console.log("MongoDB connected successfully"))
   .catch((err) => console.error("MongoDB connection error:", err));
-
+// app.use(cors({
+//     origin: ['https://backend-plum-two-80.vercel.app', 'http://localhost:3000'],
+//     methods: ['GET', 'POST', 'DELETE', 'PUT'],
+//     allowedHeaders: ['Content-Type', 'Authorization']
+// }));
+// mongoose
+//   .connect(
+//     "mongodb://127.0.0.1:27017/Outdoors_backup"
+//   )
+//   .then(() => console.log("MongoDB connected successfully"))
+//   .catch((err) => console.error("MongoDB connection error:", err));
 
 app.use("/verify", require("./VerifyMain"));
 app.use("/login", require("./LoginMain"));
@@ -413,6 +423,63 @@ app.get("/products/:id", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+
+// app.get("/products/similar/:prodCode", async (req, res) => {
+//   try {
+//     // First find the current product
+//     const currentProduct = await productData.findOne({
+//       prodCode: req.params.prodCode,
+//     });
+//     if (
+//       !currentProduct ||
+//       !currentProduct.similarProducts ||
+//       currentProduct.similarProducts.length === 0
+//     ) {
+//       return res.status(404).json({ message: "No similar products found" });
+//     }
+//     // Extract similar products' ProdCodes
+//     const prodCodes = currentProduct.similarProducts.map((p) => p.ProdCode);
+//     // Fetch details of all similar products (excluding the current one)
+//     const similarProducts = await productData.find({
+//       prodCode: { $in: prodCodes },
+//       _id: { $ne: currentProduct._id }, // Exclude current product by ID instead of prodCode
+//     });
+//     // Map the results to match the frontend expectation
+//     const mappedResults = similarProducts.map((product) => ({
+//       _id: product._id,
+//       name: product.name,
+//       location: `${product.location.district}, ${product.location.state}`,
+//       dimensions: `${product.width} x ${product.height}`,
+//       price: product.price,
+//       rating: product.rating,
+//       image: product.image,
+//       category: product.mediaType,
+//       sizeHeight: product.height,
+//       sizeWidth: product.width,
+//       sizeSide: product.side,
+//       district: product.location.district,
+//       state: product.location.state,
+//       printingCost: product.printingCost,
+//       mountingCost: product.mountingCost,
+//       prodCode: product.prodCode,
+//       prodLighting: product.lighting,
+//       productFrom: product.from,
+//       productTo: product.to,
+//       productFixedAmount: product.fixedAmount,
+//       productFixedOffer: product.fixedOffer,
+//     }));
+//     res.json(mappedResults);
+//   } catch (err) {
+//     console.error("Error fetching similar products:", err);
+//     res.status(500).json({ message: "Error fetching similar products" });
+//   }
+// });
+
+
+
+
+
 
 // Update the similar products endpoint in your Express app
 app.get("/products/similar/:prodCode", async (req, res) => {
@@ -950,6 +1017,8 @@ app.get('/products/prime-only', async (req, res) => {
 });
 
 // PRIME SPOT SECTION 
+
+
 // CATEGORY CRUD OPERATION
 // GET
 app.get("/category", async (req, res) => {
@@ -1122,6 +1191,31 @@ app.get("/prodOrders/user/:userId", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+//CREATION OF ORDER ID FOR ADMIN SIDE
+// const generateNextOrderId = async (prefix = "AD") => {
+//   try {
+//     // Find the order with the highest orderId for the given prefix
+//     const lastOrder = await prodOrderData
+//       .findOne({ orderId: new RegExp(`^${prefix}`) })
+//       .sort("-orderId");
+
+//     if (!lastOrder) {
+//       return `${prefix}0001`; // First order for this prefix
+//     }
+
+//     // Extract the numeric part and increment
+//     const lastNumber = parseInt(lastOrder.orderId.substring(2));
+//     const nextNumber = lastNumber + 1;
+
+//     // Format with leading zeros
+//     return `${prefix}${nextNumber.toString().padStart(4, "0")}`;
+//   } catch (err) {
+//     console.error("Error generating order ID:", err);
+//     // Fallback - generate based on timestamp
+//     return `${prefix}${Date.now().toString().slice(-4)}`;
+//   }
+// };
+
 // UPDATED: Generate order ID with proper format
 const generateNextOrderId = async (prefix = "AD") => {
   try {
@@ -1163,7 +1257,308 @@ const generateNextOrderId = async (prefix = "AD") => {
   }
 };
 
+// app.post("/prodOrders", async (req, res) => {
+//   try {
+//     console.log("📦 Received order creation request:", {
+//       client: req.body.client?.email,
+//       productsCount: req.body.products?.length || 0,
+//       status: req.body.status,
+//       order_status: req.body.order_status
+//     });
+
+//     if (!req.body.products || !Array.isArray(req.body.products)) {
+//       return res.status(400).json({
+//         message: "Products array is required",
+//         error: true,
+//       });
+//     }
+
+//     // Validate client information
+//     if (!req.body.client || !req.body.client.userId) {
+//       return res.status(400).json({
+//         message: "Client information is required",
+//         error: true,
+//       });
+//     }
+
+//     // Determine prefix and status based on request
+//     const status = req.body.status || "UserSideOrder";
+//     const prefix = status === "Added Manually" ? "AD" : "US";
+//     const orderId = await generateNextOrderId(prefix);
+
+//     // Set order_status based on status
+//     let order_status = req.body.order_status;
+//     if (!order_status || order_status.trim() === "") {
+//       // Default order_status based on status
+//       order_status = status === "Added Manually" 
+//         ? "Pending Client Confirmation" 
+//         : "pending";
+//     }
+
+//     // Process each product
+//     const products = req.body.products.map((product) => {
+//       if (!product) {
+//         throw new Error("Invalid product data");
+//       }
+
+//       // Validate booking dates
+//       if (!product.booking || !product.booking.startDate || !product.booking.endDate) {
+//         throw new Error("Booking dates are required");
+//       }
+
+//       // Parse dates
+//       const start = new Date(product.booking.startDate);
+//       const end = new Date(product.booking.endDate);
+      
+//       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//         throw new Error("Invalid booking dates");
+//       }
+
+//       // Calculate booked dates
+//       let bookedDates = [];
+//       const current = new Date(start);
+      
+//       while (current <= end) {
+//         const normalizedDate = new Date(Date.UTC(
+//           current.getUTCFullYear(),
+//           current.getUTCMonth(),
+//           current.getUTCDate()
+//         ));
+//         bookedDates.push(normalizedDate);
+//         current.setDate(current.getDate() + 1);
+//       }
+
+//       const totalDays = bookedDates.length;
+      
+//       return {
+//         ...product,
+//         bookedDates,
+//         booking: {
+//           ...product.booking,
+//           startDate: new Date(product.booking.startDate),
+//           endDate: new Date(product.booking.endDate),
+//           totalDays: totalDays,
+//           totalPrice: (product.price || 0) * totalDays,
+//         },
+//         deleted: false,
+//         deletedAt: null,
+//         deletedBy: null
+//       };
+//     });
+
+//     // Normalize paidAmount array
+//     let normalizedPaidAmount = [];
+//     if (req.body.client.paidAmount) {
+//       if (Array.isArray(req.body.client.paidAmount)) {
+//         normalizedPaidAmount = req.body.client.paidAmount.map(payment => ({
+//           amount: Number(payment.amount) || 0,
+//           paidAt: payment.paidAt ? new Date(payment.paidAt) : new Date()
+//         }));
+//       } else if (typeof req.body.client.paidAmount === 'number') {
+//         normalizedPaidAmount = [{
+//           amount: req.body.client.paidAmount,
+//           paidAt: new Date()
+//         }];
+//       }
+//     }
+
+//     // Calculate total amount from products
+//     const totalAmount = products.reduce((sum, p) => {
+//       if (p.deleted) return sum;
+//       return sum + (p.booking?.totalPrice || 0);
+//     }, 0);
+
+//     // Calculate total paid
+//     const totalPaid = normalizedPaidAmount.reduce((sum, p) => sum + (p.amount || 0), 0);
+//     const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+//     // Create new order
+//     const newOrder = new prodOrderData({
+//       ...req.body,
+//       orderId: orderId,
+//       products: products,
+//       client: {
+//         ...req.body.client,
+//         totalAmount: totalAmount,
+//         paidAmount: normalizedPaidAmount,
+//         balanceAmount: balanceAmount
+//       },
+//       status: status, // "Added Manually" or "UserSideOrder"
+//       order_status: order_status, // "Pending Client Confirmation" or "pending"
+//       createdAt: new Date(),
+//       last_edited: new Date()
+//     });
+
+//     const savedOrder = await newOrder.save();
+//     console.log("✅ Order saved successfully:", {
+//       orderId: savedOrder.orderId,
+//       status: savedOrder.status,
+//       order_status: savedOrder.order_status,
+//       totalAmount: savedOrder.client.totalAmount
+//     });
+    
+//     res.status(201).json({
+//       success: true,
+//       orderId: savedOrder.orderId,
+//       _id: savedOrder._id,
+//       order_status: savedOrder.order_status,
+//       status: savedOrder.status,
+//       message: "Order created successfully"
+//     });
+//   } catch (err) {
+//     console.error("❌ Error creating order:", err);
+//     res.status(500).json({
+//       message: err.message || "Failed to create order",
+//       error: true,
+//       details: err.errors
+//     });
+//   }
+// });
+
+
+// app.put("/prodOrders/:id", async (req, res) => {
+//   try {
+//     const orderId = req.params.id;
+//     const updateData = req.body;
+
+//     console.log("Updating order:", orderId, "with data:", updateData);
+
+//     // Find existing order
+//     const existingOrder = await prodOrderData.findById(orderId);
+//     if (!existingOrder) {
+//       return res.status(404).json({ message: "Order not found" });
+//     }
+
+//     // Process products if provided
+//     if (updateData.products && Array.isArray(updateData.products)) {
+//       const updatedProducts = updateData.products.map((product) => {
+//         if (!product.booking || !product.booking.startDate || !product.booking.endDate) {
+//           throw new Error("Booking dates are required");
+//         }
+
+//         // Parse dates
+//         const start = new Date(product.booking.startDate);
+//         const end = new Date(product.booking.endDate);
+        
+//         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//           throw new Error("Invalid booking dates");
+//         }
+
+//         // Calculate booked dates
+//         let bookedDates = [];
+//         const current = new Date(start);
+        
+//         while (current <= end) {
+//           const normalizedDate = new Date(Date.UTC(
+//             current.getUTCFullYear(),
+//             current.getUTCMonth(),
+//             current.getUTCDate()
+//           ));
+//           bookedDates.push(normalizedDate);
+//           current.setDate(current.getDate() + 1);
+//         }
+
+//         const totalDays = bookedDates.length;
+        
+//         return {
+//           ...product,
+//           bookedDates,
+//           booking: {
+//             ...product.booking,
+//             startDate: new Date(product.booking.startDate),
+//             endDate: new Date(product.booking.endDate),
+//             totalDays: totalDays,
+//             totalPrice: (product.price || 0) * totalDays,
+//           },
+//           deleted: product.deleted !== undefined ? product.deleted : false,
+//           deletedAt: product.deletedAt || null,
+//           deletedBy: product.deletedBy || null
+//         };
+//       });
+
+//       updateData.products = updatedProducts;
+//     }
+
+//     // Handle paidAmount normalization
+//     if (updateData.client && updateData.client.paidAmount) {
+//       if (Array.isArray(updateData.client.paidAmount)) {
+//         updateData.client.paidAmount = updateData.client.paidAmount.map(payment => ({
+//           amount: Number(payment.amount) || 0,
+//           paidAt: payment.paidAt ? new Date(payment.paidAt) : new Date()
+//         }));
+//       } else if (typeof updateData.client.paidAmount === 'number') {
+//         updateData.client.paidAmount = [{
+//           amount: updateData.client.paidAmount,
+//           paidAt: new Date()
+//         }];
+//       }
+//     }
+
+//     // Calculate totals
+//     if (updateData.products) {
+//       const totalAmount = updateData.products.reduce((sum, p) => {
+//         if (p.deleted) return sum;
+//         return sum + (p.booking?.totalPrice || 0);
+//       }, 0);
+
+//       const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
+//         .reduce((sum, p) => sum + (p.amount || 0), 0);
+      
+//       const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+//       if (updateData.client) {
+//         updateData.client.totalAmount = totalAmount;
+//         updateData.client.balanceAmount = balanceAmount;
+//       }
+//     }
+
+//     // Add last_edited timestamp
+//     updateData.last_edited = new Date();
+
+//     // FIX: Preserve status if not provided in update
+//     if (!updateData.status) {
+//       updateData.status = existingOrder.status;
+//     }
+//     if (!updateData.order_status) {
+//       updateData.order_status = existingOrder.order_status;
+//     }
+
+//     // Update the order
+//     const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//       orderId,
+//       { $set: updateData },
+//       {
+//         new: true,
+//         runValidators: true,
+//         context: 'query'
+//       }
+//     );
+
+//     if (!updatedOrder) {
+//       return res.status(404).json({ message: 'Order not found after update' });
+//     }
+
+//     res.json({
+//       success: true,
+//       message: 'Order updated successfully',
+//       order: updatedOrder,
+//       orderId: updatedOrder.orderId,
+//       _id: updatedOrder._id
+//     });
+//   } catch (err) {
+//     console.error('Error updating order:', err);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Server error while updating order',
+//       error: err.message
+//     });
+//   }
+// });
+
+
+
 // DELETE THE ORDER
+
 app.post("/prodOrders", async (req, res) => {
   try {
     console.log("📦 Received order creation request:", {
@@ -1365,6 +1760,187 @@ app.post("/prodOrders", async (req, res) => {
     });
   }
 });
+
+// app.put("/prodOrders/:id", async (req, res) => {
+//   try {
+//     const orderId = req.params.id;
+//     const updateData = req.body;
+
+//     console.log("Updating order:", orderId, "with data:", updateData);
+
+//     // Find existing order
+//     const existingOrder = await prodOrderData.findById(orderId);
+//     if (!existingOrder) {
+//       return res.status(404).json({ message: "Order not found" });
+//     }
+
+//     // Process products if provided
+//     if (updateData.products && Array.isArray(updateData.products)) {
+//       const updatedProducts = updateData.products.map((product) => {
+//         if (!product.booking || !product.booking.startDate || !product.booking.endDate) {
+//           throw new Error("Booking dates are required");
+//         }
+
+//         // Parse dates
+//         const start = new Date(product.booking.startDate);
+//         const end = new Date(product.booking.endDate);
+
+//         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//           throw new Error("Invalid booking dates");
+//         }
+
+//         // Calculate booked dates
+//         let bookedDates = [];
+//         const current = new Date(start);
+
+//         while (current <= end) {
+//           const normalizedDate = new Date(Date.UTC(
+//             current.getUTCFullYear(),
+//             current.getUTCMonth(),
+//             current.getUTCDate()
+//           ));
+//           bookedDates.push(normalizedDate);
+//           current.setDate(current.getDate() + 1);
+//         }
+
+//         const totalDays = bookedDates.length;
+
+//         // Get individual costs
+//         const price = product.price || 0;
+//         const printingCost = product.printingCost || 0;
+//         const mountingCost = product.mountingCost || 0;
+//         const totalPrice = price * totalDays;
+
+//         return {
+//           ...product,
+//           bookedDates,
+//           booking: {
+//             ...product.booking,
+//             startDate: new Date(product.booking.startDate),
+//             endDate: new Date(product.booking.endDate),
+//             totalDays: totalDays,
+//             totalPrice: totalPrice,
+//           },
+//           price: price,
+//           printingCost: printingCost,
+//           mountingCost: mountingCost,
+//           deleted: product.deleted !== undefined ? product.deleted : false,
+//           deletedAt: product.deletedAt || null,
+//           deletedBy: product.deletedBy || null
+//         };
+//       });
+
+//       updateData.products = updatedProducts;
+
+//       // Calculate overall totals from updated products
+//       let totalAmount = 0;
+//       let totalOverallAmount = 0;
+//       let totalPrintingCost = 0;
+//       let totalMountingCost = 0;
+
+//       updatedProducts.forEach(product => {
+//         if (!product.deleted) {
+//           const bookingTotal = product.booking?.totalPrice || 0;
+//           const printing = product.printingCost || 0;
+//           const mounting = product.mountingCost || 0;
+
+//           totalAmount += bookingTotal;
+//           totalPrintingCost += printing;
+//           totalMountingCost += mounting;
+//           totalOverallAmount += (bookingTotal + printing + mounting);
+//         }
+//       });
+
+//       // Get GST percentage from update data or existing order
+//       const gstPercentage = updateData.client?.gstPercentage ||
+//         existingOrder.client?.gstPercentage ||
+//         18;
+//       const gstAmount = totalOverallAmount * (gstPercentage / 100);
+//           const formattedGstAmountFloor = Math.floor(gstAmount);
+
+//       const totalAmountWithGST = totalOverallAmount + formattedGstAmountFloor;
+
+//       // Store calculations in updateData
+//       updateData.overAllTotalAmount = totalOverallAmount;
+//       updateData.gstPercentage = gstPercentage;
+//       updateData.gstAmount = formattedGstAmountFloor;
+//       updateData.totalAmountWithGST = totalAmountWithGST;
+//     }
+
+//     // Handle paidAmount normalization
+//     if (updateData.client && updateData.client.paidAmount) {
+//       if (Array.isArray(updateData.client.paidAmount)) {
+//         updateData.client.paidAmount = updateData.client.paidAmount.map(payment => ({
+//           amount: Number(payment.amount) || 0,
+//           paidAt: payment.paidAt ? new Date(payment.paidAt) : new Date()
+//         }));
+//       } else if (typeof updateData.client.paidAmount === 'number') {
+//         updateData.client.paidAmount = [{
+//           amount: updateData.client.paidAmount,
+//           paidAt: new Date()
+//         }];
+//       }
+//     }
+
+//     // Calculate totals if products were updated
+//     if (updateData.products) {
+//       const totalPaid = (updateData.client?.paidAmount || existingOrder.client.paidAmount)
+//         .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+//       const balanceAmount = Math.max(totalAmount - totalPaid, 0);
+
+//       if (updateData.client) {
+//         updateData.client.totalAmount = totalAmount;
+//         updateData.client.overAllTotalAmount = totalOverallAmount;
+//         updateData.client.gstPercentage = gstPercentage;
+//         updateData.client.gstAmount = formattedGstAmountFloor;
+//         updateData.client.totalAmountWithGST = totalAmountWithGST;
+//         updateData.client.balanceAmount = balanceAmount;
+//       }
+//     }
+
+//     // Add last_edited timestamp
+//     updateData.last_edited = new Date();
+
+//     // FIX: Preserve status if not provided in update
+//     if (!updateData.status) {
+//       updateData.status = existingOrder.status;
+//     }
+//     if (!updateData.order_status) {
+//       updateData.order_status = existingOrder.order_status;
+//     }
+
+//     // Update the order
+//     const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//       orderId,
+//       { $set: updateData },
+//       {
+//         new: true,
+//         runValidators: true,
+//         context: 'query'
+//       }
+//     );
+
+//     if (!updatedOrder) {
+//       return res.status(404).json({ message: 'Order not found after update' });
+//     }
+
+//     res.json({
+//       success: true,
+//       message: 'Order updated successfully',
+//       order: updatedOrder,
+//       orderId: updatedOrder.orderId,
+//       _id: updatedOrder._id
+//     });
+//   } catch (err) {
+//     console.error('Error updating order:', err);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Server error while updating order',
+//       error: err.message
+//     });
+//   }
+// });
 
 app.put("/prodOrders/:id", async (req, res) => {
   try {
@@ -1570,6 +2146,74 @@ const updateBookedDatesOnRestore = async (product, orderId) => {
   }
 };
 
+
+// // Update the /booked-dates/:prodCode endpoint to exclude deleted products
+// app.get("/booked-dates/:prodCode", async (req, res) => {
+//   try {
+//     const { prodCode } = req.params;
+//     const excludeOrderId = req.query.excludeOrderId;
+
+//     console.log(
+//       `Fetching booked dates for product: ${prodCode}, excluding order: ${excludeOrderId}`
+//     );
+
+//     // Build query to find orders with this product code
+//     let query = {
+//       "products.prodCode": prodCode,
+//     };
+
+//     // Exclude current order if specified
+//     if (
+//       excludeOrderId &&
+//       excludeOrderId !== "null" &&
+//       excludeOrderId !== "undefined"
+//     ) {
+//       query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
+//     }
+
+//     // Find all orders that contain this product code
+//     const orders = await prodOrderData.find(query);
+//     console.log(`📊 Found ${orders.length} orders with product ${prodCode}`);
+
+//     // Extract all booked dates for this product from other orders
+//     // EXCLUDE dates from deleted products
+//     const bookedDates = [];
+//     orders.forEach((order) => {
+//       order.products.forEach((product) => {
+//         if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
+//           // Convert dates to ISO string format for consistency
+//           product.bookedDates.forEach((date) => {
+//             try {
+//               const dateObj = new Date(date);
+//               if (!isNaN(dateObj.getTime())) {
+//                 // Normalize to UTC midnight for consistent comparison
+//                 const utcDate = new Date(
+//                   Date.UTC(
+//                     dateObj.getUTCFullYear(),
+//                     dateObj.getUTCMonth(),
+//                     dateObj.getUTCDate()
+//                   )
+//                 );
+//                 bookedDates.push(utcDate.toISOString().split("T")[0]);
+//               }
+//             } catch (e) {
+//               console.warn("Invalid date format:", date);
+//             }
+//           });
+//         }
+//       });
+//     });
+
+//     // Remove duplicates and return
+//     const uniqueDates = [...new Set(bookedDates)];
+//     console.log(`📅 Final booked dates for ${prodCode}:`, uniqueDates);
+
+//     res.json(uniqueDates);
+//   } catch (error) {
+//     console.error("Error fetching booked dates:", error);
+//     res.status(500).json({ error: "Failed to fetch booked dates" });
+//   }
+// });
 
 app.get("/booked-dates/:prodCode", async (req, res) => {
   try {
@@ -2012,6 +2656,51 @@ app.get("/softDeleteProductOrder/:orderId/:productId", async (req, res) => {
   }
 });
 
+
+// // Helper function to check if dates are available after product deletion
+// app.get("/check-date-availability/:prodCode", async (req, res) => {
+//   try {
+//     const { prodCode } = req.params;
+//     const { startDate, endDate, excludeOrderId } = req.query;
+
+//     if (!startDate || !endDate) {
+//       return res.status(400).json({ error: "Start and end dates are required" });
+//     }
+
+//     // Get all booked dates for this product (excluding deleted products)
+//     const bookedDates = await getBookedDatesForProduct(prodCode, excludeOrderId);
+
+//     // Check if requested dates are available
+//     const start = new Date(startDate);
+//     const end = new Date(endDate);
+//     const current = new Date(start);
+    
+//     const conflictingDates = [];
+    
+//     while (current <= end) {
+//       const dateStr = current.toISOString().split('T')[0];
+//       if (bookedDates.includes(dateStr)) {
+//         conflictingDates.push(dateStr);
+//       }
+//       current.setDate(current.getDate() + 1);
+//     }
+
+//     const isAvailable = conflictingDates.length === 0;
+
+//     res.json({
+//       isAvailable,
+//       conflictingDates,
+//       totalRequestedDays: Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1,
+//       availableDays: isAvailable ? 
+//         Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1 : 
+//         Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1 - conflictingDates.length
+//     });
+//   } catch (error) {
+//     console.error("Error checking date availability:", error);
+//     res.status(500).json({ error: "Failed to check date availability" });
+//   }
+// });
+
 app.get("/check-date-availability/:prodCode", async (req, res) => {
     try {
         const { prodCode } = req.params;
@@ -2197,6 +2886,110 @@ app.get("/getOrderStatuses", async (req, res) => {
   }
 });
 /* get order statuses */
+/* update order status */
+// app.put("/updateOrderStatus/:orderId", async (req, res) => {
+//   try {
+//     const { orderId } = req.params;
+//     const { status, cancel, reason, isConfirmation } = req.body;
+
+//     if (!status && cancel == false) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Status is required",
+//       });
+//     }
+
+//     // Validate ObjectId
+//     if (!mongoose.Types.ObjectId.isValid(orderId)) {
+//       return res.status(400).json({
+//         status: false,
+//         message: "Invalid Order ID",
+//       });
+//     }
+
+//     // Find and update
+//     if (cancel == false) {
+//       let updateData = {};
+      
+//       // Special handling for order confirmation
+//       if (isConfirmation && status === "Order Confirmed") {
+//         updateData = {
+//           order_status: "confirmed", // Set to confirmed for filtering
+//           status: "Confirmed", // Set to Confirmed (capital C for consistency)
+//           confirmed_at: new Date(),
+//           confirmed_by: req.body.confirmedBy || "Admin"
+//         };
+//       } else {
+//         // Normal status update
+//         updateData = { order_status: status };
+        
+//         // Map status to proper values
+//         if (status.toLowerCase().includes("pending")) {
+//           updateData.order_status = "pending";
+//         } else if (status.toLowerCase().includes("cancelled")) {
+//           updateData.order_status = "cancelled";
+//           updateData.status = "Cancelled";
+//         } else if (status.toLowerCase().includes("completed")) {
+//           updateData.order_status = "completed";
+//         }
+//       }
+
+//       const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//         orderId,
+//         { $set: updateData },
+//         { new: true }
+//       );
+
+//       if (!updatedOrder) {
+//         return res.status(404).json({
+//           status: false,
+//           message: "Order not found",
+//         });
+//       }
+
+//       return res.status(200).json({
+//         status: true,
+//         message: isConfirmation ? "Order confirmed successfully" : "Order status updated successfully",
+//         data: updatedOrder,
+//       });
+//     }
+    
+//     if (cancel == true) {
+//       const updatedOrder = await prodOrderData.findByIdAndUpdate(
+//         orderId,
+//         {
+//           $set: {
+//             order_cancel_reason: reason,
+//             order_status: "cancelled",
+//             status: "Cancelled",
+//           },
+//         },
+//         { new: true }
+//       );
+
+//       if (!updatedOrder) {
+//         return res.status(404).json({
+//           status: false,
+//           message: "Order not found",
+//         });
+//       }
+
+//       return res.status(200).json({
+//         status: true,
+//         message: "Reason updated successfully",
+//         data: updatedOrder,
+//       });
+//     }
+//   } catch (error) {
+//     console.error("Error updating order status:", error);
+//     res.status(500).json({
+//       status: false,
+//       message: "Internal server error",
+//       error: error.message,
+//     });
+//   }
+// });
+
 
 app.put("/updateOrderStatus/:orderId", async (req, res) => {
   try {
@@ -2296,8 +3089,11 @@ app.put("/updateOrderStatus/:orderId", async (req, res) => {
     });
   }
 });
+
 /* update order status */
+
 /* add new order status -SK */
+
 app.post("/addOrderStatus/", async (req, res) => {
   try {
     const { name, cancel, createdAt, updatedAt } = req.body;
@@ -3003,7 +3799,160 @@ async function generateAlternativeDateRanges(prodCode, originalStart, originalEn
 }
 // RAC CONCEPTS 
 
+
+// //CART ITEMS ROUTE
+// // GET cart items for user
+// app.get("/cart/user/:userId", async (req, res) => {
+//   try {
+//     console.log("Received request for user ID:", req.params.userId);
+//     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+//       return res.status(400).json({ message: "Invalid user ID format" });
+//     }
+
+//     const cartItems = await cartData.find({ userId: req.params.userId });
+//     // console.log('Found cart items:', cartItems);
+//     console.log("Found cart items:", cartItems.length);
+//     res.status(200).json(cartItems);
+//   } catch (err) {
+//     console.error("Error fetching cart items:", err);
+//     res.status(500).json({
+//       message: "Failed to fetch cart items",
+//       error: err.message,
+//     });
+//   }
+// });
+
+// // ADD item to cart
+// app.post("/cart", async (req, res) => {
+//   try {
+//     console.log("Received cart item:", req.body);
+//     // Validate required fields
+//     if (!req.body.userId || !req.body.productId) {
+//       return res.status(400).json({ message: "Missing required fields" });
+//     }
+
+//     // Check if item already exists for this user
+//     const existingItem = await cartData.findOne({
+//       userId: req.body.userId,
+//       productId: req.body.productId,
+//       startDate: req.body.startDate,
+//       endDate: req.body.endDate,
+//     });
+
+//     if (existingItem) {
+//       return res.status(400).json({ message: "Item already in cart" });
+//     }
+
+//     const newItem = new cartData(req.body);
+//     const savedItem = await newItem.save();
+//     res.status(201).json(savedItem);
+//   } catch (err) {
+//     console.error("Error adding to cart:", err);
+//     res.status(500).json({
+//       message: "Failed to add item to cart",
+//       error: err.message,
+//     });
+//   }
+// });
+
+// // UPDATE cart item
+// app.put("/cart/:id", async (req, res) => {
+//   try {
+//     const updatedItem = await cartData.findByIdAndUpdate(
+//       req.params.id,
+//       req.body,
+//       { new: true }
+//     );
+
+//     if (!updatedItem) {
+//       return res.status(404).json({ message: "Item not found" });
+//     }
+
+//     res.status(200).json(updatedItem);
+//   } catch (err) {
+//     console.error("Error updating cart item:", err);
+//     res.status(500).json({
+//       message: "Failed to update cart item",
+//       error: err.message,
+//     });
+//   }
+// });
+
+// // DELETE item from cart
+// app.delete("/cart/:id", async (req, res) => {
+//   try {
+//     const deletedItem = await cartData.findByIdAndDelete(req.params.id);
+//     if (!deletedItem) {
+//       return res.status(404).json({ message: "Item not found" });
+//     }
+//     res.json({ message: "Item removed from cart" });
+//   } catch (err) {
+//     console.error("Error removing from cart:", err);
+//     res.status(500).json({
+//       message: "Failed to remove item from cart",
+//       error: err.message,
+//     });
+//   }
+// });
+
+// // DELETE multiple items from cart
+// app.delete("/cart", async (req, res) => {
+//   try {
+//     const { itemIds } = req.body;
+//     if (!itemIds || !Array.isArray(itemIds)) {
+//       return res.status(400).json({ message: "Invalid item IDs" });
+//     }
+
+//     // Validate all IDs are valid MongoDB ObjectIds
+//     if (itemIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+//       return res.status(400).json({ message: "Invalid item ID format" });
+//     }
+
+//     const result = await cartData.deleteMany({
+//       _id: { $in: itemIds },
+//     });
+
+//     res.json({
+//       message: `${result.deletedCount} items removed from cart`,
+//       deletedCount: result.deletedCount,
+//     });
+//   } catch (err) {
+//     console.error("Error removing multiple items:", err);
+//     res.status(500).json({
+//       message: "Failed to remove items from cart",
+//       error: err.message,
+//     });
+//   }
+// });
+
+// // CLEAR cart for user
+// app.delete("/cart/clear/:userId", async (req, res) => {
+//   try {
+//     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+//       return res.status(400).json({ message: "Invalid user ID format" });
+//     }
+
+//     const result = await cartData.deleteMany({
+//       userId: req.params.userId,
+//     });
+
+//     res.json({
+//       message: `Cart cleared for user`,
+//       deletedCount: result.deletedCount,
+//     });
+//   } catch (err) {
+//     console.error("Error clearing cart:", err);
+//     res.status(500).json({
+//       message: "Failed to clear cart",
+//       error: err.message,
+//     });
+//   }
+// });
+
+
+
 // CART ITEMS ROUTE - Add these to your product.js file
+
 // GET cart items for user
 app.get("/cart/user/:userId", async (req, res) => {
   try {
@@ -3158,1123 +4107,9 @@ app.delete("/cart/clear/:userId", async (req, res) => {
   }
 });
 
-//CONFLICT CHECKING API
-//CHECK DATE AVAILABILITY FOR CART/BULK ORDERS
-app.post("/check-bulk-date-availability", async (req, res) => {
-  try {
-    const { items, userId, excludeOrderId } = req.body;
-    
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Items array is required"
-      });
-    }
-
-    const results = [];
-    let allAvailable = true;
-    let hasQueueDates = false;
-    
-    for (const item of items) {
-      const { prodCode, startDate, endDate, productId, productName } = item;
-      
-      if (!prodCode || !startDate || !endDate) {
-        results.push({
-          productId,
-          productName,
-          prodCode,
-          success: false,
-          message: "Missing required fields",
-          isAvailable: false
-        });
-        allAvailable = false;
-        continue;
-      }
-      
-      // Parse dates
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        results.push({
-          productId,
-          productName,
-          prodCode,
-          success: false,
-          message: "Invalid date format",
-          isAvailable: false
-        });
-        allAvailable = false;
-        continue;
-      }
-      
-      // Build query to find orders with this product code
-      let query = {
-        "products.prodCode": prodCode,
-        "products.deleted": { $ne: true }
-      };
-      
-      // Exclude current order if specified
-      if (excludeOrderId && excludeOrderId !== "null" && excludeOrderId !== "undefined") {
-        try {
-          query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
-        } catch (e) {
-          // If invalid ObjectId, ignore
-        }
-      }
-      
-      // Find all orders that contain this product code
-      const orders = await prodOrderData.find(query);
-      
-      // Collect confirmed and pending dates
-      const confirmedDates = new Set();
-      const pendingDates = new Set();
-      
-      orders.forEach((order) => {
-        order.products.forEach((product) => {
-          if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
-            const orderStatus = order.order_status || 'pending';
-            
-            product.bookedDates.forEach((date) => {
-              try {
-                if (!date) return;
-                const dateObj = new Date(date);
-                if (isNaN(dateObj.getTime())) return;
-                
-                const dateStr = dateObj.toISOString().split('T')[0];
-                
-                if (orderStatus === "Cancelled" || orderStatus === "cancelled") {
-                  // Cancelled dates are available - don't add to conflicts
-                  return;
-                } else if (orderStatus === "Pending Client Confirmation" || 
-                           orderStatus === "pending" || 
-                           orderStatus === "Pending") {
-                  pendingDates.add(dateStr);
-                } else {
-                  // All other statuses are confirmed
-                  confirmedDates.add(dateStr);
-                }
-              } catch (e) {
-                console.warn("Error processing date:", date, e);
-              }
-            });
-          }
-        });
-      });
-      
-      // Generate all dates in requested range
-      const requestedDates = [];
-      const current = new Date(start);
-      const endDateObj = new Date(end);
-      
-      while (current <= endDateObj) {
-        const dateStr = current.toISOString().split('T')[0];
-        requestedDates.push(dateStr);
-        current.setDate(current.getDate() + 1);
-      }
-      
-      // Check for conflicts
-      const confirmedConflicts = [];
-      const pendingConflicts = [];
-      const availableDates = [];
-      
-      requestedDates.forEach(dateStr => {
-        if (confirmedDates.has(dateStr)) {
-          confirmedConflicts.push(dateStr);
-        } else if (pendingDates.has(dateStr)) {
-          pendingConflicts.push(dateStr);
-        } else {
-          availableDates.push(dateStr);
-        }
-      });
-      
-      const totalRequestedDays = requestedDates.length;
-      const confirmedConflictCount = confirmedConflicts.length;
-      const pendingConflictCount = pendingConflicts.length;
-      const isAvailable = confirmedConflictCount === 0;
-      
-      results.push({
-        productId,
-        productName,
-        prodCode,
-        startDate: startDate,
-        endDate: endDate,
-        totalDays: totalRequestedDays,
-        isAvailable: isAvailable,
-        hasConflicts: confirmedConflictCount > 0,
-        hasQueueDates: pendingConflictCount > 0,
-        confirmedConflictCount,
-        pendingConflictCount,
-        availableCount: availableDates.length,
-        confirmedConflicts: confirmedConflicts,
-        pendingConflicts: pendingConflicts,
-        message: confirmedConflictCount > 0 
-          ? `${confirmedConflictCount} date(s) are already confirmed booked. ${pendingConflictCount > 0 ? `${pendingConflictCount} date(s) are in queue.` : ''}`
-          : pendingConflictCount > 0
-            ? `All dates available. ${pendingConflictCount} date(s) are in queue (can be booked).`
-            : 'All dates are available for immediate booking.'
-      });
-      
-      if (!isAvailable) {
-        allAvailable = false;
-      }
-      if (pendingConflictCount > 0) {
-        hasQueueDates = true;
-      }
-    }
-    
-    res.json({
-      success: true,
-      allAvailable,
-      hasQueueDates,
-      results,
-      message: allAvailable 
-        ? (hasQueueDates ? "All dates available but some are in queue" : "All dates are available for booking")
-        : "Some products have date conflicts"
-    });
-    
-  } catch (error) {
-    console.error("Error checking bulk date availability:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-
-// GET date availability for a single product
-app.get("/check-single-date-availability/:prodCode", async (req, res) => {
-  try {
-    const { prodCode } = req.params;
-    const { startDate, endDate, excludeOrderId } = req.query;
-    
-    if (!startDate || !endDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Start and end dates are required"
-      });
-    }
-    
-    // Parse dates
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid date format"
-      });
-    }
-    
-    // Build query
-    let query = {
-      "products.prodCode": prodCode,
-      "products.deleted": { $ne: true }
-    };
-    
-    if (excludeOrderId && excludeOrderId !== "null" && excludeOrderId !== "undefined") {
-      try {
-        query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
-      } catch (e) {}
-    }
-    
-    const orders = await prodOrderData.find(query);
-    
-    // Collect confirmed and pending dates
-    const confirmedDates = new Set();
-    const pendingDates = new Set();
-    
-    orders.forEach((order) => {
-      order.products.forEach((product) => {
-        if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
-          const orderStatus = order.order_status || 'pending';
-          
-          product.bookedDates.forEach((date) => {
-            try {
-              if (!date) return;
-              const dateObj = new Date(date);
-              if (isNaN(dateObj.getTime())) return;
-              
-              const dateStr = dateObj.toISOString().split('T')[0];
-              
-              if (orderStatus === "Cancelled" || orderStatus === "cancelled") {
-                return;
-              } else if (orderStatus === "Pending Client Confirmation" || 
-                         orderStatus === "pending" || 
-                         orderStatus === "Pending") {
-                pendingDates.add(dateStr);
-              } else {
-                confirmedDates.add(dateStr);
-              }
-            } catch (e) {
-              console.warn("Error processing date:", date, e);
-            }
-          });
-        }
-      });
-    });
-    
-    // Generate all dates in requested range
-    const requestedDates = [];
-    const current = new Date(start);
-    const endDateObj = new Date(end);
-    
-    while (current <= endDateObj) {
-      const dateStr = current.toISOString().split('T')[0];
-      requestedDates.push(dateStr);
-      current.setDate(current.getDate() + 1);
-    }
-    
-    // Check for conflicts
-    const confirmedConflicts = [];
-    const pendingConflicts = [];
-    const availableDates = [];
-    
-    requestedDates.forEach(dateStr => {
-      if (confirmedDates.has(dateStr)) {
-        confirmedConflicts.push(dateStr);
-      } else if (pendingDates.has(dateStr)) {
-        pendingConflicts.push(dateStr);
-      } else {
-        availableDates.push(dateStr);
-      }
-    });
-    
-    const totalRequestedDays = requestedDates.length;
-    const confirmedConflictCount = confirmedConflicts.length;
-    const pendingConflictCount = pendingConflicts.length;
-    const isAvailable = confirmedConflictCount === 0;
-    
-    res.json({
-      success: true,
-      prodCode,
-      startDate: startDate,
-      endDate: endDate,
-      totalDays: totalRequestedDays,
-      isAvailable: isAvailable,
-      hasConflicts: confirmedConflictCount > 0,
-      hasQueueDates: pendingConflictCount > 0,
-      confirmedConflictCount,
-      pendingConflictCount,
-      availableCount: availableDates.length,
-      confirmedConflicts,
-      pendingConflicts,
-      availableDates,
-      message: confirmedConflictCount > 0 
-        ? `${confirmedConflictCount} date(s) are already confirmed booked.`
-        : pendingConflictCount > 0
-          ? `All dates available. ${pendingConflictCount} date(s) are in queue.`
-          : 'All dates are available for immediate booking.'
-    });
-    
-  } catch (error) {
-    console.error("Error checking date availability:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-}); 
-
-// GET date availability for multiple products (for cart page)
-app.post("/check-cart-date-availability", async (req, res) => {
-  try {
-    const { items, userId, excludeOrderId } = req.body;
-    
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Items array is required"
-      });
-    }
-
-    const results = [];
-    let allAvailable = true;
-    let hasQueueDates = false;
-    
-    for (const item of items) {
-      const { prodCode, startDate, endDate, productId, productName, _id } = item;
-      
-      if (!prodCode || !startDate || !endDate) {
-        results.push({
-          cartItemId: _id,
-          productId,
-          productName,
-          prodCode,
-          success: false,
-          message: "Missing required fields",
-          isAvailable: false,
-          hasConflicts: true
-        });
-        allAvailable = false;
-        continue;
-      }
-      
-      // Parse dates
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        results.push({
-          cartItemId: _id,
-          productId,
-          productName,
-          prodCode,
-          success: false,
-          message: "Invalid date format",
-          isAvailable: false,
-          hasConflicts: true
-        });
-        allAvailable = false;
-        continue;
-      }
-      
-      // Build query to find orders with this product code
-      let query = {
-        "products.prodCode": prodCode,
-        "products.deleted": { $ne: true }
-      };
-      
-      // Exclude current order if specified
-      if (excludeOrderId && excludeOrderId !== "null" && excludeOrderId !== "undefined") {
-        try {
-          query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
-        } catch (e) {
-          // If invalid ObjectId, ignore
-        }
-      }
-      
-      // Find all orders that contain this product code
-      const orders = await prodOrderData.find(query);
-      
-      // Collect confirmed and pending dates
-      const confirmedDates = new Set();
-      const pendingDates = new Set();
-      
-      orders.forEach((order) => {
-        order.products.forEach((product) => {
-          if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
-            const orderStatus = order.order_status || 'pending';
-            
-            product.bookedDates.forEach((date) => {
-              try {
-                if (!date) return;
-                const dateObj = new Date(date);
-                if (isNaN(dateObj.getTime())) return;
-                
-                const dateStr = dateObj.toISOString().split('T')[0];
-                
-                if (orderStatus === "Cancelled" || orderStatus === "cancelled") {
-                  // Cancelled dates are available - don't add to conflicts
-                  return;
-                } else if (orderStatus === "Pending Client Confirmation" || 
-                           orderStatus === "pending" || 
-                           orderStatus === "Pending") {
-                  pendingDates.add(dateStr);
-                } else {
-                  // All other statuses are confirmed
-                  confirmedDates.add(dateStr);
-                }
-              } catch (e) {
-                console.warn("Error processing date:", date, e);
-              }
-            });
-          }
-        });
-      });
-      
-      // Generate all dates in requested range
-      const requestedDates = [];
-      const current = new Date(start);
-      const endDateObj = new Date(end);
-      
-      while (current <= endDateObj) {
-        const dateStr = current.toISOString().split('T')[0];
-        requestedDates.push(dateStr);
-        current.setDate(current.getDate() + 1);
-      }
-      
-      // Check for conflicts
-      const confirmedConflicts = [];
-      const pendingConflicts = [];
-      const availableDates = [];
-      
-      requestedDates.forEach(dateStr => {
-        if (confirmedDates.has(dateStr)) {
-          confirmedConflicts.push(dateStr);
-        } else if (pendingDates.has(dateStr)) {
-          pendingConflicts.push(dateStr);
-        } else {
-          availableDates.push(dateStr);
-        }
-      });
-      
-      const totalRequestedDays = requestedDates.length;
-      const confirmedConflictCount = confirmedConflicts.length;
-      const pendingConflictCount = pendingConflicts.length;
-      const isAvailable = confirmedConflictCount === 0;
-      
-      results.push({
-        cartItemId: _id,
-        productId,
-        productName,
-        prodCode,
-        startDate: startDate,
-        endDate: endDate,
-        totalDays: totalRequestedDays,
-        isAvailable: isAvailable,
-        hasConflicts: confirmedConflictCount > 0,
-        hasQueueDates: pendingConflictCount > 0,
-        confirmedConflictCount,
-        pendingConflictCount,
-        availableCount: availableDates.length,
-        confirmedConflicts: confirmedConflicts,
-        pendingConflicts: pendingConflicts,
-        message: confirmedConflictCount > 0 
-          ? `${confirmedConflictCount} date(s) are already confirmed booked.`
-          : pendingConflictCount > 0
-            ? `${pendingConflictCount} date(s) are in queue (can still proceed).`
-            : 'All dates are available for immediate booking.'
-      });
-      
-      if (!isAvailable) {
-        allAvailable = false;
-      }
-      if (pendingConflictCount > 0) {
-        hasQueueDates = true;
-      }
-    }
-    
-    // Sort results: conflicted items first, then available items
-    const sortedResults = [...results].sort((a, b) => {
-      if (a.hasConflicts && !b.hasConflicts) return -1;
-      if (!a.hasConflicts && b.hasConflicts) return 1;
-      return 0;
-    });
-    
-    res.json({
-      success: true,
-      allAvailable,
-      hasQueueDates,
-      results: sortedResults,
-      message: allAvailable 
-        ? (hasQueueDates ? "All dates available but some are in queue" : "All dates are available for booking")
-        : "Some items have date conflicts"
-    });
-    
-  } catch (error) {
-    console.error("Error checking cart date availability:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
 
 
-// // SINGLE API FOR DATE CONFLICT CHECKING (Works for both single product and bulk)
-// app.post("/check-date-conflicts", async (req, res) => {
-//   try {
-//     const { items, userId, excludeOrderId } = req.body;
-    
-//     // Handle single product request (from Book Now)
-//     if (!items || !Array.isArray(items)) {
-//       const { prodCode, startDate, endDate, productId, productName } = req.body;
-      
-//       if (!prodCode || !startDate || !endDate) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "prodCode, startDate, and endDate are required"
-//         });
-//       }
-      
-//       const start = new Date(startDate);
-//       const end = new Date(endDate);
-      
-//       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-//         return res.status(400).json({
-//           success: false,
-//           message: "Invalid date format"
-//         });
-//       }
-      
-//       // Build query
-//       let query = {
-//         "products.prodCode": prodCode,
-//         "products.deleted": { $ne: true }
-//       };
-      
-//       if (excludeOrderId && excludeOrderId !== "null" && excludeOrderId !== "undefined") {
-//         try {
-//           query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
-//         } catch (e) {}
-//       }
-      
-//       const orders = await prodOrderData.find(query);
-      
-//       const confirmedDates = new Set();
-//       const pendingDates = new Set();
-      
-//       orders.forEach((order) => {
-//         order.products.forEach((product) => {
-//           if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
-//             const orderStatus = order.order_status || 'pending';
-            
-//             product.bookedDates.forEach((date) => {
-//               try {
-//                 if (!date) return;
-//                 const dateObj = new Date(date);
-//                 if (isNaN(dateObj.getTime())) return;
-                
-//                 const dateStr = dateObj.toISOString().split('T')[0];
-                
-//                 if (orderStatus === "Cancelled" || orderStatus === "cancelled") {
-//                   return;
-//                 } else if (orderStatus === "Pending Client Confirmation" || 
-//                            orderStatus === "pending" || 
-//                            orderStatus === "Pending") {
-//                   pendingDates.add(dateStr);
-//                 } else {
-//                   confirmedDates.add(dateStr);
-//                 }
-//               } catch (e) {
-//                 console.warn("Error processing date:", date, e);
-//               }
-//             });
-//           }
-//         });
-//       });
-      
-//       // Generate all dates in requested range
-//       const requestedDates = [];
-//       const current = new Date(start);
-//       const endDateObj = new Date(end);
-      
-//       while (current <= endDateObj) {
-//         const dateStr = current.toISOString().split('T')[0];
-//         requestedDates.push(dateStr);
-//         current.setDate(current.getDate() + 1);
-//       }
-      
-//       // Check for conflicts
-//       const confirmedConflicts = [];
-//       const pendingConflicts = [];
-//       const availableDates = [];
-      
-//       requestedDates.forEach(dateStr => {
-//         if (confirmedDates.has(dateStr)) {
-//           confirmedConflicts.push(dateStr);
-//         } else if (pendingDates.has(dateStr)) {
-//           pendingConflicts.push(dateStr);
-//         } else {
-//           availableDates.push(dateStr);
-//         }
-//       });
-      
-//       const totalRequestedDays = requestedDates.length;
-//       const confirmedConflictCount = confirmedConflicts.length;
-//       const pendingConflictCount = pendingConflicts.length;
-//       const isAvailable = confirmedConflictCount === 0;
-      
-//       return res.json({
-//         success: true,
-//         type: 'single',
-//         prodCode,
-//         productId,
-//         productName,
-//         startDate,
-//         endDate,
-//         totalDays: totalRequestedDays,
-//         isAvailable: isAvailable,
-//         hasConflicts: confirmedConflictCount > 0,
-//         hasQueueDates: pendingConflictCount > 0,
-//         confirmedConflictCount,
-//         pendingConflictCount,
-//         availableCount: availableDates.length,
-//         confirmedConflicts,
-//         pendingConflicts,
-//         availableDates,
-//         message: confirmedConflictCount > 0 
-//           ? `${confirmedConflictCount} date(s) are already confirmed booked.`
-//           : pendingConflictCount > 0
-//             ? `All dates available. ${pendingConflictCount} date(s) are in queue.`
-//             : 'All dates are available for immediate booking.'
-//       });
-//     }
-    
-//     // Handle bulk items (from Cart)
-//     const results = [];
-//     let allAvailable = true;
-//     let hasQueueDates = false;
-    
-//     for (const item of items) {
-//       const { prodCode, startDate, endDate, productId, productName, cartItemId } = item;
-      
-//       if (!prodCode || !startDate || !endDate) {
-//         results.push({
-//           cartItemId,
-//           productId,
-//           productName,
-//           prodCode,
-//           success: false,
-//           message: "Missing required fields",
-//           isAvailable: false
-//         });
-//         allAvailable = false;
-//         continue;
-//       }
-      
-//       const start = new Date(startDate);
-//       const end = new Date(endDate);
-      
-//       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-//         results.push({
-//           cartItemId,
-//           productId,
-//           productName,
-//           prodCode,
-//           success: false,
-//           message: "Invalid date format",
-//           isAvailable: false
-//         });
-//         allAvailable = false;
-//         continue;
-//       }
-      
-//       let query = {
-//         "products.prodCode": prodCode,
-//         "products.deleted": { $ne: true }
-//       };
-      
-//       if (excludeOrderId && excludeOrderId !== "null" && excludeOrderId !== "undefined") {
-//         try {
-//           query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
-//         } catch (e) {}
-//       }
-      
-//       const orders = await prodOrderData.find(query);
-      
-//       const confirmedDates = new Set();
-//       const pendingDates = new Set();
-      
-//       orders.forEach((order) => {
-//         order.products.forEach((product) => {
-//           if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
-//             const orderStatus = order.order_status || 'pending';
-            
-//             product.bookedDates.forEach((date) => {
-//               try {
-//                 if (!date) return;
-//                 const dateObj = new Date(date);
-//                 if (isNaN(dateObj.getTime())) return;
-                
-//                 const dateStr = dateObj.toISOString().split('T')[0];
-                
-//                 if (orderStatus === "Cancelled" || orderStatus === "cancelled") {
-//                   return;
-//                 } else if (orderStatus === "Pending Client Confirmation" || 
-//                            orderStatus === "pending" || 
-//                            orderStatus === "Pending") {
-//                   pendingDates.add(dateStr);
-//                 } else {
-//                   confirmedDates.add(dateStr);
-//                 }
-//               } catch (e) {
-//                 console.warn("Error processing date:", date, e);
-//               }
-//             });
-//           }
-//         });
-//       });
-      
-//       const requestedDates = [];
-//       const current = new Date(start);
-//       const endDateObj = new Date(end);
-      
-//       while (current <= endDateObj) {
-//         const dateStr = current.toISOString().split('T')[0];
-//         requestedDates.push(dateStr);
-//         current.setDate(current.getDate() + 1);
-//       }
-      
-//       const confirmedConflicts = [];
-//       const pendingConflicts = [];
-//       const availableDates = [];
-      
-//       requestedDates.forEach(dateStr => {
-//         if (confirmedDates.has(dateStr)) {
-//           confirmedConflicts.push(dateStr);
-//         } else if (pendingDates.has(dateStr)) {
-//           pendingConflicts.push(dateStr);
-//         } else {
-//           availableDates.push(dateStr);
-//         }
-//       });
-      
-//       const totalRequestedDays = requestedDates.length;
-//       const confirmedConflictCount = confirmedConflicts.length;
-//       const pendingConflictCount = pendingConflicts.length;
-//       const isAvailable = confirmedConflictCount === 0;
-      
-//       results.push({
-//         cartItemId,
-//         productId,
-//         productName,
-//         prodCode,
-//         startDate,
-//         endDate,
-//         totalDays: totalRequestedDays,
-//         isAvailable,
-//         hasConflicts: confirmedConflictCount > 0,
-//         hasQueueDates: pendingConflictCount > 0,
-//         confirmedConflictCount,
-//         pendingConflictCount,
-//         availableCount: availableDates.length,
-//         confirmedConflicts,
-//         pendingConflicts,
-//         message: confirmedConflictCount > 0 
-//           ? `${confirmedConflictCount} date(s) are already confirmed booked.`
-//           : pendingConflictCount > 0
-//             ? `All dates available. ${pendingConflictCount} date(s) are in queue.`
-//             : 'All dates are available for immediate booking.'
-//       });
-      
-//       if (!isAvailable) {
-//         allAvailable = false;
-//       }
-//       if (pendingConflictCount > 0) {
-//         hasQueueDates = true;
-//       }
-//     }
-    
-//     // Sort results: conflicted items first (for UI display)
-//     results.sort((a, b) => {
-//       if (a.hasConflicts && !b.hasConflicts) return -1;
-//       if (!a.hasConflicts && b.hasConflicts) return 1;
-//       return 0;
-//     });
-    
-//     res.json({
-//       success: true,
-//       type: 'bulk',
-//       allAvailable,
-//       hasQueueDates,
-//       results,
-//       message: allAvailable 
-//         ? (hasQueueDates ? "All dates available but some are in queue" : "All dates are available for booking")
-//         : "Some products have date conflicts"
-//     });
-    
-//   } catch (error) {
-//     console.error("Error checking date conflicts:", error);
-//     res.status(500).json({
-//       success: false,
-//       message: error.message
-//     });
-//   }
-// }); 
-// SINGLE API FOR DATE CONFLICT CHECKING (Works for both single product and bulk)
-app.post("/check-date-conflicts", async (req, res) => {
-  try {
-    const { items, userId, excludeOrderId } = req.body;
-    
-    // Handle single product request (from Book Now)
-    if (!items || !Array.isArray(items)) {
-      const { prodCode, startDate, endDate, productId, productName } = req.body;
-      
-      if (!prodCode || !startDate || !endDate) {
-        return res.status(400).json({
-          success: false,
-          message: "prodCode, startDate, and endDate are required"
-        });
-      }
-      
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid date format"
-        });
-      }
-      
-      // Build query
-      let query = {
-        "products.prodCode": prodCode,
-        "products.deleted": { $ne: true }
-      };
-      
-      if (excludeOrderId && excludeOrderId !== "null" && excludeOrderId !== "undefined") {
-        try {
-          query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
-        } catch (e) {}
-      }
-      
-      const orders = await prodOrderData.find(query);
-      
-      const confirmedDates = new Set();
-      const pendingDates = new Set();
-      
-      orders.forEach((order) => {
-        order.products.forEach((product) => {
-          if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
-            const orderStatus = order.order_status || 'pending';
-            
-            product.bookedDates.forEach((date) => {
-              try {
-                if (!date) return;
-                const dateObj = new Date(date);
-                if (isNaN(dateObj.getTime())) return;
-                
-                const dateStr = dateObj.toISOString().split('T')[0];
-                
-                if (orderStatus === "Cancelled" || orderStatus === "cancelled") {
-                  return;
-                } else if (orderStatus === "Pending Client Confirmation" || 
-                           orderStatus === "pending" || 
-                           orderStatus === "Pending") {
-                  pendingDates.add(dateStr);
-                } else {
-                  confirmedDates.add(dateStr);
-                }
-              } catch (e) {
-                console.warn("Error processing date:", date, e);
-              }
-            });
-          }
-        });
-      });
-      
-      // Generate all dates in requested range
-      const requestedDates = [];
-      const current = new Date(start);
-      const endDateObj = new Date(end);
-      
-      while (current <= endDateObj) {
-        const dateStr = current.toISOString().split('T')[0];
-        requestedDates.push(dateStr);
-        current.setDate(current.getDate() + 1);
-      }
-      
-      // Check for conflicts
-      const confirmedConflicts = [];
-      const pendingConflicts = [];
-      const availableDates = [];
-      
-      requestedDates.forEach(dateStr => {
-        if (confirmedDates.has(dateStr)) {
-          confirmedConflicts.push(dateStr);
-        } else if (pendingDates.has(dateStr)) {
-          pendingConflicts.push(dateStr);
-        } else {
-          availableDates.push(dateStr);
-        }
-      });
-      
-      const totalRequestedDays = requestedDates.length;
-      const confirmedConflictCount = confirmedConflicts.length;
-      const pendingConflictCount = pendingConflicts.length;
-      const isAvailable = confirmedConflictCount === 0;
-      
-      return res.json({
-        success: true,
-        type: 'single',
-        prodCode,
-        productId,
-        productName,
-        startDate,
-        endDate,
-        totalDays: totalRequestedDays,
-        isAvailable: isAvailable,
-        hasConflicts: confirmedConflictCount > 0,
-        hasQueueDates: pendingConflictCount > 0,
-        confirmedConflictCount,
-        pendingConflictCount,
-        availableCount: availableDates.length,
-        confirmedConflicts,
-        pendingConflicts,
-        availableDates,
-        message: confirmedConflictCount > 0 
-          ? `${confirmedConflictCount} date(s) are already confirmed booked.`
-          : pendingConflictCount > 0
-            ? `All dates available. ${pendingConflictCount} date(s) are in queue.`
-            : 'All dates are available for immediate booking.'
-      });
-    }
-    
-    // Handle bulk items (from Cart)
-    const results = [];
-    let allAvailable = true;
-    let hasQueueDates = false;
-    
-    for (const item of items) {
-      const { prodCode, startDate, endDate, productId, productName, cartItemId } = item;
-      
-      if (!prodCode || !startDate || !endDate) {
-        results.push({
-          cartItemId,
-          productId,
-          productName,
-          prodCode,
-          success: false,
-          message: "Missing required fields",
-          isAvailable: false
-        });
-        allAvailable = false;
-        continue;
-      }
-      
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        results.push({
-          cartItemId,
-          productId,
-          productName,
-          prodCode,
-          success: false,
-          message: "Invalid date format",
-          isAvailable: false
-        });
-        allAvailable = false;
-        continue;
-      }
-      
-      let query = {
-        "products.prodCode": prodCode,
-        "products.deleted": { $ne: true }
-      };
-      
-      if (excludeOrderId && excludeOrderId !== "null" && excludeOrderId !== "undefined") {
-        try {
-          query._id = { $ne: new mongoose.Types.ObjectId(excludeOrderId) };
-        } catch (e) {}
-      }
-      
-      const orders = await prodOrderData.find(query);
-      
-      const confirmedDates = new Set();
-      const pendingDates = new Set();
-      
-      orders.forEach((order) => {
-        order.products.forEach((product) => {
-          if (product.prodCode === prodCode && product.bookedDates && !product.deleted) {
-            const orderStatus = order.order_status || 'pending';
-            
-            product.bookedDates.forEach((date) => {
-              try {
-                if (!date) return;
-                const dateObj = new Date(date);
-                if (isNaN(dateObj.getTime())) return;
-                
-                const dateStr = dateObj.toISOString().split('T')[0];
-                
-                if (orderStatus === "Cancelled" || orderStatus === "cancelled") {
-                  return;
-                } else if (orderStatus === "Pending Client Confirmation" || 
-                           orderStatus === "pending" || 
-                           orderStatus === "Pending") {
-                  pendingDates.add(dateStr);
-                } else {
-                  confirmedDates.add(dateStr);
-                }
-              } catch (e) {
-                console.warn("Error processing date:", date, e);
-              }
-            });
-          }
-        });
-      });
-      
-      const requestedDates = [];
-      const current = new Date(start);
-      const endDateObj = new Date(end);
-      
-      while (current <= endDateObj) {
-        const dateStr = current.toISOString().split('T')[0];
-        requestedDates.push(dateStr);
-        current.setDate(current.getDate() + 1);
-      }
-      
-      const confirmedConflicts = [];
-      const pendingConflicts = [];
-      const availableDates = [];
-      
-      requestedDates.forEach(dateStr => {
-        if (confirmedDates.has(dateStr)) {
-          confirmedConflicts.push(dateStr);
-        } else if (pendingDates.has(dateStr)) {
-          pendingConflicts.push(dateStr);
-        } else {
-          availableDates.push(dateStr);
-        }
-      });
-      
-      const totalRequestedDays = requestedDates.length;
-      const confirmedConflictCount = confirmedConflicts.length;
-      const pendingConflictCount = pendingConflicts.length;
-      const isAvailable = confirmedConflictCount === 0;
-      
-      results.push({
-        cartItemId,
-        productId,
-        productName,
-        prodCode,
-        startDate,
-        endDate,
-        totalDays: totalRequestedDays,
-        isAvailable,
-        hasConflicts: confirmedConflictCount > 0,
-        hasQueueDates: pendingConflictCount > 0,
-        confirmedConflictCount,
-        pendingConflictCount,
-        availableCount: availableDates.length,
-        confirmedConflicts,
-        pendingConflicts,
-        message: confirmedConflictCount > 0 
-          ? `${confirmedConflictCount} date(s) are already confirmed booked.`
-          : pendingConflictCount > 0
-            ? `All dates available. ${pendingConflictCount} date(s) are in queue.`
-            : 'All dates are available for immediate booking.'
-      });
-      
-      if (!isAvailable) {
-        allAvailable = false;
-      }
-      if (pendingConflictCount > 0) {
-        hasQueueDates = true;
-      }
-    }
-    
-    // Sort results: conflicted items first (for UI display)
-    results.sort((a, b) => {
-      if (a.hasConflicts && !b.hasConflicts) return -1;
-      if (!a.hasConflicts && b.hasConflicts) return 1;
-      return 0;
-    });
-    
-    res.json({
-      success: true,
-      type: 'bulk',
-      allAvailable,
-      hasQueueDates,
-      results,
-      message: allAvailable 
-        ? (hasQueueDates ? "All dates available but some are in queue" : "All dates are available for booking")
-        : "Some products have date conflicts"
-    });
-    
-  } catch (error) {
-    console.error("Error checking date conflicts:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
-//CONFLICT CHECKING API 
+
 
 /* send mail on adinn.com site -Sk */
 const contactUserTemplate = ({ firstname, lastname, email, message }) => `
@@ -4407,13 +4242,17 @@ app.post("/sendMailAdinnContactUs", async (req, res) => {
   }
 });
 
+
+
 /* send mail on adinn.com site -SK */
+
+
+
 // Simple GET  HII
 app.post("/checkPost", (req, res) => {
   const { firstName, lastName, email, message } = req.body;
     res.json({ firstName: firstName, lastName : lastName,email:email,message:message , test : "test"});
 });
-
 app.get("/testurl", async (req, res) => {
     try {
       const transporter = nodemailer.createTransport({
@@ -4455,6 +4294,8 @@ app.get("/testurl", async (req, res) => {
     }
   
 })
+
+
 
 app.get("/checkOrderConflict/:orderId", async (req, res) => {
   try {
@@ -4561,7 +4402,13 @@ app.get("/checkOrderConflict/:orderId", async (req, res) => {
   }
 });
 
+
+
+
+
+// ================================
 // COLOR FAMILY DEFINITIONS
+// ================================
 const COLOR_FAMILIES = [
   { name: "blue", hueRange: [200, 240] },
   { name: "purple", hueRange: [260, 300] },
@@ -4574,7 +4421,9 @@ const usedColorFamilies = new Set();
 // Cache user → color mapping
 const userColorCache = new Map();
 
+// ================================
 // MAIN FUNCTION
+// ================================
 function generateUserColor(userKey) {
   // Return cached color if exists
   if (userColorCache.has(userKey)) {
@@ -4609,7 +4458,9 @@ function generateUserColor(userKey) {
   return color;
 }
 
+// ================================
 // HSL → HEX CONVERTER
+// ================================
 function hslToHex(h, s, l) {
   s /= 100;
   l /= 100;
@@ -4740,6 +4591,9 @@ app.get("/getDashboardCount", async (req, res) => {
   }
 });
 
+
+
+
 //BREVO EMAIL INTEGRATION
 app.post("/sendBrevoSMTP", async (req, res) => {
   try {
@@ -4783,10 +4637,30 @@ const mailOptions = {
     });
   }
 });
-
 //BREVO EMAIL INTEGRATION
 //PHP MAIL IMPLEMENTATION 
 const phpMailUrl = 'https://adinndigital.com/api/mail.php';
+
+// axios.post(phpMailUrl, {
+//   headers: {
+//     'Content-Type': 'application/json'
+//   }
+// })
+// .then(response => {
+//   console.log('✅ Success:', response.data);
+// })
+// .catch(error => {
+//   if (error.response) {
+//     // The server responded with a status code outside 2xx
+//     console.error('❌ Server Error:', error.response.data);
+//   } else if (error.request) {
+//     // No response was received
+//     console.error('❌ No response from server:', error.request);
+//   } else {
+//     // Something else went wrong
+//     console.error('❌ Request Error:', error.message);
+//   }
+// }); 
 
 app.post('/phpMailTest', async (req, res) => {
   console.log('Received request body:', req.body);
