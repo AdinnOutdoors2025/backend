@@ -1,7 +1,7 @@
 // emailTemplates.js
 const { formatIndianCurrency, formatIndianDate, getCurrentIndianDate } = require('./FORMATTED.js');
 
-// Generate product details HTML with GST supports
+// Generate product details HTML with GST supports -- check commit
 const generateProductDetailsHTML = (products) => {
     return products.map((product, index) => {
         const productImage = product.image;
