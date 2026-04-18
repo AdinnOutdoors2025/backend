@@ -1,3 +1,6 @@
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '1.1.1.1']); //Added For IP Whitelisting
+
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
