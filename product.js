@@ -70,6 +70,8 @@ app.use("/notifications", require("./UPDATED_NOTIFICATIONS"));
 //PRIME SPOT PRODUCT
 app.use("/PrimeSpoted", require("./PrimeSpots"));
 
+//SITEMAP FOR SEO
+app.use("/", require("./sitemap"));
 
 app.get('/',(req,res)=>{
   return res.send("Backend is running");

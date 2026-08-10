@@ -92,28 +92,28 @@ const generateEmailFooter = () => {
                   <div style="margin:20px 0; display: flex;gap: 5px;">
                                     <div>
                                         <a href="https://www.instagram.com/adinnoutdoor/" target="_blank"
-                                        rel="noopener noreferrer">
+                                        rel="nofollow noopener noreferrer">
                                         <img src="https://www.adinntechnologies.com/images/FootSocIcon1.png"
                                             style="height:35px; margin:0 2px;">
                                     </a>
                                     </div>
                                     <div> <a href="https://www.instagram.com/adinnoutdoor/" target="_blank"
-                                        rel="noopener noreferrer">
+                                        rel="nofollow noopener noreferrer">
                                         <img src="https://www.adinntechnologies.com/images/FootSocIcon2.png"
                                             style="height:35px; margin:0 2px;">
                                     </a> </div>
                                     <div> <a href="https://www.facebook.com/adinnoutdoors/" target="_blank"
-                                        rel="noopener noreferrer">
+                                        rel="nofollow noopener noreferrer">
                                         <img src="https://www.adinntechnologies.com/images/FootSocIcon3.png"
                                             style="height:35px; margin:0 2px;">
                                     </a> </div>
                                     <div> <a href="https://www.instagram.com/adinnoutdoor/" target="_blank"
-                                        rel="noopener noreferrer">
+                                        rel="nofollow noopener noreferrer">
                                         <img src="https://www.adinntechnologies.com/images/FootSocIcon4.png"
                                             style="height:35px; margin:0 2px;">
                                     </a> </div>
                                     <div> <a href="https://www.linkedin.com/showcase/adinn-outdoors/" target="_blank"
-                                        rel="noopener noreferrer">
+                                        rel="nofollow noopener noreferrer">
                                         <img src="https://www.adinntechnologies.com/images/FootSocIcon5.png"
                                             style="height:35px; margin:0 2px;">
                                     </a> </div>

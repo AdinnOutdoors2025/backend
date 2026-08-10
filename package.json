@@ -30,5 +30,8 @@
     "react-router-dom": "^7.6.2",
     "request": "^2.88.2",
     "twilio": "^5.6.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }
