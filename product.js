@@ -70,6 +70,13 @@ app.use("/notifications", require("./UPDATED_NOTIFICATIONS"));
 //PRIME SPOT PRODUCT
 app.use("/PrimeSpoted", require("./PrimeSpots"));
 
+// Bigg Boss App routes
+app.use('/api/user', require('./routes/userRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/spinner', require('./routes/spinnerRoutes'));
+app.use('/api/coin', require('./routes/coinRoutes'));
+
+
 
 app.get('/',(req,res)=>{
   return res.send("Backend is running");
@@ -4809,3 +4816,8 @@ app.post('/phpMailTest', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+// app.listen(PORT, "0.0.0.0", () => {
+//   console.log(`Backend running locally: http://localhost:${PORT}`);
+//   console.log(`Backend available on network: http://192.168.1.64:${PORT}`);
+// });
