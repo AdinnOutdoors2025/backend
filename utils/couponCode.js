@@ -10,4 +10,12 @@ function generateCouponCode(length = 6) {
   return `BB-CM-${code}`;
 }
 
-module.exports = { generateCouponCode };
+/** Generates a short 4-character claim-link token, e.g. 1J2Y. */
+function generateClaimToken() {
+  const bytes = crypto.randomBytes(4);
+  let code = '';
+  for (let i = 0; i < 4; i++) code += ALPHABET[bytes[i] % ALPHABET.length];
+  return code;
+}
+
+module.exports = { generateCouponCode, generateClaimToken };

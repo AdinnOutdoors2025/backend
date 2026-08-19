@@ -75,6 +75,7 @@ app.use('/api/user', require('./routes/userRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/spinner', require('./routes/spinnerRoutes'));
 app.use('/api/coin', require('./routes/coinRoutes'));
+app.use('/api/claim', require('./routes/claimRoutes'));
 
 
 
