@@ -50,11 +50,28 @@ exports.registerClaim = async (req, res) => {
       return res.status(400).json({ ok: false, message: 'No coupon to claim for this session' });
     }
 
+    const alreadyUsedToday = await User.findOne({
+      phone,
+      dateStr,
+      sessionId: { $ne: sessionId },
+    });
+    if (alreadyUsedToday) {
+      return res
+        .status(400)
+        .json({ ok: false, message: 'This phone number has already claimed a coupon today. Please try again tomorrow.' });
+    }
+
     user.name = name || user.name;
     user.phone = phone;
     if (!user.claimToken) {
       user.claimToken = await generateUniqueClaimToken();
       user.claimTokenIssuedAt = new Date();
+    }
+    const lat = Number(req.body.lat);
+    const lng = Number(req.body.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      user.detailsLocationLat = lat;
+      user.detailsLocationLng = lng;
     }
     await user.save();
 
@@ -111,8 +128,12 @@ exports.getClaim = async (req, res) => {
       taskCompletedAt: user.taskCompletedAt,
       coinFlipCompletedAt: user.coinFlipCompletedAt,
       detailsSubmittedAt: user.claimTokenIssuedAt,
+      detailsLocationLat: user.detailsLocationLat,
+      detailsLocationLng: user.detailsLocationLng,
       claimAccepted: user.claimAccepted,
+      claimAcceptedAt: user.claimAcceptedAt,
       claimLinkDeclined: user.claimLinkDeclined,
+      claimLinkDeclinedAt: user.claimLinkDeclinedAt,
       couponCode: user.claimAccepted ? user.couponCode : null,
     });
   } catch (err) {

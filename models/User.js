@@ -31,6 +31,11 @@ const UserSchema = new mongoose.Schema({
   claimLocationLat: { type: Number, default: null },
   claimLocationLng: { type: Number, default: null },
 
+  // Location captured at the coin-win name+phone form submit (registerClaim),
+  // distinct from claimLocationLat/Lng which is captured at Accept/Decline time.
+  detailsLocationLat: { type: Number, default: null },
+  detailsLocationLng: { type: Number, default: null },
+
   // Set when a coin-win participant hits "Cancel" on the name+phone form
   // instead of claiming — they are done with the journey, no coupon.
   claimDeclined: { type: Boolean, default: false },
