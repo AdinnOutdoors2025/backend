@@ -26,7 +26,7 @@ function buildConsentMessage(name, claimLink) {
 async function sendConsentSms(phone, name, claimLink) {
   const apiKey = process.env.NETTYFISH_API_KEY;
   const senderId = process.env.NETTYFISH_SENDER_ID;
-  const templateId = process.env.NETTYFISH_TEMPLATE_ID;
+  const templateId = process.env.NETTYFISH_TEMPLATE_ID_BCM;
   const baseUrl = process.env.NETTYFISH_BASE_URL;
 
   if (!apiKey || !senderId || !templateId || !baseUrl) {
