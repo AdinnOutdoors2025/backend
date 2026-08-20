@@ -9,7 +9,10 @@ function getTodayStr() {
 exports.getLimit = async (req, res) => {
   try{
     const dl = await DailyLimit.findOne({ key: 'global' });
-    const usedCount = await User.countDocuments({ dateStr: getTodayStr() });
+    const usedCount = await User.countDocuments({
+      dateStr: getTodayStr(),
+      wheelSpinStartedAt: { $ne: null },
+    });
     if(!dl) return res.json({ ok:true, configured:false, limit:0, usedCount });
     return res.json({ ok:true, configured:true, limit: dl.limit, usedCount });
   }catch(err){

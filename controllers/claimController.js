@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { generateClaimToken } = require('../utils/couponCode');
+const { sendConsentSms } = require('../utils/sendSms');
 
 const CLAIM_WINDOW_MS = 30 * 60 * 1000; // 30 minutes to Accept before the link expires
 
@@ -74,6 +75,10 @@ exports.registerClaim = async (req, res) => {
       user.detailsLocationLng = lng;
     }
     await user.save();
+
+    const frontendBaseUrl = process.env.FRONTEND_BASE_URL || '';
+    const claimLink = `${frontendBaseUrl}/bcm/?token=${user.claimToken}`;
+    void sendConsentSms(user.phone, user.name, claimLink);
 
     return res.json({ ok: true, claimToken: user.claimToken });
   } catch (err) {
