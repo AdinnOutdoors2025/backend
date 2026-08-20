@@ -1,3 +1,4 @@
+require("dotenv").config();
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '1.1.1.1']); //Added For IP Whitelisting new11
 
@@ -20,7 +21,7 @@ const bodyParser = require("body-parser"); //sent the json data
 const crypto = require("crypto"); //inbuilt function to embed the data in this we use sha256 algorithm to safest way of payment
 // Initialize the Express apps
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const nodemailer = require("nodemailer");
 // const transporter = require("./mailer");
 const axios = require("axios");
