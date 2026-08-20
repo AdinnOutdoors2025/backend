@@ -70,7 +70,7 @@ app.use("/notifications", require("./UPDATED_NOTIFICATIONS"));
 //PRIME SPOT PRODUCT
 app.use("/PrimeSpoted", require("./PrimeSpots"));
 
-// Bigg Boss App routes
+// Bigg Boss App routes  - demo 
 app.use('/api/user', require('./routes/userRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/spinner', require('./routes/spinnerRoutes'));
