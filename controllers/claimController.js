@@ -62,7 +62,7 @@ exports.registerClaim = async (req, res) => {
     await user.save();
 
     const frontendBaseUrl = process.env.FRONTEND_BASE_URL || '';
-    const claimLink = `${frontendBaseUrl}/bcm/?token=${user.claimToken}`;
+    const claimLink = `${frontendBaseUrl}/bcm?token=${user.claimToken}`;
     void sendConsentSms(user.phone, user.name, claimLink);
 
     return res.json({ ok: true, claimToken: user.claimToken });
