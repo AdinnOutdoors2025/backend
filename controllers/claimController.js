@@ -16,15 +16,6 @@ function isExpired(user) {
   return Date.now() - new Date(user.claimTokenIssuedAt).getTime() > CLAIM_WINDOW_MS;
 }
 
-function applyLocation(user, body) {
-  const lat = Number(body?.lat);
-  const lng = Number(body?.lng);
-  if (Number.isFinite(lat) && Number.isFinite(lng)) {
-    user.claimLocationLat = lat;
-    user.claimLocationLng = lng;
-  }
-}
-
 /** The 4-character token space is small, so guard against collisions with
  * an already-active (undecided, unexpired) claim link. */
 async function generateUniqueClaimToken() {
@@ -67,12 +58,6 @@ exports.registerClaim = async (req, res) => {
     if (!user.claimToken) {
       user.claimToken = await generateUniqueClaimToken();
       user.claimTokenIssuedAt = new Date();
-    }
-    const lat = Number(req.body.lat);
-    const lng = Number(req.body.lng);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      user.detailsLocationLat = lat;
-      user.detailsLocationLng = lng;
     }
     await user.save();
 
@@ -133,8 +118,6 @@ exports.getClaim = async (req, res) => {
       taskCompletedAt: user.taskCompletedAt,
       coinFlipCompletedAt: user.coinFlipCompletedAt,
       detailsSubmittedAt: user.claimTokenIssuedAt,
-      detailsLocationLat: user.detailsLocationLat,
-      detailsLocationLng: user.detailsLocationLng,
       claimAccepted: user.claimAccepted,
       claimAcceptedAt: user.claimAcceptedAt,
       claimLinkDeclined: user.claimLinkDeclined,
@@ -164,7 +147,6 @@ exports.acceptClaim = async (req, res) => {
     if (!user.claimAccepted) {
       user.claimAccepted = true;
       user.claimAcceptedAt = new Date();
-      applyLocation(user, req.body);
       await user.save();
     }
 
@@ -197,7 +179,6 @@ exports.declineClaimLink = async (req, res) => {
     if (!user.claimLinkDeclined) {
       user.claimLinkDeclined = true;
       user.claimLinkDeclinedAt = new Date();
-      applyLocation(user, req.body);
       await user.save();
     }
 
