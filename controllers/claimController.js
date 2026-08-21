@@ -2,7 +2,7 @@ const User = require('../models/User');
 const { generateClaimToken } = require('../utils/couponCode');
 const { sendConsentSms } = require('../utils/sendSms');
 
-const CLAIM_WINDOW_MS = 30 * 60 * 1000; // 30 minutes to Accept before the link expires
+const CLAIM_WINDOW_MS = 5 * 60 * 1000; // 5 minutes to Accept before the link expires
 
 function getTodayStr() {
   return new Date().toISOString().slice(0, 10);

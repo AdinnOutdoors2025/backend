@@ -3,9 +3,9 @@ const axios = require('axios');
 
 
 const CONSENT_SMS_TEMPLATE =
-  'Hi {#alp#}, please accept the consent form to receive your Bigg Boss Common Man task coupon code. Click the link below to complete the process. This link is valid for {#num#} minutes.- Adinn\n{#urg#}';
+  'Hi {#alp#}, please accept the consent form to receive your Bigg Boss coupon code. Click the link below to complete the process. This link is valid for {#num#} minutes.- Adinn\n{#urg#}';
 
-const CLAIM_WINDOW_MINUTES = 30;
+const CLAIM_WINDOW_MINUTES = 5;
 
 // function buildConsentMessage(name, claimLink) {
 //   return CONSENT_SMS_TEMPLATE.replace('{#alp#}', name || 'there')
