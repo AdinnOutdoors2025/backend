@@ -56,6 +56,20 @@ async function summarizeDay(dateStr, isToday) {
   const persisted = await CampaignWindow.find({ dateStr }).lean();
   const byKey = new Map(persisted.map((w) => [w.windowKey, w]));
 
+  // "Reserved" (dailyIssued/used above) counts a coin-win the moment it's
+  // decided — needed so the quota can never be oversold while a claim is
+  // still pending. "Confirmed" is the real business number: only consent
+  // letters actually Accepted. A user who declined/cancelled/let the link
+  // expire was already released from the reserved counters, so it never
+  // shows here either — this is a read-only display query, no counters to
+  // keep in sync.
+  const dailyConfirmed = await User.countDocuments({ dateStr, claimAccepted: true });
+  const confirmedByWindow = await User.aggregate([
+    { $match: { dateStr, claimAccepted: true } },
+    { $group: { _id: '$windowKey', count: { $sum: 1 } } },
+  ]);
+  const confirmedMap = new Map(confirmedByWindow.map((row) => [row._id, row.count]));
+
   const windows = planWindows.map((def) => {
     const win = byKey.get(def.key);
     return {
@@ -65,8 +79,9 @@ async function summarizeDay(dateStr, isToday) {
       baseQuota: def.baseQuota,
       carryIn: win ? win.carryIn : 0,
       effectiveQuota: win ? win.effectiveQuota : def.baseQuota,
-      used: win ? win.used : 0,
+      used: win ? win.used : 0, // reserved (coin win), see note above
       remaining: win ? Math.max(win.effectiveQuota - win.used, 0) : def.baseQuota,
+      confirmed: confirmedMap.get(def.key) ?? 0, // consent letter Accepted
     };
   });
 
@@ -74,8 +89,9 @@ async function summarizeDay(dateStr, isToday) {
     dateStr,
     slotPlan: campaignDay.slotPlan,
     dailyCap: campaignDay.dailyCap,
-    dailyIssued: campaignDay.dailyIssued,
+    dailyIssued: campaignDay.dailyIssued, // reserved (coin win), see note above
     dailyRemaining: Math.max(campaignDay.dailyCap - campaignDay.dailyIssued, 0),
+    dailyConfirmed, // consent letter Accepted — the real business number
     windows,
   };
 }

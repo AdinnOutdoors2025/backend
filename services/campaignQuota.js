@@ -2,25 +2,40 @@ const mongoose = require('mongoose');
 const CampaignSettings = require('../models/CampaignSettings');
 const CampaignDay = require('../models/CampaignDay');
 const CampaignWindow = require('../models/CampaignWindow');
-const User = require('../models/User');
 const { DAILY_COUPON_LIMIT, DEFAULT_SLOT, getPlanWindows, basePercentOf, hourlySplit } = require('../config/campaignConfig');
-const { getCampaignHour, getCampaignMinute } = require('../utils/campaignTime');
-
-const RESERVATION_HOLD_MS = 5 * 60 * 1000; // matches claimController's CLAIM_WINDOW_MS
+const { getCampaignDateStr, getCampaignHour, getCampaignMinute } = require('../utils/campaignTime');
 
 async function getActiveSlot() {
   const settings = await CampaignSettings.findOne({ key: 'global' });
   return settings ? settings.activeSlot : DEFAULT_SLOT;
 }
 
+/** Sets the admin's chosen slot plan. Today's CampaignDay snapshot (see
+ * ensureCampaignDay) is normally locked to whatever plan governed it at
+ * first touch — but if today has 0 confirmed coupons so far, nothing real
+ * has happened yet, so there's no history to protect: today gets
+ * re-snapshotted onto the new plan too (its stale CampaignWindow docs, built
+ * for the old plan's hours/percentages, are cleared so they regenerate
+ * fresh). The moment a coupon is confirmed, today locks in for good. */
 async function setActiveSlot(slot) {
   if (![1, 2].includes(slot)) throw new Error('Invalid slot plan');
   getPlanWindows(slot); // throws if unconfigured
-  return CampaignSettings.findOneAndUpdate(
+
+  const settings = await CampaignSettings.findOneAndUpdate(
     { key: 'global' },
     { $set: { activeSlot: slot, updatedAt: new Date() } },
     { upsert: true, new: true }
   );
+
+  const today = getCampaignDateStr();
+  const todayDoc = await CampaignDay.findOne({ dateStr: today });
+  if (todayDoc && todayDoc.dailyIssued === 0 && todayDoc.slotPlan !== slot) {
+    todayDoc.slotPlan = slot;
+    await todayDoc.save();
+    await CampaignWindow.deleteMany({ dateStr: today });
+  }
+
+  return settings;
 }
 
 /** Creates (idempotently) the snapshot doc for a campaign date — the slot
@@ -40,24 +55,23 @@ function windowKeyForHour(windows, hour) {
   return win ? win.key : windows[windows.length - 1].key;
 }
 
-/** Ensures the CampaignWindow doc for "now" exists, computing carry-forward
- * from the previous window in that plan's order the first time it's touched. */
-async function ensureCurrentWindow(campaignDay, now = new Date()) {
-  const windows = getPlanWindows(campaignDay.slotPlan);
-  const hour = getCampaignHour(now);
-  const currentKey = windowKeyForHour(windows, hour);
+/** Ensures the CampaignWindow doc for plan-window `index` exists, recursing
+ * to its predecessor FIRST so carry-forward always chains correctly even
+ * when several consecutive windows were never touched by anyone (e.g. 12-4
+ * and 4-8 both had zero activity before 8-12 starts) — without this, a
+ * window would compute its carry from its untouched predecessor's bare base
+ * quota instead of that predecessor's own (possibly carry-boosted)
+ * effective quota, silently losing whatever carried into the earlier gap. */
+async function ensureWindowAt(campaignDay, windows, index) {
+  const def = windows[index];
 
-  let win = await CampaignWindow.findOne({ dateStr: campaignDay.dateStr, windowKey: currentKey });
+  let win = await CampaignWindow.findOne({ dateStr: campaignDay.dateStr, windowKey: def.key });
   if (win) return win;
 
-  const currentIndex = windows.findIndex((w) => w.key === currentKey);
-  const def = windows[currentIndex];
   let carryIn = 0;
-
-  if (currentIndex > 0) {
-    const prevDef = windows[currentIndex - 1];
-    const prevWin = await CampaignWindow.findOne({ dateStr: campaignDay.dateStr, windowKey: prevDef.key });
-    carryIn = prevWin ? Math.max(prevWin.effectiveQuota - prevWin.used, 0) : prevDef.baseQuota;
+  if (index > 0) {
+    const prevWin = await ensureWindowAt(campaignDay, windows, index - 1);
+    carryIn = Math.max(prevWin.effectiveQuota - prevWin.used, 0);
   }
 
   const effectiveQuota = def.baseQuota + carryIn;
@@ -82,12 +96,22 @@ async function ensureCurrentWindow(campaignDay, now = new Date()) {
     });
   } catch (err) {
     if (err.code === 11000) {
-      win = await CampaignWindow.findOne({ dateStr: campaignDay.dateStr, windowKey: currentKey });
+      win = await CampaignWindow.findOne({ dateStr: campaignDay.dateStr, windowKey: def.key });
     } else {
       throw err;
     }
   }
   return win;
+}
+
+/** Ensures the CampaignWindow doc for "now" exists (and, transitively, every
+ * earlier window in today's plan — see ensureWindowAt). */
+async function ensureCurrentWindow(campaignDay, now = new Date()) {
+  const windows = getPlanWindows(campaignDay.slotPlan);
+  const hour = getCampaignHour(now);
+  const currentKey = windowKeyForHour(windows, hour);
+  const currentIndex = windows.findIndex((w) => w.key === currentKey);
+  return ensureWindowAt(campaignDay, windows, currentIndex);
 }
 
 /** Walks hour-by-hour from hour 1 up to hourIndex, folding each hour's
@@ -131,11 +155,14 @@ async function ensureHourlyCarry(win, hourIndex) {
   return current;
 }
 
-/** Atomically reserves one coupon slot against the daily cap, the current
+/** Atomically confirms one coupon slot against the daily cap, the current
  * window's effective quota, AND the current hour's hard quota within that
- * window. Returns { ok:false } without persisting anything if any of the
- * three is exhausted. */
-async function reserveCouponSlot(dateStr) {
+ * window. This is the single real point of consumption — called only from
+ * claimController.acceptClaim, never at coin-win time — so hourlyUsed/
+ * window.used/dailyIssued only ever count consent letters actually
+ * Accepted. Returns { ok:false } without persisting anything if any of the
+ * three is exhausted (the caller must then refuse to issue a coupon). */
+async function confirmCouponSlot(dateStr) {
   const campaignDay = await ensureCampaignDay(dateStr);
   let win = await ensureCurrentWindow(campaignDay);
   const hour = getCampaignHour();
@@ -188,37 +215,16 @@ async function reserveCouponSlot(dateStr) {
   }
 }
 
-/** Releases a previously reserved slot back to all three counters (floors at 0). */
-async function releaseCouponSlot(dateStr, windowKey, hourIndex) {
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      await CampaignDay.findOneAndUpdate(
-        { dateStr, dailyIssued: { $gt: 0 } },
-        { $inc: { dailyIssued: -1 } },
-        { session }
-      );
-      const hourlyFilter =
-        hourIndex != null ? { [`hourlyUsed.${hourIndex}`]: { $gt: 0 } } : {};
-      const hourlyUpdate = hourIndex != null ? { [`hourlyUsed.${hourIndex}`]: -1 } : {};
-      await CampaignWindow.findOneAndUpdate(
-        { dateStr, windowKey, used: { $gt: 0 }, ...hourlyFilter },
-        { $inc: { used: -1, ...hourlyUpdate } },
-        { session }
-      );
-    });
-  } finally {
-    session.endSession();
-  }
-}
-
 /** Decides a single coin-flip attempt using minute-based quota pacing:
  * probability = (remaining hour quota) / (remaining minutes in the hour),
  * recalculated fresh on every attempt so the hour's quota spreads across the
  * hour instead of bursting in the first few flips or being starved by a
- * flat 50/50 chance. A "win" draw still goes through the same atomic
- * reserveCouponSlot ceiling check (daily + window + hour), so the hard caps
- * are never bypassed even under a race right at the pacing boundary. */
+ * flat 50/50 chance. This is a READ-ONLY check — nothing is consumed here;
+ * hourlyUsed/window.used/dailyIssued only ever move at consent-accept time
+ * (see confirmCouponSlot), so a "win" shown here is not yet a guaranteed
+ * coupon. The hard part is the clamp: once remaining hits 0 (daily cap or
+ * this hour's carry-adjusted quota already fully confirmed), probability
+ * drops to 0 and every further flip shows "Try Again" only. */
 async function decideCoinOutcome(dateStr, now = new Date()) {
   const campaignDay = await ensureCampaignDay(dateStr);
   let win = await ensureCurrentWindow(campaignDay, now);
@@ -238,42 +244,7 @@ async function decideCoinOutcome(dateStr, now = new Date()) {
   const probability = effectiveRemaining <= 0 ? 0 : Math.min(1, effectiveRemaining / minutesRemaining);
   const intendsWin = Math.random() < probability;
 
-  if (!intendsWin) return { win: false };
-
-  const reservation = await reserveCouponSlot(dateStr);
-  if (!reservation.ok) return { win: false }; // lost the race to another concurrent attempt
-
-  return { win: true, windowKey: reservation.windowKey, slotPlan: reservation.slotPlan, hourIndex: reservation.hourIndex };
-}
-
-/** Sweeps reserved-but-undecided coupon wins whose hold window has expired
- * back into the pool. Safe to call frequently — idempotent per user via the
- * couponReserved flag. */
-async function releaseExpiredReservations(dateStr, now = new Date()) {
-  const candidates = await User.find({
-    dateStr,
-    couponReserved: true,
-    claimAccepted: { $ne: true },
-    claimLinkDeclined: { $ne: true },
-    claimDeclined: { $ne: true },
-  });
-
-  // The hold clock starts at coin-win, but resets once a claim link is
-  // issued (registerClaim) — same 5-minute window claimController enforces
-  // for the link itself, so the two never disagree about "expired".
-  const expired = candidates.filter((user) => {
-    const holdStart = user.claimTokenIssuedAt || user.couponReservedAt;
-    if (!holdStart) return false;
-    return now.getTime() - new Date(holdStart).getTime() > RESERVATION_HOLD_MS;
-  });
-
-  for (const user of expired) {
-    await releaseCouponSlot(dateStr, user.windowKey, user.couponReservedHourIndex);
-    user.couponReserved = false;
-    user.couponCode = null;
-    user.couponReleasedAt = now;
-    await user.save();
-  }
+  return { win: intendsWin };
 }
 
 module.exports = {
@@ -281,8 +252,6 @@ module.exports = {
   setActiveSlot,
   ensureCampaignDay,
   ensureCurrentWindow,
-  reserveCouponSlot,
-  releaseCouponSlot,
-  releaseExpiredReservations,
+  confirmCouponSlot,
   decideCoinOutcome,
 };

@@ -2,22 +2,12 @@ const User = require('../models/User');
 const { generateClaimToken, generateCouponCode } = require('../utils/couponCode');
 const { sendConsentSms } = require('../utils/sendSms');
 const { getCampaignDateStr } = require('../utils/campaignTime');
-const { releaseCouponSlot, releaseExpiredReservations } = require('../services/campaignQuota');
+const { confirmCouponSlot } = require('../services/campaignQuota');
 
 const CLAIM_WINDOW_MS = 5 * 60 * 1000; // 5 minutes to Accept before the link expires
 
 function getTodayStr() {
   return getCampaignDateStr();
-}
-
-/** Releases the coupon-quota reservation for a winning user who is not
- * proceeding to claim it — cancel, decline, or (called separately) expiry. */
-async function releaseUserReservation(user) {
-  if (!user.couponReserved) return;
-  await releaseCouponSlot(user.dateStr, user.windowKey, user.couponReservedHourIndex);
-  user.couponReserved = false;
-  user.couponCode = null;
-  user.couponReleasedAt = new Date();
 }
 
 /** A link only expires while it's still undecided — once Accepted (or
@@ -97,7 +87,6 @@ exports.declineClaim = async (req, res) => {
     if (!user.claimDeclined) {
       user.claimDeclined = true;
       user.claimDeclinedAt = new Date();
-      await releaseUserReservation(user);
       await user.save();
     }
 
@@ -118,27 +107,24 @@ exports.getClaim = async (req, res) => {
     const user = await User.findOne({ claimToken: token });
     if (!user) return res.status(404).json({ ok: false, message: 'Link not found' });
 
-    await releaseExpiredReservations(user.dateStr);
-    const refreshed = (await User.findOne({ claimToken: token })) || user;
-
-    const expired = isExpired(refreshed);
+    const expired = isExpired(user);
 
     return res.json({
       ok: true,
       expired,
-      name: refreshed.name || null,
-      phone: refreshed.phone || null,
-      participantId: refreshed._id,
-      wheelCategory: refreshed.wheelCategory,
-      wheelSpinCompletedAt: refreshed.wheelSpinCompletedAt,
-      taskCompletedAt: refreshed.taskCompletedAt,
-      coinFlipCompletedAt: refreshed.coinFlipCompletedAt,
-      detailsSubmittedAt: refreshed.claimTokenIssuedAt,
-      claimAccepted: refreshed.claimAccepted,
-      claimAcceptedAt: refreshed.claimAcceptedAt,
-      claimLinkDeclined: refreshed.claimLinkDeclined,
-      claimLinkDeclinedAt: refreshed.claimLinkDeclinedAt,
-      couponCode: refreshed.claimAccepted ? refreshed.couponCode : null,
+      name: user.name || null,
+      phone: user.phone || null,
+      participantId: user._id,
+      wheelCategory: user.wheelCategory,
+      wheelSpinCompletedAt: user.wheelSpinCompletedAt,
+      taskCompletedAt: user.taskCompletedAt,
+      coinFlipCompletedAt: user.coinFlipCompletedAt,
+      detailsSubmittedAt: user.claimTokenIssuedAt,
+      claimAccepted: user.claimAccepted,
+      claimAcceptedAt: user.claimAcceptedAt,
+      claimLinkDeclined: user.claimLinkDeclined,
+      claimLinkDeclinedAt: user.claimLinkDeclinedAt,
+      couponCode: user.claimAccepted ? user.couponCode : null,
     });
   } catch (err) {
     console.error(err);
@@ -146,11 +132,15 @@ exports.getClaim = async (req, res) => {
   }
 };
 
-/** "Accept" checkbox + Submit on the claim-link page — this is the only
- * action that reveals the coupon code. The reservation made at coin-win
- * time is finalized here, and the coupon code is generated for the first
- * time now (never earlier) — it was only ever a held quota slot until this
- * point, so an abandoned/declined win never had a code to leak. */
+/** "Accept" checkbox + Submit on the claim-link page — this is the ONLY
+ * point where the daily/window/hour coupon quota is actually consumed and
+ * the coupon code is generated. Nothing is reserved earlier (coin-win is a
+ * read-only probability check, see coinController.startCoin) — consent
+ * Accept is the real, atomic point of consumption, matching the business
+ * rule that only an accepted consent letter is a "successful coupon". If
+ * the quota is exhausted by the time this runs (only possible in a tight
+ * concurrent race right at the boundary), the participant sees a clear
+ * "quota full" message here instead of a coupon code. */
 exports.acceptClaim = async (req, res) => {
   try {
     const { token } = req.params;
@@ -164,11 +154,20 @@ exports.acceptClaim = async (req, res) => {
     }
 
     if (!user.claimAccepted) {
+      const dateStr = getTodayStr();
+      const confirmation = await confirmCouponSlot(dateStr);
+      if (!confirmation.ok) {
+        return res.status(400).json({
+          ok: false,
+          message: "Sorry, today's coupon quota is full. Please try again tomorrow.",
+        });
+      }
+
       user.claimAccepted = true;
       user.claimAcceptedAt = new Date();
-      if (user.couponReserved && !user.couponCode) {
-        user.couponCode = generateCouponCode();
-      }
+      user.windowKey = confirmation.windowKey;
+      user.slotPlanSnapshot = confirmation.slotPlan;
+      user.couponCode = generateCouponCode();
       await user.save();
     }
 
@@ -201,7 +200,6 @@ exports.declineClaimLink = async (req, res) => {
     if (!user.claimLinkDeclined) {
       user.claimLinkDeclined = true;
       user.claimLinkDeclinedAt = new Date();
-      await releaseUserReservation(user);
       await user.save();
     }
 
