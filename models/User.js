@@ -23,6 +23,17 @@ const UserSchema = new mongoose.Schema({
   coinFlipCompletedAt: { type: Date, default: null },
   couponCode: { type: String, default: null },
 
+  // Coupon quota reservation — set when the coin win atomically reserves a
+  // slot against the daily/window cap (see services/campaignQuota.js).
+  // Released (couponReserved back to false) if the participant cancels,
+  // declines, or the reservation hold window expires unclaimed.
+  windowKey: { type: String, default: null },
+  slotPlanSnapshot: { type: Number, default: null },
+  couponReservedHourIndex: { type: Number, default: null },
+  couponReserved: { type: Boolean, default: false },
+  couponReservedAt: { type: Date, default: null },
+  couponReleasedAt: { type: Date, default: null },
+
   // Claim link (shown/sent only after the coin-win name+phone form is submitted)
   claimToken: { type: String, default: null, index: true },
   claimTokenIssuedAt: { type: Date, default: null }, // start of the 30-minute claim window

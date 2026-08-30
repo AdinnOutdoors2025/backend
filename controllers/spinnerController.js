@@ -1,15 +1,15 @@
 const User = require('../models/User');
-const DailyLimit = require('../models/DailyLimit');
+const { getCampaignDateStr } = require('../utils/campaignTime');
 
 function getTodayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return getCampaignDateStr();
 }
 
 /** Called the moment the user hits "Spin the wheel" — this is where the
  * participant's User record actually gets created (see userController.startSession
- * for why: entering the task without spinning shouldn't consume a slot or show
- * up in the admin panel). Re-checks the daily limit here too, since multiple
- * people could pass the softer "Enter the Task" check around the same time. */
+ * for why: entering the task without spinning shouldn't show up in the admin
+ * panel). No daily-limit gate any more — wheel spins never consume the
+ * coupon quota (see services/campaignQuota.js, enforced at coin-win time). */
 exports.startSpin = async (req, res) => {
   try {
     const { sessionId } = req.body;
@@ -18,14 +18,6 @@ exports.startSpin = async (req, res) => {
 
     let user = await User.findOne({ sessionId, dateStr });
     if (!user) {
-      const dl = await DailyLimit.findOne({ key: 'global' });
-      if (!dl) return res.status(400).json({ ok: false, message: 'Participant limit not configured' });
-
-      const usedCount = await User.countDocuments({ dateStr, wheelSpinStartedAt: { $ne: null } });
-      if (usedCount >= dl.limit) {
-        return res.status(400).json({ ok: false, message: 'Today limit reached' });
-      }
-
       user = new User({ sessionId, dateStr, wheelSpinStartedAt: new Date() });
       await user.save();
     } else if (!user.wheelSpinStartedAt) {
