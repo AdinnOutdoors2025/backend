@@ -14,6 +14,14 @@ function getTodayStr() {
   return getCampaignDateStr();
 }
 
+/** "14" -> "2 PM", "0"/"24" -> "12 AM", "12" -> "12 PM" — admin-friendly window labels. */
+function formatHour12(hour) {
+  const h = ((hour % 24) + 24) % 24;
+  const period = h < 12 ? 'AM' : 'PM';
+  const displayHour = h % 12 === 0 ? 12 : h % 12;
+  return `${displayHour} ${period}`;
+}
+
 /** Active campaign slot plan + the (env-configured, read-only) daily coupon cap. */
 exports.getSettings = async (req, res) => {
   try {
@@ -74,7 +82,7 @@ async function summarizeDay(dateStr, isToday) {
     const win = byKey.get(def.key);
     return {
       windowKey: def.key,
-      label: `${def.startHour}:00-${def.endHour}:00`,
+      label: `${formatHour12(def.startHour)} - ${formatHour12(def.endHour)}`,
       basePercent: win ? win.basePercent : Math.round((def.baseQuota / campaignDay.dailyCap) * 1000) / 10,
       baseQuota: def.baseQuota,
       carryIn: win ? win.carryIn : 0,
