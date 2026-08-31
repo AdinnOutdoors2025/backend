@@ -1,8 +1,8 @@
 const User = require('../models/User');
 const CampaignDay = require('../models/CampaignDay');
 const CampaignWindow = require('../models/CampaignWindow');
-const { getCampaignDateStr } = require('../utils/campaignTime');
-const { DAILY_COUPON_LIMIT, getPlanWindows } = require('../config/campaignConfig');
+const { getCampaignDateStr, getCampaignHour } = require('../utils/campaignTime');
+const { DAILY_COUPON_LIMIT, getPlanWindows, basePercentOf } = require('../config/campaignConfig');
 const {
   getActiveSlot,
   setActiveSlot,
@@ -32,9 +32,10 @@ exports.getSettings = async (req, res) => {
   }
 };
 
-/** Admin picks Slot Plan 1 or 2 — persists until changed again. Only
- * governs days touched from now on; already-snapshotted CampaignDay records
- * are never rewritten (see services/campaignQuota.js ensureCampaignDay). */
+/** Admin picks Slot Plan 1 or 2 — persists until changed again, and can be
+ * switched mid-day. Already-recorded CampaignWindow history is never
+ * touched; only windows not yet reached today (and future days) follow the
+ * new plan (see services/campaignQuota.js setActiveSlot/ensureWindowAt). */
 exports.setActiveSlot = async (req, res) => {
   try {
     const { slot } = req.body;
@@ -49,10 +50,14 @@ exports.setActiveSlot = async (req, res) => {
   }
 };
 
-/** Builds the campaign-day + per-window quota summary for one date, using
- * already-persisted CampaignWindow docs for past windows and only touching
- * ensureCurrentWindow for today's in-progress window so history never
- * changes underfoot. */
+/** Builds the campaign-day + per-window quota summary for one date. Window
+ * rows come from the REAL CampaignWindow documents that exist for the date
+ * (each stamped with whichever plan was active when IT was first reached) —
+ * not from a single day-wide plan — so a day where admin switched plans
+ * mid-day correctly shows each segment under its own plan/timing, with
+ * history from before the switch untouched. Upcoming windows of the
+ * CURRENTLY active plan that haven't started yet get a "not started"
+ * placeholder row so admin can see what's still ahead today. */
 async function summarizeDay(dateStr, isToday) {
   let campaignDay = await CampaignDay.findOne({ dateStr });
   if (!campaignDay && isToday) campaignDay = await ensureCampaignDay(dateStr);
@@ -60,8 +65,7 @@ async function summarizeDay(dateStr, isToday) {
 
   if (isToday) await ensureCurrentWindow(campaignDay);
 
-  const planWindows = getPlanWindows(campaignDay.slotPlan);
-  const persisted = await CampaignWindow.find({ dateStr }).lean();
+  const persisted = await CampaignWindow.find({ dateStr }).sort({ startHour: 1 }).lean();
   const byKey = new Map(persisted.map((w) => [w.windowKey, w]));
 
   // "Reserved" (dailyIssued/used above) counts a coin-win the moment it's
@@ -78,24 +82,48 @@ async function summarizeDay(dateStr, isToday) {
   ]);
   const confirmedMap = new Map(confirmedByWindow.map((row) => [row._id, row.count]));
 
-  const windows = planWindows.map((def) => {
-    const win = byKey.get(def.key);
-    return {
+  // Real, already-touched windows — the actual history for the date,
+  // regardless of which plan happened to be active for each one.
+  const windows = persisted.map((win) => ({
+    windowKey: win.windowKey,
+    startHour: win.startHour,
+    label: `${formatHour12(win.startHour)} - ${formatHour12(win.endHour)}`,
+    slotPlan: win.slotPlan,
+    basePercent: win.basePercent,
+    baseQuota: win.baseQuota,
+    carryIn: win.carryIn,
+    effectiveQuota: win.effectiveQuota,
+    used: win.used, // reserved (coin win), see note above
+    remaining: Math.max(win.effectiveQuota - win.used, 0),
+    confirmed: confirmedMap.get(win.windowKey) ?? 0, // consent letter Accepted
+  }));
+
+  // Placeholder rows for windows of the CURRENTLY active plan that haven't
+  // been reached yet today — skip anything whose time already passed (it
+  // belonged to a plan that was swapped out before its turn ever came).
+  const nowHour = isToday ? getCampaignHour() : null;
+  for (const def of getPlanWindows(campaignDay.slotPlan)) {
+    if (byKey.has(def.key)) continue;
+    if (nowHour !== null && def.startHour < nowHour) continue;
+    windows.push({
       windowKey: def.key,
+      startHour: def.startHour,
       label: `${formatHour12(def.startHour)} - ${formatHour12(def.endHour)}`,
-      basePercent: win ? win.basePercent : Math.round((def.baseQuota / campaignDay.dailyCap) * 1000) / 10,
+      slotPlan: campaignDay.slotPlan,
+      basePercent: basePercentOf(def.baseQuota),
       baseQuota: def.baseQuota,
-      carryIn: win ? win.carryIn : 0,
-      effectiveQuota: win ? win.effectiveQuota : def.baseQuota,
-      used: win ? win.used : 0, // reserved (coin win), see note above
-      remaining: win ? Math.max(win.effectiveQuota - win.used, 0) : def.baseQuota,
-      confirmed: confirmedMap.get(def.key) ?? 0, // consent letter Accepted
-    };
-  });
+      carryIn: 0,
+      effectiveQuota: def.baseQuota,
+      used: 0,
+      remaining: def.baseQuota,
+      confirmed: 0,
+    });
+  }
+  windows.sort((a, b) => a.startHour - b.startHour);
 
   return {
     dateStr,
-    slotPlan: campaignDay.slotPlan,
+    slotPlan: campaignDay.slotPlan, // the plan currently governing the rest of today
     dailyCap: campaignDay.dailyCap,
     dailyIssued: campaignDay.dailyIssued, // reserved (coin win), see note above
     dailyRemaining: Math.max(campaignDay.dailyCap - campaignDay.dailyIssued, 0),

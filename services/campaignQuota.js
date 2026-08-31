@@ -10,13 +10,16 @@ async function getActiveSlot() {
   return settings ? settings.activeSlot : DEFAULT_SLOT;
 }
 
-/** Sets the admin's chosen slot plan. Today's CampaignDay snapshot (see
- * ensureCampaignDay) is normally locked to whatever plan governed it at
- * first touch — but if today has 0 confirmed coupons so far, nothing real
- * has happened yet, so there's no history to protect: today gets
- * re-snapshotted onto the new plan too (its stale CampaignWindow docs, built
- * for the old plan's hours/percentages, are cleared so they regenerate
- * fresh). The moment a coupon is confirmed, today locks in for good. */
+/** Sets the admin's chosen slot plan. Admin can switch at any time, even
+ * mid-day with real activity already on the books — CampaignDay.slotPlan
+ * tracks "the plan currently governing the REST of today", not a rigid
+ * whole-day lock. Nothing already recorded is ever touched or deleted:
+ * whichever CampaignWindow docs already exist (created under whatever plan
+ * was active when they were first reached) stay exactly as they are —
+ * permanent history for the hours that already ran. Only windows not yet
+ * reached today start following the new plan from here on (see
+ * ensureWindowAt for how carry-forward bridges correctly across a
+ * mid-day switch). */
 async function setActiveSlot(slot) {
   if (![1, 2].includes(slot)) throw new Error('Invalid slot plan');
   getPlanWindows(slot); // throws if unconfigured
@@ -28,19 +31,14 @@ async function setActiveSlot(slot) {
   );
 
   const today = getCampaignDateStr();
-  const todayDoc = await CampaignDay.findOne({ dateStr: today });
-  if (todayDoc && todayDoc.dailyIssued === 0 && todayDoc.slotPlan !== slot) {
-    todayDoc.slotPlan = slot;
-    await todayDoc.save();
-    await CampaignWindow.deleteMany({ dateStr: today });
-  }
+  await CampaignDay.findOneAndUpdate({ dateStr: today }, { $set: { slotPlan: slot } });
 
   return settings;
 }
 
-/** Creates (idempotently) the snapshot doc for a campaign date — the slot
- * plan active at first-touch governs that date forever, regardless of later
- * admin changes. */
+/** Creates (idempotently) the snapshot doc for a campaign date — governs
+ * whichever windows haven't been reached yet; see setActiveSlot for how a
+ * mid-day admin change updates this going forward without touching history. */
 async function ensureCampaignDay(dateStr) {
   const activeSlot = await getActiveSlot();
   return CampaignDay.findOneAndUpdate(
@@ -56,23 +54,34 @@ function windowKeyForHour(windows, hour) {
 }
 
 /** Ensures the CampaignWindow doc for plan-window `index` exists, recursing
- * to its predecessor FIRST so carry-forward always chains correctly even
- * when several consecutive windows were never touched by anyone (e.g. 12-4
- * and 4-8 both had zero activity before 8-12 starts) — without this, a
- * window would compute its carry from its untouched predecessor's bare base
- * quota instead of that predecessor's own (possibly carry-boosted)
- * effective quota, silently losing whatever carried into the earlier gap. */
+ * to its predecessor FIRST (within the CURRENT plan's own sequence) so
+ * same-plan gaps always chain correctly even when several consecutive
+ * windows were never touched by anyone.
+ *
+ * The actual carry-in source, though, is NOT "the previous index in this
+ * plan's list" — it's "whichever CampaignWindow doc for today (any plan)
+ * chronologically ends at or before this window starts". This is what lets
+ * carry-forward bridge correctly across a mid-day admin slot switch: if
+ * admin changes Slot 1 -> Slot 2 after 4-8 PM already ran, Slot 2's 8-12 PM
+ * window picks up Slot 1's real, already-recorded 4-8 PM leftover — not a
+ * fresh, never-happened Slot 2 "4-8 PM" recomputed from scratch. Recursing
+ * into the current plan's own predecessor first still matters for ordinary
+ * same-plan gaps (nothing foreign to find yet, so it creates one). */
 async function ensureWindowAt(campaignDay, windows, index) {
   const def = windows[index];
 
   let win = await CampaignWindow.findOne({ dateStr: campaignDay.dateStr, windowKey: def.key });
   if (win) return win;
 
-  let carryIn = 0;
   if (index > 0) {
-    const prevWin = await ensureWindowAt(campaignDay, windows, index - 1);
-    carryIn = Math.max(prevWin.effectiveQuota - prevWin.used, 0);
+    await ensureWindowAt(campaignDay, windows, index - 1);
   }
+
+  const priorWin = await CampaignWindow.findOne({
+    dateStr: campaignDay.dateStr,
+    endHour: { $lte: def.startHour },
+  }).sort({ endHour: -1 });
+  const carryIn = priorWin ? Math.max(priorWin.effectiveQuota - priorWin.used, 0) : 0;
 
   const effectiveQuota = def.baseQuota + carryIn;
   const hourCount = def.endHour - def.startHour;
