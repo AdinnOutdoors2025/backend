@@ -13,16 +13,23 @@ async function getActiveSlot() {
 /** Sets the admin's chosen slot plan. Admin can switch at any time, even
  * mid-day with real activity already on the books — CampaignDay.slotPlan
  * tracks "the plan currently governing the REST of today", not a rigid
- * whole-day lock. Nothing already recorded is ever touched or deleted:
- * whichever CampaignWindow docs already exist (created under whatever plan
- * was active when they were first reached) stay exactly as they are —
- * permanent history for the hours that already ran. Only windows not yet
- * reached today start following the new plan from here on (see
- * ensureWindowAt for how carry-forward bridges correctly across a
- * mid-day switch). */
+ * whole-day lock. Real consumption (`used`) is never touched or shrunk.
+ *
+ * For any window shared between the old and new plan (same windowKey) that
+ * has already been reached: its base is rebased to
+ * MAX(new plan's own definition, real confirmed count) — a window can never
+ * be shrunk below what's actually happened. If that real count exceeds the
+ * new plan's own share for that slot (overflow), the excess is deducted
+ * from the rest of the day: the new plan's remaining not-yet-reached
+ * windows split whatever's left of the daily cap EVENLY (not by their own
+ * percentages, which no longer fit) — this is the only case where they
+ * don't just use their native definition. When there's no overflow, the
+ * plan's own percentages already sum to the daily cap, so remaining windows
+ * need no adjustment at all (handled naturally when they're later reached,
+ * see ensureWindowAt / summarizeDay's placeholders). */
 async function setActiveSlot(slot) {
   if (![1, 2].includes(slot)) throw new Error('Invalid slot plan');
-  getPlanWindows(slot); // throws if unconfigured
+  const newWindows = getPlanWindows(slot); // throws if unconfigured
 
   const settings = await CampaignSettings.findOneAndUpdate(
     { key: 'global' },
@@ -31,7 +38,82 @@ async function setActiveSlot(slot) {
   );
 
   const today = getCampaignDateStr();
-  await CampaignDay.findOneAndUpdate({ dateStr: today }, { $set: { slotPlan: slot } });
+  const campaignDay = await CampaignDay.findOneAndUpdate(
+    { dateStr: today },
+    { $set: { slotPlan: slot } },
+    { new: true }
+  );
+  if (!campaignDay) return settings; // nothing touched today yet — nothing to rebase
+
+  const existingDocs = await CampaignWindow.find({ dateStr: today });
+  const existingByKey = new Map(existingDocs.map((w) => [w.windowKey, w]));
+
+  let lockedTotal = 0;
+  const touchedKeys = new Set();
+  for (const def of newWindows) {
+    const existing = existingByKey.get(def.key);
+    if (!existing) continue;
+    touchedKeys.add(def.key);
+
+    const newBase = Math.max(def.baseQuota, existing.used);
+    lockedTotal += newBase;
+    if (newBase === existing.baseQuota && existing.slotPlan === slot) continue;
+
+    const newEffective = newBase + existing.carryIn;
+    const hourCount = existing.endHour - existing.startHour;
+    const newHourlyQuotas = hourlySplit(newEffective, hourCount);
+    await CampaignWindow.updateOne(
+      { _id: existing._id },
+      {
+        $set: {
+          slotPlan: slot,
+          baseQuota: newBase,
+          basePercent: basePercentOf(newBase),
+          effectiveQuota: newEffective,
+          hourlyQuotas: newHourlyQuotas,
+        },
+      }
+    );
+  }
+
+  const remainingDefs = newWindows.filter((def) => !touchedKeys.has(def.key));
+  const nativeSum = remainingDefs.reduce((sum, def) => sum + def.baseQuota, 0);
+  const remainingBudget = Math.max(0, campaignDay.dailyCap - lockedTotal);
+
+  if (remainingDefs.length > 0 && remainingBudget < nativeSum) {
+    // Overflow: the plan's native percentages no longer fit today — split
+    // whatever's left evenly across the still-untouched windows instead.
+    const splitBases = hourlySplit(remainingBudget, remainingDefs.length);
+    for (let i = 0; i < remainingDefs.length; i++) {
+      const def = remainingDefs[i];
+      const overrideBase = splitBases[i];
+      const hourCount = def.endHour - def.startHour;
+      const overrideHourly = hourlySplit(overrideBase, hourCount);
+      await CampaignWindow.findOneAndUpdate(
+        { dateStr: today, windowKey: def.key, used: 0 },
+        {
+          $set: {
+            slotPlan: slot,
+            baseQuota: overrideBase,
+            basePercent: basePercentOf(overrideBase),
+            carryIn: 0,
+            effectiveQuota: overrideBase,
+            hourlyQuotas: overrideHourly,
+            hourlyUsed: overrideHourly.map(() => 0),
+            hourlyCarryApplied: overrideHourly.map((_, idx) => idx === 0),
+          },
+          $setOnInsert: {
+            dateStr: today,
+            windowKey: def.key,
+            startHour: def.startHour,
+            endHour: def.endHour,
+            used: 0,
+          },
+        },
+        { upsert: true }
+      );
+    }
+  }
 
   return settings;
 }
