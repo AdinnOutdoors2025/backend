@@ -33,8 +33,8 @@ app.use(express.static("public"));
 
 mongoose
   .connect(
-    // "mongodb+srv://ba:sLAqxQMpCCjI2Gtf@adinnoutdoors.zpylrw9.mongodb.net/adinnoutdoors"
-    "mongodb+srv://uiuxdesigner_db_user:SOVp8PJJpjRWrY62@adinn.gaqpapj.mongodb.net/?appName=bigbossnew"
+    "mongodb+srv://ba:sLAqxQMpCCjI2Gtf@adinnoutdoors.zpylrw9.mongodb.net/adinnoutdoors"
+    // "mongodb+srv://uiuxdesigner_db_user:SOVp8PJJpjRWrY62@adinn.gaqpapj.mongodb.net/?appName=bigg_bosss"
 
   )
   .then(() => console.log("MongoDB connected successfully"))
