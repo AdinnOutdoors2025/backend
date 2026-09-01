@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const CampaignSettings = require('../models/CampaignSettings');
 const CampaignDay = require('../models/CampaignDay');
 const CampaignWindow = require('../models/CampaignWindow');
-const { DAILY_COUPON_LIMIT, DEFAULT_SLOT, getPlanWindows, basePercentOf, hourlySplit } = require('../config/campaignConfig');
+const { DAILY_COUPON_LIMIT, DEFAULT_SLOT, getPlanWindows, basePercentOf, hourlySplit, isSlotBasedBusiness } = require('../config/campaignConfig');
 const { getCampaignDateStr, getCampaignHour, getCampaignMinute } = require('../utils/campaignTime');
 
 async function getActiveSlot() {
@@ -254,6 +254,13 @@ async function ensureHourlyCarry(win, hourIndex) {
  * Accepted. Returns { ok:false } without persisting anything if any of the
  * three is exhausted (the caller must then refuse to issue a coupon). */
 async function confirmCouponSlot(dateStr) {
+  if (!isSlotBasedBusiness()) {
+    // Mode 2: no slot/window/hour/daily quota restrictions. Every accepted
+    // consent letter yields a coupon. Consent/accepted data is still stored
+    // and reported; there are simply no slots to consume against.
+    return { ok: true, windowKey: null, slotPlan: null, hourIndex: null, slotBased: false };
+  }
+
   const campaignDay = await ensureCampaignDay(dateStr);
   let win = await ensureCurrentWindow(campaignDay);
   const hour = getCampaignHour();
@@ -306,6 +313,35 @@ async function confirmCouponSlot(dateStr) {
   }
 }
 
+/** Mode 2 coin-outcome rule: every group of 10 eligible coin flips must
+ * produce exactly 7 WIN and 3 TRY AGAIN, then the same 10-flip cycle
+ * repeats. The per-day cycle counter is advanced atomically ($inc) so
+ * parallel requests get distinct, non-corrupting sequence numbers. A
+ * rotation of the fixed 7-WIN/3-TRY pattern keeps the exact 7/3 balance per
+ * group while varying which specific positions win across groups. The cycle
+ * is persisted on CampaignDay (not the browser), so frontend refresh/reload
+ * never resets it. */
+const MODE2_PATTERN = [true, true, true, true, true, true, true, false, false, false]; // 7 WIN, 3 TRY
+
+async function decideCoinOutcomeMode2(dateStr) {
+  const campaignDay = await CampaignDay.findOneAndUpdate(
+    { dateStr },
+    { $inc: { flipCounter: 1 }, $setOnInsert: { slotPlan: DEFAULT_SLOT, dailyCap: DAILY_COUPON_LIMIT, dailyIssued: 0 } },
+    { upsert: true, new: true }
+  );
+
+  const flipNo = campaignDay.flipCounter; // 1-based
+  const groupIndex = Math.floor((flipNo - 1) / 10); // which 10-flip group
+  const position = (flipNo - 1) % 10; // 0..9 within the group
+
+  // Rotate the base pattern by the group index so each group stays a balanced
+  // 7/3 permutation but consecutive groups differ in ordering.
+  const offset = ((groupIndex % 10) + 10) % 10;
+  const rotatedIndex = (position + offset) % 10;
+
+  return { win: MODE2_PATTERN[rotatedIndex], slotBased: false };
+}
+
 /** Decides a single coin-flip attempt using minute-based quota pacing:
  * probability = (remaining hour quota) / (remaining minutes in the hour),
  * recalculated fresh on every attempt so the hour's quota spreads across the
@@ -317,6 +353,10 @@ async function confirmCouponSlot(dateStr) {
  * this hour's carry-adjusted quota already fully confirmed), probability
  * drops to 0 and every further flip shows "Try Again" only. */
 async function decideCoinOutcome(dateStr, now = new Date()) {
+  if (!isSlotBasedBusiness()) {
+    return decideCoinOutcomeMode2(dateStr);
+  }
+
   const campaignDay = await ensureCampaignDay(dateStr);
   let win = await ensureCurrentWindow(campaignDay, now);
   const hour = getCampaignHour(now);

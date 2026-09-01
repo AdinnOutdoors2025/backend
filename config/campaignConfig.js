@@ -5,6 +5,15 @@ const TIMEZONE = process.env.BIG_BOSS_TIMEZONE || 'Asia/Kolkata';
 const DAILY_COUPON_LIMIT = Number(process.env.BIG_BOSS_DAILY_COUPON_LIMIT || 100);
 const DEFAULT_SLOT = Number(process.env.BIG_BOSS_DEFAULT_SLOT || 1);
 
+/** Business mode — true (default) keeps the slot-based coupon quota and
+ * carry-forward flow; false disables all slot quota restrictions and uses a
+ * fixed 7-WIN / 3-TRY-AGAIN coin cycle instead. Parsed safely: only the exact
+ * string "false" disables it, anything else (missing, "1", "True", etc.)
+ * keeps the current slot-based production behavior. */
+function isSlotBasedBusiness() {
+  return process.env.SLOT_BASED_BUSINESS !== 'false';
+}
+
 /** Parses "HH:MM-HH:MM:quota" segments separated by commas, e.g. "12:00-16:00:40,16:00-20:00:60". */
 function parsePlan(envValue) {
   if (!envValue) return [];
@@ -61,6 +70,7 @@ module.exports = {
   DAILY_COUPON_LIMIT,
   DEFAULT_SLOT,
   SLOT_PLANS,
+  isSlotBasedBusiness,
   getPlanWindows,
   basePercentOf,
   hourlySplit,

@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 
 mongoose.set('strictQuery', false);
 
-mongoose.connect("mongodb+srv://ba:sLAqxQMpCCjI2Gtf@adinnoutdoors.zpylrw9.mongodb.net/adinnoutdoors?retryWrites=true&w=majority&appName=adinnoutdoors", {
+// mongoose.connect("mongodb+srv://ba:sLAqxQMpCCjI2Gtf@adinnoutdoors.zpylrw9.mongodb.net/adinnoutdoors?retryWrites=true&w=majority&appName=adinnoutdoors", {
+mongoose.connect("mongodb+srv://uiuxdesigner_db_user:SOVp8PJJpjRWrY62@adinn.gaqpapj.mongodb.net/?appName=bigbossnew", {
+
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
