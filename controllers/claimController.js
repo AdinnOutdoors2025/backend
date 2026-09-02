@@ -1,25 +1,25 @@
 const User = require('../models/User');
+const CampaignSettings = require('../models/CampaignSettings');
 const { generateClaimToken, generateCouponCode } = require('../utils/couponCode');
 const { sendConsentSms } = require('../utils/sendSms');
 const { getCampaignDateStr } = require('../utils/campaignTime');
 const { confirmCouponSlot } = require('../services/campaignQuota');
+const { uploadBuffer, deleteObject } = require('../utils/spaces');
+const { generateReleasePdf } = require('../utils/releasePdf');
 
-const CLAIM_WINDOW_MS = 5 * 60 * 1000; // 5 minutes to Accept before the link expires
+const CLAIM_WINDOW_MS = 5 * 60 * 1000;
+const MAX_SIGNATURE_BYTES = 1024 * 1024; // 1 MB decoded PNG limit
 
 function getTodayStr() {
   return getCampaignDateStr();
 }
 
-/** A link only expires while it's still undecided — once Accepted (or
- * Declined) the outcome is permanent and stays visible any time later. */
 function isExpired(user) {
   if (user.claimAccepted || user.claimLinkDeclined) return false;
   if (!user.claimTokenIssuedAt) return false;
   return Date.now() - new Date(user.claimTokenIssuedAt).getTime() > CLAIM_WINDOW_MS;
 }
 
-/** The 4-character token space is small, so guard against collisions with
- * an already-active (undecided, unexpired) claim link. */
 async function generateUniqueClaimToken() {
   for (let attempt = 0; attempt < 10; attempt++) {
     const token = generateClaimToken();
@@ -29,14 +29,64 @@ async function generateUniqueClaimToken() {
   throw new Error('Could not generate a unique claim token');
 }
 
-/** Called from the coin-win "Name + Phone" form — stores the participant's
- * details and mints the unique claim link for this session (30-minute window). */
+async function getCurrentAdminLocation() {
+  const settings = await CampaignSettings.findOne({ key: 'global' }).lean();
+  return {
+    currentLocation: settings?.currentLocation?.trim() || '',
+    state: settings?.state?.trim() || 'Tamil Nadu',
+  };
+}
+
+function sanitizeName(value) {
+  const normalized = String(value || 'participant')
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || 'participant';
+}
+
+function sanitizePhone(value) {
+  return String(value || '').replace(/\D/g, '') || 'no-phone';
+}
+
+function parseSignatureDataUrl(value) {
+  if (typeof value !== 'string' || !value.startsWith('data:image/png;base64,')) {
+    throw new Error('Please provide a valid PNG signature.');
+  }
+
+  const base64 = value.slice('data:image/png;base64,'.length);
+  if (!base64) throw new Error('Signature is required.');
+
+  const buffer = Buffer.from(base64, 'base64');
+  if (!buffer.length) throw new Error('Signature is required.');
+  if (buffer.length > MAX_SIGNATURE_BYTES) {
+    throw new Error('Signature image is too large. Please clear and sign again.');
+  }
+
+  // PNG magic bytes.
+  if (
+    buffer.length < 8 ||
+    buffer[0] !== 0x89 ||
+    buffer[1] !== 0x50 ||
+    buffer[2] !== 0x4e ||
+    buffer[3] !== 0x47
+  ) {
+    throw new Error('Invalid signature image.');
+  }
+
+  return buffer;
+}
+
 exports.registerClaim = async (req, res) => {
   try {
     const { sessionId, name, phone } = req.body;
     if (!sessionId || !phone) {
       return res.status(400).json({ ok: false, message: 'sessionId and phone required' });
     }
+
     const dateStr = getTodayStr();
     const user = await User.findOne({ sessionId, dateStr });
     if (!user) return res.status(404).json({ ok: false, message: 'Session not found for today' });
@@ -50,9 +100,10 @@ exports.registerClaim = async (req, res) => {
       sessionId: { $ne: sessionId },
     });
     if (alreadyUsedToday) {
-      return res
-        .status(400)
-        .json({ ok: false, message: 'This phone number has already claimed a coupon today. Please try again tomorrow.' });
+      return res.status(400).json({
+        ok: false,
+        message: 'This phone number has already claimed a coupon today. Please try again tomorrow.',
+      });
     }
 
     user.name = name || user.name;
@@ -70,12 +121,10 @@ exports.registerClaim = async (req, res) => {
     return res.json({ ok: true, claimToken: user.claimToken });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ ok: false, error: 'Server error' });
+    return res.status(500).json({ ok: false, error: 'Server error' });
   }
 };
 
-/** Called when a coin-win participant hits "Cancel" on the name+phone form
- * instead of claiming — marks the session as not interested, no coupon. */
 exports.declineClaim = async (req, res) => {
   try {
     const { sessionId } = req.body;
@@ -93,14 +142,10 @@ exports.declineClaim = async (req, res) => {
     return res.json({ ok: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ ok: false, error: 'Server error' });
+    return res.status(500).json({ ok: false, error: 'Server error' });
   }
 };
 
-/** Claim-link page load — shows the participant's auto-filled details and
- * the consent document, never the coupon unless already accepted, and
- * flags the link as expired once the 30-minute window has passed
- * (only while still undecided). */
 exports.getClaim = async (req, res) => {
   try {
     const { token } = req.params;
@@ -108,6 +153,7 @@ exports.getClaim = async (req, res) => {
     if (!user) return res.status(404).json({ ok: false, message: 'Link not found' });
 
     const expired = isExpired(user);
+    const { currentLocation, state } = await getCurrentAdminLocation();
 
     return res.json({
       ok: true,
@@ -125,23 +171,21 @@ exports.getClaim = async (req, res) => {
       claimLinkDeclined: user.claimLinkDeclined,
       claimLinkDeclinedAt: user.claimLinkDeclinedAt,
       couponCode: user.claimAccepted ? user.couponCode : null,
+
+      // Live admin location only; not a participant snapshot field.
+      currentLocation,
+      state,
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ ok: false, error: 'Server error' });
+    return res.status(500).json({ ok: false, error: 'Server error' });
   }
 };
 
-/** "Accept" checkbox + Submit on the claim-link page — this is the ONLY
- * point where the daily/window/hour coupon quota is actually consumed and
- * the coupon code is generated. Nothing is reserved earlier (coin-win is a
- * read-only probability check, see coinController.startCoin) — consent
- * Accept is the real, atomic point of consumption, matching the business
- * rule that only an accepted consent letter is a "successful coupon". If
- * the quota is exhausted by the time this runs (only possible in a tight
- * concurrent race right at the boundary), the participant sees a clear
- * "quota full" message here instead of a coupon code. */
 exports.acceptClaim = async (req, res) => {
+  let uploadedSignatureKey = null;
+  let uploadedPdfKey = null;
+
   try {
     const { token } = req.params;
     const user = await User.findOne({ claimToken: token });
@@ -153,23 +197,89 @@ exports.acceptClaim = async (req, res) => {
       return res.status(400).json({ ok: false, message: 'This link has expired', expired: true });
     }
 
-    if (!user.claimAccepted) {
-      const dateStr = getTodayStr();
-      const confirmation = await confirmCouponSlot(dateStr);
-      if (!confirmation.ok) {
-        return res.status(400).json({
-          ok: false,
-          message: "Sorry, today's coupon quota is full. Please try again tomorrow.",
-        });
-      }
-
-      user.claimAccepted = true;
-      user.claimAcceptedAt = new Date();
-      user.windowKey = confirmation.windowKey;
-      user.slotPlanSnapshot = confirmation.slotPlan;
-      user.couponCode = generateCouponCode();
-      await user.save();
+    // Idempotent repeat accept: do not require a second signature.
+    if (user.claimAccepted) {
+      return res.json({
+        ok: true,
+        name: user.name || null,
+        couponCode: user.couponCode,
+      });
     }
+
+    const signatureBuffer = parseSignatureDataUrl(req.body?.signatureDataUrl);
+    const { currentLocation, state } = await getCurrentAdminLocation();
+    if (!currentLocation) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Campaign location is not configured. Please contact the administrator.',
+      });
+    }
+
+    const acceptedAt = new Date();
+    const dateStr = getCampaignDateStr(acceptedAt);
+    const safeName = sanitizeName(user.name);
+    const safePhone = sanitizePhone(user.phone);
+    const folder = `bcm/${dateStr}`;
+    const signatureKey = `${folder}/cons-${safeName}-${safePhone}-signature.png`;
+    const pdfKey = `${folder}/cons-letter-${safeName}-${safePhone}.pdf`;
+
+    // Create immutable final files first. If quota fails, delete these files.
+    const signatureUpload = await uploadBuffer({
+      key: signatureKey,
+      buffer: signatureBuffer,
+      contentType: 'image/png',
+      contentDisposition: 'inline',
+    });
+    uploadedSignatureKey = signatureKey;
+
+    const pdfBuffer = await generateReleasePdf({
+      name: user.name || 'Participant',
+      phone: user.phone || '',
+      participantId: String(user._id),
+      location: currentLocation,
+      state,
+      acceptedAt,
+      signatureBuffer,
+    });
+
+    const pdfUpload = await uploadBuffer({
+      key: pdfKey,
+      buffer: pdfBuffer,
+      contentType: 'application/pdf',
+      contentDisposition: `inline; filename="${pdfKey.split('/').pop()}"`,
+    });
+    uploadedPdfKey = pdfKey;
+
+    // Preserve the current business rule exactly: consent acceptance is the
+    // only place that consumes the slot quota in slot-based mode.
+    const confirmation = await confirmCouponSlot(dateStr);
+    if (!confirmation.ok) {
+      await Promise.allSettled([deleteObject(signatureKey), deleteObject(pdfKey)]);
+      uploadedSignatureKey = null;
+      uploadedPdfKey = null;
+      return res.status(400).json({
+        ok: false,
+        message: "Sorry, today's coupon quota is full. Please try again tomorrow.",
+      });
+    }
+
+    user.claimAccepted = true;
+    user.claimAcceptedAt = acceptedAt;
+    user.windowKey = confirmation.windowKey;
+    user.slotPlanSnapshot = confirmation.slotPlan;
+    user.couponCode = generateCouponCode();
+
+    user.signatureKey = signatureUpload.key;
+    user.signatureUrl = signatureUpload.url;
+    user.signatureSavedAt = acceptedAt;
+    user.consentPdfKey = pdfUpload.key;
+    user.consentPdfUrl = pdfUpload.url;
+
+    // Intentionally NO participant/consent location field is stored.
+    await user.save();
+
+    uploadedSignatureKey = null;
+    uploadedPdfKey = null;
 
     return res.json({
       ok: true,
@@ -178,13 +288,25 @@ exports.acceptClaim = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ ok: false, error: 'Server error' });
+    if (uploadedSignatureKey || uploadedPdfKey) {
+      await Promise.allSettled([
+        uploadedSignatureKey ? deleteObject(uploadedSignatureKey) : Promise.resolve(),
+        uploadedPdfKey ? deleteObject(uploadedPdfKey) : Promise.resolve(),
+      ]);
+    }
+
+    const message = err instanceof Error ? err.message : 'Server error';
+    if (
+      message.includes('Signature') ||
+      message.includes('signature') ||
+      message.includes('Campaign location')
+    ) {
+      return res.status(400).json({ ok: false, message });
+    }
+    return res.status(500).json({ ok: false, error: 'Server error' });
   }
 };
 
-/** "Decline" checkbox + Submit on the claim-link page — the participant
- * won the coin flip but chooses not to claim the coupon after reading the
- * consent document. Distinct from the earlier coin-win Cancel button. */
 exports.declineClaimLink = async (req, res) => {
   try {
     const { token } = req.params;
@@ -206,6 +328,6 @@ exports.declineClaimLink = async (req, res) => {
     return res.json({ ok: true, name: user.name || null });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ ok: false, error: 'Server error' });
+    return res.status(500).json({ ok: false, error: 'Server error' });
   }
 };
