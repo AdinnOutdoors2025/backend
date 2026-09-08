@@ -321,7 +321,7 @@ async function confirmCouponSlot(dateStr) {
  * group while varying which specific positions win across groups. The cycle
  * is persisted on CampaignDay (not the browser), so frontend refresh/reload
  * never resets it. */
-const MODE2_PATTERN = [true, true, true, true, true, true, true, false, false, false]; // 7 WIN, 3 TRY
+const MODE2_PATTERN = [true, true, true, true, true, true, true, true, true, false]; // 7 WIN, 3 TRY
 
 async function decideCoinOutcomeMode2(dateStr) {
   const campaignDay = await CampaignDay.findOneAndUpdate(
