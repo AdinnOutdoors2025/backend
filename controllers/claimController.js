@@ -80,18 +80,82 @@ function parseSignatureDataUrl(value) {
   return buffer;
 }
 
+// exports.registerClaim = async (req, res) => {
+//   try {
+//     const { sessionId, name, phone } = req.body;
+//     if (!sessionId || !phone) {
+//       return res.status(400).json({ ok: false, message: 'sessionId and phone required' });
+//     }
+
+//     const dateStr = getTodayStr();
+//     const user = await User.findOne({ sessionId, dateStr });
+//     if (!user) return res.status(404).json({ ok: false, message: 'Session not found for today' });
+//     if (user.coinResult !== 'win') {
+//       return res.status(400).json({ ok: false, message: 'No coupon to claim for this session' });
+//     }
+
+//     const alreadyUsedToday = await User.findOne({
+//       phone,
+//       dateStr,
+//       sessionId: { $ne: sessionId },
+//     });
+//     if (alreadyUsedToday) {
+//       return res.status(400).json({
+//         ok: false,
+//         message: 'This phone number has already claimed a coupon today. Please try again tomorrow.',
+//       });
+//     }
+
+//     user.name = name || user.name;
+//     user.phone = phone;
+//     if (!user.claimToken) {
+//       user.claimToken = await generateUniqueClaimToken();
+//       user.claimTokenIssuedAt = new Date();
+//     }
+//     await user.save();
+
+//     const frontendBaseUrl = process.env.FRONTEND_BASE_URL || '';
+//     const claimLink = `${frontendBaseUrl}/bcm?token=${user.claimToken}`;
+//     void sendConsentSms(user.phone, user.name, claimLink);
+
+//     return res.json({ ok: true, claimToken: user.claimToken });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ ok: false, error: 'Server error' });
+//   }
+// };
+
+
 exports.registerClaim = async (req, res) => {
   try {
     const { sessionId, name, phone } = req.body;
+
     if (!sessionId || !phone) {
-      return res.status(400).json({ ok: false, message: 'sessionId and phone required' });
+      return res.status(400).json({
+        ok: false,
+        message: 'sessionId and phone required',
+      });
     }
 
     const dateStr = getTodayStr();
-    const user = await User.findOne({ sessionId, dateStr });
-    if (!user) return res.status(404).json({ ok: false, message: 'Session not found for today' });
+
+    const user = await User.findOne({
+      sessionId,
+      dateStr,
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        ok: false,
+        message: 'Session not found for today',
+      });
+    }
+
     if (user.coinResult !== 'win') {
-      return res.status(400).json({ ok: false, message: 'No coupon to claim for this session' });
+      return res.status(400).json({
+        ok: false,
+        message: 'No coupon to claim for this session',
+      });
     }
 
     const alreadyUsedToday = await User.findOne({
@@ -99,6 +163,7 @@ exports.registerClaim = async (req, res) => {
       dateStr,
       sessionId: { $ne: sessionId },
     });
+
     if (alreadyUsedToday) {
       return res.status(400).json({
         ok: false,
@@ -108,23 +173,77 @@ exports.registerClaim = async (req, res) => {
 
     user.name = name || user.name;
     user.phone = phone;
+
     if (!user.claimToken) {
       user.claimToken = await generateUniqueClaimToken();
       user.claimTokenIssuedAt = new Date();
     }
+
     await user.save();
 
     const frontendBaseUrl = process.env.FRONTEND_BASE_URL || '';
     const claimLink = `${frontendBaseUrl}/bcm?token=${user.claimToken}`;
-    void sendConsentSms(user.phone, user.name, claimLink);
 
-    return res.json({ ok: true, claimToken: user.claimToken });
+    console.log('========== REGISTER CLAIM ==========');
+    console.log('[CLAIM] Session ID:', sessionId);
+    console.log('[CLAIM] Name:', user.name || 'N/A');
+    console.log(
+      '[CLAIM] Phone:',
+      String(user.phone).replace(/.(?=.{4})/g, '*')
+    );
+    console.log('[CLAIM] Claim Link:', claimLink);
+    console.log('[CLAIM] Sending consent SMS...');
+
+    const smsResult = await sendConsentSms(
+      user.phone,
+      user.name,
+      claimLink
+    );
+
+    if (smsResult.ok) {
+      console.log('------------------------------------');
+      console.log('[SMS SUCCESS] Consent SMS sent');
+      console.log(
+        '[SMS SUCCESS] Phone:',
+        String(user.phone).replace(/.(?=.{4})/g, '*')
+      );
+      console.log('[SMS SUCCESS] Nettyfish Response:', smsResult.response);
+      console.log('====================================');
+    } else {
+      console.error('------------------------------------');
+      console.error('[SMS FAILED] Consent SMS not sent');
+      console.error(
+        '[SMS FAILED] Phone:',
+        String(user.phone).replace(/.(?=.{4})/g, '*')
+      );
+      console.error('[SMS FAILED] Error:', smsResult.message || 'Unknown error');
+
+      if (smsResult.response) {
+        console.error(
+          '[SMS FAILED] Nettyfish Response:',
+          smsResult.response
+        );
+      }
+
+      console.error('====================================');
+    }
+
+    return res.json({
+      ok: true,
+      claimToken: user.claimToken,
+      smsSent: smsResult.ok,
+    });
   } catch (err) {
+    console.error('========== REGISTER CLAIM ERROR ==========');
     console.error(err);
-    return res.status(500).json({ ok: false, error: 'Server error' });
+    console.error('==========================================');
+
+    return res.status(500).json({
+      ok: false,
+      error: 'Server error',
+    });
   }
 };
-
 exports.declineClaim = async (req, res) => {
   try {
     const { sessionId } = req.body;
