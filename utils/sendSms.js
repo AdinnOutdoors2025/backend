@@ -61,7 +61,7 @@
 require("dotenv").config();
 const axios=require("axios");
 const CONSENT_SMS_TEMPLATE="Hi {#alp#}, please accept the consent form to receive your Bigg Boss coupon code. Click the link below to complete the process. This link is valid for {#num#} minutes.- Adinn\n{#urg#}";
-const CLAIM_WINDOW_MINUTES=5;
+const CLAIM_WINDOW_MINUTES=20;
 function buildConsentMessage(name,claimLink){
 return CONSENT_SMS_TEMPLATE.replace("{#alp#}",name||"there").replace("{#num#}",String(CLAIM_WINDOW_MINUTES)).replace("{#urg#}",claimLink);
 }
@@ -125,14 +125,27 @@ console.log("========== NETTYFISH SMS END ==========");
 return{ok:false,status:response.status,response:response.data,message:`Nettyfish HTTP ${response.status}`};
 }
 const responseText=typeof response.data==="string"?response.data:JSON.stringify(response.data);
+let parsedResponse=response.data;
+if(typeof parsedResponse==="string"){
+try{parsedResponse=JSON.parse(parsedResponse);}catch{parsedResponse=null;}
+}
+const errorCode=parsedResponse&&typeof parsedResponse==="object"?String(parsedResponse.ErrorCode??""):null;
+// Nettyfish uses ErrorCode "000" to mean success ("Done"), not an error.
+// A structured ErrorCode is authoritative when present; only fall back to
+// text-sniffing for legacy/plain-text responses that don't return one.
+let hasFailure;
+if(errorCode!==null&&errorCode!==""){
+hasFailure=errorCode!=="000";
+}else{
 const lowerResponse=responseText.toLowerCase();
-const hasFailure=lowerResponse.includes("error")||lowerResponse.includes("fail")||lowerResponse.includes("invalid")||lowerResponse.includes("unauthor")||lowerResponse.includes("rejected");
+hasFailure=lowerResponse.includes("error")||lowerResponse.includes("fail")||lowerResponse.includes("invalid")||lowerResponse.includes("unauthor")||lowerResponse.includes("rejected");
+}
 if(hasFailure){
 console.error("[SMS FAILED] Nettyfish rejected SMS:",responseText);
 console.log("========== NETTYFISH SMS END ==========");
 return{ok:false,response:response.data,message:responseText};
 }
-console.log("[SMS SENT] Nettyfish accepted SMS request successfully");
+console.log("[SMS SENT] Nettyfish accepted SMS request successfully (ErrorCode:",errorCode??"n/a",")");
 console.log("========== NETTYFISH SMS END ==========");
 return{ok:true,status:response.status,response:response.data};
 }catch(err){

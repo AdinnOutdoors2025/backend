@@ -7,7 +7,7 @@ const { confirmCouponSlot } = require('../services/campaignQuota');
 const { uploadBuffer, deleteObject } = require('../utils/spaces');
 const { generateReleasePdf } = require('../utils/releasePdf');
 
-const CLAIM_WINDOW_MS = 5 * 60 * 1000;
+const CLAIM_WINDOW_MS = 20 * 60 * 1000;
 const MAX_SIGNATURE_BYTES = 1024 * 1024; // 1 MB decoded PNG limit
 
 function getTodayStr() {
