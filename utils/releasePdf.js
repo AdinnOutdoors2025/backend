@@ -223,12 +223,255 @@
 // module.exports = {
 //   generateReleasePdf,
 // };
+
+
+
+const path = require("path");
 const PDFDocument = require("pdfkit");
 const sharp = require("sharp");
 const {
   buildReleaseDocument,
   LEGAL_POLICY_URL,
 } = require("./releaseLetter");
+
+const TAMIL_FONT = "TamilRegular";
+const TAMIL_BOLD_FONT = "TamilBold";
+const PDF_TEXT_COLOR = "#111111";
+const TAMIL_REGULAR_PATH = path.join(
+  __dirname,
+  "..",
+  "assets",
+  "fonts",
+  "NotoSansTamil-Regular.ttf",
+);
+const TAMIL_BOLD_PATH = path.join(
+  __dirname,
+  "..",
+  "assets",
+  "fonts",
+  "NotoSansTamil-Bold.ttf",
+);
+const TAMIL_SCRIPT_REGEX = /[஀-௿]+/g;
+
+function registerTamilFonts(doc) {
+  doc.registerFont(TAMIL_FONT, TAMIL_REGULAR_PATH);
+  doc.registerFont(TAMIL_BOLD_FONT, TAMIL_BOLD_PATH);
+}
+
+/**
+ * Splits text into alternating Tamil-script / non-Tamil-script runs so each
+ * run can be rendered with a font that actually has glyphs for it. PDFKit's
+ * standard Helvetica fonts only cover WinAnsi (Latin-1) and mangle Tamil.
+ */
+function splitByScript(text) {
+  const segments = [];
+  let lastIndex = 0;
+  let match;
+  TAMIL_SCRIPT_REGEX.lastIndex = 0;
+  while ((match = TAMIL_SCRIPT_REGEX.exec(text))) {
+    if (match.index > lastIndex) {
+      segments.push({ text: text.slice(lastIndex, match.index), tamil: false });
+    }
+    segments.push({ text: match[0], tamil: true });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    segments.push({ text: text.slice(lastIndex), tamil: false });
+  }
+  return segments.filter((segment) => segment.text.length > 0);
+}
+
+/**
+ * Renders a single-run string (label/value lines, regards block, etc.)
+ * switching fonts mid-string so Tamil segments use the embedded Tamil font
+ * while English segments keep the existing Helvetica styling.
+ */
+// function writeMixedRun(doc, text, options = {}) {
+//   const { x, y, width, align = "left", bold = false, size = 9.5, color = "#111111" } = options;
+//   const segments = splitByScript(String(text ?? ""));
+//   if (segments.length === 0) return;
+//   const latinFont = bold ? "Helvetica-Bold" : "Helvetica";
+//   const tamilFont = bold ? TAMIL_BOLD_FONT : TAMIL_FONT;
+//   segments.forEach((segment, index) => {
+//     const isFirst = index === 0;
+//     const isLast = index === segments.length - 1;
+//     // Re-assert the body text color for every run (including Tamil) so it
+//     // never inherits a heading/label color from an earlier doc.fillColor call.
+//     doc.fillColor(color);
+//     doc.font(segment.tamil ? tamilFont : latinFont).fontSize(size);
+//     const textOptions = {
+//       underline: false,
+//       link: null,
+//       continued: !isLast,
+//     };
+//     if (width !== undefined) textOptions.width = width;
+//     if (isLast) textOptions.align = align;
+//     if (isFirst && x !== undefined && y !== undefined) {
+//       doc.text(segment.text, x, y, textOptions);
+//     } else {
+//       doc.text(segment.text, textOptions);
+//     }
+//   });
+// }
+
+function writeMixedRun(doc,text,options={}) {
+  const {
+    x,
+    y,
+    width,
+    align="left",
+    bold=false,
+    size=9.5
+  }=options;
+
+  const segments=splitByScript(String(text??""));
+
+  if(!segments.length)return;
+
+  const latinFont=bold?"Helvetica-Bold":"Helvetica";
+  const tamilFont=bold?TAMIL_BOLD_FONT:TAMIL_FONT;
+
+  segments.forEach((segment,index)=>{
+
+    const isFirst=index===0;
+    const isLast=index===segments.length-1;
+
+    doc
+      .fillOpacity(1)
+      .fillColor(PDF_TEXT_COLOR)
+      .font(segment.tamil?tamilFont:latinFont)
+      .fontSize(size);
+
+    const textOptions={
+      underline:false,
+      link:null,
+      continued:!isLast
+    };
+
+    if(width!==undefined){
+      textOptions.width=width;
+    }
+
+    if(isLast){
+      textOptions.align=align;
+    }
+
+    if(isFirst && x!==undefined && y!==undefined){
+
+      doc.text(
+        segment.text,
+        x,
+        y,
+        textOptions
+      );
+
+    }else{
+
+      doc.text(
+        segment.text,
+        textOptions
+      );
+
+    }
+  });
+}
+
+/**
+ * Renders a justified paragraph that may contain Tamil segments, mirroring
+ * writeParagraphWithLink's continued-text technique.
+ */
+// function writeMixedParagraph(doc, text, { x, width, bold = false, size = 9.5, color = "#111111", lineGap = 2.5 } = {}) {
+//   const segments = splitByScript(String(text ?? ""));
+//   if (segments.length === 0) return;
+//   const latinFont = bold ? "Helvetica-Bold" : "Helvetica";
+//   const tamilFont = bold ? TAMIL_BOLD_FONT : TAMIL_FONT;
+//   segments.forEach((segment, index) => {
+//     const isFirst = index === 0;
+//     const isLast = index === segments.length - 1;
+//     // Re-assert the body text color for every run (including Tamil) so it
+//     // never inherits a heading/label color from an earlier doc.fillColor call.
+//     doc.fillColor(color);
+//     doc.font(segment.tamil ? tamilFont : latinFont).fontSize(size);
+//     const options = {
+//       width,
+//       lineGap,
+//       underline: false,
+//       link: null,
+//       continued: !isLast,
+//     };
+//     if (isLast) options.align = "justify";
+//     if (isFirst) {
+//       doc.text(segment.text, x, doc.y, options);
+//     } else {
+//       doc.text(segment.text, options);
+//     }
+//   });
+// }
+
+
+function writeMixedParagraph(doc,text,options={}) {
+
+  const {
+    x,
+    width,
+    bold=false,
+    size=9.5,
+    lineGap=2.5
+  }=options;
+
+  const segments=splitByScript(String(text??""));
+
+  if(!segments.length)return;
+
+  const latinFont=bold?"Helvetica-Bold":"Helvetica";
+  const tamilFont=bold?TAMIL_BOLD_FONT:TAMIL_FONT;
+
+  segments.forEach((segment,index)=>{
+
+    const isFirst=index===0;
+    const isLast=index===segments.length-1;
+
+    doc
+      .fillOpacity(1)
+      .fillColor(PDF_TEXT_COLOR)
+      .font(segment.tamil?tamilFont:latinFont)
+      .fontSize(size);
+
+
+    const textOptions={
+      width,
+      lineGap,
+      underline:false,
+      link:null,
+      continued:!isLast
+    };
+
+
+    if(isLast){
+      textOptions.align="justify";
+    }
+
+
+    if(isFirst){
+
+      doc.text(
+        segment.text,
+        x,
+        doc.y,
+        textOptions
+      );
+
+    }else{
+
+      doc.text(
+        segment.text,
+        textOptions
+      );
+
+    }
+
+  });
+}
 function getContentMetrics(doc) {
   const left = doc.page.margins.left;
   const right = doc.page.width - doc.page.margins.right;
@@ -403,14 +646,19 @@ function drawConsentSignatureSection({
   const signatureBlockX = pageRight - SIGNATURE_BLOCK_WIDTH;
   const nameText = `Name: ${release.regards.name}`;
   const placeText = `Place: ${release.regards.place}`;
+  const hasTamil = (value) => {
+    TAMIL_SCRIPT_REGEX.lastIndex = 0;
+    return TAMIL_SCRIPT_REGEX.test(value);
+  };
   doc.font("Helvetica-Bold").fontSize(10);
   const regardsHeight = doc.heightOfString("Regards,", {
     width: leftWidth,
   });
-  doc.font("Helvetica").fontSize(10);
+  doc.font(hasTamil(nameText) ? TAMIL_FONT : "Helvetica").fontSize(10);
   const nameHeight = doc.heightOfString(nameText, {
     width: leftWidth,
   });
+  doc.font(hasTamil(placeText) ? TAMIL_FONT : "Helvetica").fontSize(10);
   const placeHeight = doc.heightOfString(placeText, {
     width: leftWidth,
   });
@@ -457,40 +705,24 @@ function drawConsentSignatureSection({
       underline: false,
       link: null,
     });
-  doc
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor("#111111")
-    .text(
-      nameText,
-      leftX,
-      startY + regardsHeight + LEFT_LINE_GAP,
-      {
-        width: leftWidth,
-        align: "left",
-        underline: false,
-        link: null,
-      },
-    );
-  doc
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor("#111111")
-    .text(
-      placeText,
-      leftX,
-      startY +
-        regardsHeight +
-        LEFT_LINE_GAP +
-        nameHeight +
-        LEFT_LINE_GAP,
-      {
-        width: leftWidth,
-        align: "left",
-        underline: false,
-        link: null,
-      },
-    );
+  writeMixedRun(doc, nameText, {
+    x: leftX,
+    y: startY + regardsHeight + LEFT_LINE_GAP,
+    width: leftWidth,
+    align: "left",
+    size: 10,
+    color: "#111111",
+  });
+  const placeY =
+    startY + regardsHeight + LEFT_LINE_GAP + nameHeight + LEFT_LINE_GAP;
+  writeMixedRun(doc, placeText, {
+    x: leftX,
+    y: placeY,
+    width: leftWidth,
+    align: "left",
+    size: 10,
+    color: "#111111",
+  });
   doc
     .font("Helvetica-Bold")
     .fontSize(10)
@@ -590,6 +822,7 @@ async function generateReleasePdf({
         Author: "Bigg Boss Tamil",
       },
     });
+    registerTamilFonts(doc);
     const chunks = [];
     doc.on("data", (chunk) => {
       chunks.push(chunk);
@@ -628,9 +861,10 @@ async function generateReleasePdf({
       .font("Helvetica-Bold")
       .fontSize(9.5)
       .fillColor("#111111");
-    doc.text(`Participant: ${name || "-"}`, {
-      underline: false,
-      link: null,
+    writeMixedRun(doc, `Participant: ${name || "-"}`, {
+      bold: true,
+      size: 9.5,
+      color: "#111111",
     });
     doc.text(`Mobile: ${formattedPhone}`, {
       underline: false,
@@ -640,13 +874,15 @@ async function generateReleasePdf({
       underline: false,
       link: null,
     });
-    doc.text(`Location: ${location || "-"}`, {
-      underline: false,
-      link: null,
+    writeMixedRun(doc, `Location: ${location || "-"}`, {
+      bold: true,
+      size: 9.5,
+      color: "#111111",
     });
-    doc.text(`State: ${state || "Tamil Nadu"}`, {
-      underline: false,
-      link: null,
+    writeMixedRun(doc, `State: ${state || "Tamil Nadu"}`, {
+      bold: true,
+      size: 9.5,
+      color: "#111111",
     });
     doc.text(`Date: ${release.dateLine}`, {
       underline: false,
@@ -663,10 +899,16 @@ async function generateReleasePdf({
         link: null,
       });
     doc.moveDown(0.8);
-    writeNormalParagraph(
-      doc,
-      release.intro,
-    );
+    {
+      const introMetrics = getContentMetrics(doc);
+      doc.x = introMetrics.left;
+      writeMixedParagraph(doc, release.intro, {
+        x: introMetrics.left,
+        width: introMetrics.width,
+      });
+      doc.x = introMetrics.left;
+      doc.moveDown(0.75);
+    }
     for (const clause of release.clauses) {
       writeParagraphWithLink(
         doc,
