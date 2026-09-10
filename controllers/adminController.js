@@ -17,6 +17,7 @@ const {
   ensureCurrentWindow,
 } = require('../services/campaignQuota');
 const { getObjectStream } = require('../utils/spaces');
+const { normalizeLocation } = require('../utils/tamilTransliterate');
 
 function getTodayStr() {
   return getCampaignDateStr();
@@ -79,13 +80,16 @@ exports.getLocation = async (req, res) => {
 /** Update admin campaign location and append one admin-only history row. */
 exports.updateLocation = async (req, res) => {
   try {
-    const location = String(req.body?.location || '').trim().replace(/\s+/g, ' ');
-    if (!location) {
+    const rawLocation = String(req.body?.location || '').trim().replace(/\s+/g, ' ');
+    if (!rawLocation) {
       return res.status(400).json({ ok: false, message: 'Location is required' });
     }
-    if (location.length > 120) {
+    if (rawLocation.length > 120) {
       return res.status(400).json({ ok: false, message: 'Location is too long' });
     }
+    // Location is always stored/displayed in English (reports, consent
+    // letters). Any Tamil Unicode text is transliterated, not translated.
+    const location = normalizeLocation(rawLocation);
     const requestedState = String(req.body?.state || '').trim().replace(/\s+/g, ' ');
     if (requestedState.length > 120) {
       return res.status(400).json({ ok: false, message: 'State is too long' });
